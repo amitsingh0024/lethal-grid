@@ -690,7 +690,7 @@ export default function App() {
     }
 
     const shareText = [
-      `🏰 SIEGE OF EMBERKEEP (${
+      `🏰 LETHAL GRID: OVERCLOCK (${
         gameMode === 'DAILY' ? `Daily Decree #${todaySeed}` : `Wave ${boardSector}`
       })`,
       `Courtyard: ${activeGridSize}×${activeGridSize} | Sieges Broken: ${save.lethalClears}`,
@@ -796,7 +796,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="brand-title">
-                SIEGE OF EMBERKEEP <span className="badge-cyan">ROYAL EDITION</span>
+                LETHAL GRID: OVERCLOCK <span className="badge-cyan">ROYAL EDITION</span>
               </h1>
             </div>
           </div>
@@ -987,7 +987,7 @@ export default function App() {
             </div>
 
             <span className="title-eyebrow-ribbon">ONE-TURN CHAIN-REACTION SIEGE TACTICS</span>
-            <h1 className="title-main-logo">SIEGE OF EMBERKEEP</h1>
+            <h1 className="title-main-logo">LETHAL GRID: OVERCLOCK</h1>
             <p className="title-tagline">
               Command the battlements. Detonate the Goblin horde in a single volley.
             </p>
@@ -1462,10 +1462,10 @@ export default function App() {
           <div className="seo-grid">
             <article className="seo-card">
               <h3>
-                <BookOpen size={18} className="text-amber" /> How to Play Siege of Emberkeep
+                <BookOpen size={18} className="text-amber" /> How to Play Lethal Grid: Overclock
               </h3>
               <p>
-                <strong>Siege of Emberkeep</strong> blends tactical one-turn medieval puzzle warfare
+                <strong>Lethal Grid: Overclock</strong> blends tactical one-turn medieval puzzle warfare
                 (&ldquo;Find Lethal&rdquo;) with incremental stronghold progression. Rout 100% of the
                 invading raiders in the courtyard in a single turn using your Siege Volleys!
               </p>
@@ -1579,7 +1579,7 @@ export default function App() {
           <div className="modal-card privacy-modal-card">
             <h3>Privacy Charter & Google AdSense / Analytics Disclosure</h3>
             <p>
-              <strong>1. Local Browser Storage:</strong> Siege of Emberkeep stores your Kingdom
+              <strong>1. Local Browser Storage:</strong> Lethal Grid: Overclock stores your Kingdom
               progress locally in your browser&apos;s <code>localStorage</code>.
             </p>
             <p>
