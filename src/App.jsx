@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Crosshair,
@@ -175,6 +175,9 @@ export default function App() {
   const [gameMode, setGameMode] = useState('CAMPAIGN'); // 'CAMPAIGN' | 'DAILY'
   const [selectedAbilityId, setSelectedAbilityId] = useState('rail_beam');
   const [hoverCell, setHoverCell] = useState({ row: null, col: null });
+  // Touch has no hover, so the first tap aims (shows the blast preview) and a second tap fires
+  const [armedCellId, setArmedCellId] = useState(null);
+  const lastPointerTypeRef = useRef('mouse');
   const [muted, setMuted] = useState(false);
   const [screenShake, setScreenShake] = useState(false);
   const [floatingPopups, setFloatingPopups] = useState([]);
@@ -355,6 +358,7 @@ export default function App() {
     setTutorialStep(step);
     setSelectedAbilityId('rail_beam');
     setBoard(generateTutorialBoard(step));
+    setArmedCellId(null);
     setChargesLeft(1);
     setTurnAmplifierBonus(1);
     setLastTurnStats(null);
@@ -382,6 +386,7 @@ export default function App() {
     });
 
     setBoard(nextCells);
+    setArmedCellId(null);
     setBoardSector(isDaily ? 5 : targetSector);
     setChargesLeft(maxChg);
     setTurnAmplifierBonus(1);
@@ -409,8 +414,16 @@ export default function App() {
   });
 
   // Execute Weapon Strike + Trigger 60fps Canvas Weapon Animation
-  const handleCellClick = (row, col) => {
+  const handleCellClick = (cell) => {
     if (chargesLeft <= 0) return;
+    const { row, col } = cell;
+
+    if (lastPointerTypeRef.current === 'touch' && armedCellId !== cell.id) {
+      setArmedCellId(cell.id);
+      setHoverCell({ row, col });
+      return;
+    }
+    setArmedCellId(null);
 
     // Trigger physical recoil/use animation on the weapon card in the dock
     setFiringWeaponId(selectedAbilityId);
@@ -1146,7 +1159,9 @@ export default function App() {
                 style={{
                   gridTemplateColumns: `repeat(${activeGridSize}, minmax(0, 1fr))`,
                 }}
-                onMouseLeave={() => setHoverCell({ row: null, col: null })}
+                onMouseLeave={() => {
+                  if (lastPointerTypeRef.current !== 'touch') setHoverCell({ row: null, col: null });
+                }}
               >
                 {board.map((cell, idx) => {
                   const isTargeted = previewIndices.has(idx);
@@ -1159,6 +1174,8 @@ export default function App() {
                     !isDead &&
                     activeTutorialLesson?.highlightCell.row === cell.row &&
                     activeTutorialLesson?.highlightCell.col === cell.col;
+
+                  const isArmed = armedCellId === cell.id && chargesLeft > 0;
 
                   const cellPopup = floatingPopups.find(
                     (p) => p.row === cell.row && p.col === cell.col
@@ -1174,19 +1191,31 @@ export default function App() {
                         isDead ? 'tile-dead' : `tile-alive color-${meta.color}`,
                         isTargeted ? 'tile-targeted' : '',
                         isTutorialTarget ? 'tile-tutorial-beacon' : '',
+                        isArmed ? 'tile-armed' : '',
                         cell.justHit ? 'tile-hit-flash' : '',
                         cell.destroyedByChain ? 'tile-chain-wrecked' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
-                      onMouseEnter={() => setHoverCell({ row: cell.row, col: cell.col })}
+                      onPointerDown={(e) => {
+                        lastPointerTypeRef.current = e.pointerType;
+                      }}
+                      onMouseEnter={() => {
+                        if (lastPointerTypeRef.current !== 'touch') {
+                          setHoverCell({ row: cell.row, col: cell.col });
+                        }
+                      }}
                       onFocus={() => setHoverCell({ row: cell.row, col: cell.col })}
-                      onClick={() => handleCellClick(cell.row, cell.col)}
+                      onClick={() => handleCellClick(cell)}
                     >
                       {cellPopup && <span className="floating-dmg-popup">{cellPopup.text}</span>}
 
-                      {isTutorialTarget && (
-                        <span className="tutorial-click-tag">👇 STRIKE HERE!</span>
+                      {isArmed ? (
+                        <span className="tutorial-click-tag">TAP AGAIN TO FIRE</span>
+                      ) : (
+                        isTutorialTarget && (
+                          <span className="tutorial-click-tag">👇 STRIKE HERE!</span>
+                        )
                       )}
 
                       {!isDead ? (

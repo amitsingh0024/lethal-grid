@@ -3066,3 +3066,10 @@ body {
   padding: 2px 8px;
   border-radius: 999px;
 }
+
+/* Touch: tile aimed by the first tap, waiting for the second tap to fire */
+.grid-tile.tile-armed {
+  outline: 3px solid #facc15;
+  outline-offset: -3px;
+  z-index: 5;
+}
