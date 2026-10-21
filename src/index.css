@@ -1729,3 +1729,244 @@ button:disabled {
   font-size: 0.82rem;
   color: var(--text-muted);
 }
+
+/* ============================================================================
+   BACKPACK HERO / PEGLIN STYLE TOP DUNGEON STAGE & PIXEL-ART INVENTORY GRID
+   ============================================================================ */
+.dungeon-stage-banner {
+  position: relative;
+  width: 100%;
+  background:
+    radial-gradient(circle at 18% 28%, rgba(251, 146, 60, 0.25), transparent 40%),
+    radial-gradient(circle at 82% 28%, rgba(251, 146, 60, 0.25), transparent 40%),
+    repeating-linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.22) 0px,
+      rgba(0, 0, 0, 0.22) 3px,
+      transparent 3px,
+      transparent 44px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      #27211d 0px,
+      #27211d 20px,
+      #1a1613 20px,
+      #1a1613 23px
+    );
+  border: 4px solid #44382c;
+  outline: 2px solid #120d09;
+  border-radius: 14px;
+  padding: 12px 18px 0;
+  box-shadow: inset 0 12px 28px rgba(0, 0, 0, 0.75), 0 8px 20px rgba(0, 0, 0, 0.65);
+  overflow: hidden;
+}
+
+.dungeon-torches {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.wall-torch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.torch-flame {
+  width: 12px;
+  height: 16px;
+  background: radial-gradient(circle, #fef08a 20%, #f97316 65%, transparent 100%);
+  border-radius: 50% 50% 35% 35%;
+  box-shadow: 0 0 16px #f97316, 0 0 28px #eab308;
+  animation: torchFlicker 0.35s infinite alternate;
+}
+
+.torch-bracket {
+  width: 6px;
+  height: 12px;
+  background: #57534e;
+  border: 1px solid #1c1917;
+}
+
+@keyframes torchFlicker {
+  0% {
+    transform: scale(0.92) rotate(-3deg);
+    opacity: 0.88;
+  }
+  100% {
+    transform: scale(1.08) rotate(3deg);
+    opacity: 1;
+  }
+}
+
+.dungeon-arch-title {
+  background: #14100d;
+  border: 2px solid #785233;
+  padding: 3px 14px;
+  border-radius: 6px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fde68a;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6);
+}
+
+.dungeon-actors-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 110px;
+  align-items: end;
+  gap: 12px;
+  padding-bottom: 6px;
+}
+
+@media (max-width: 600px) {
+  .dungeon-actors-row {
+    grid-template-columns: 80px 1fr 80px;
+  }
+}
+
+.hero-stage-side,
+.horde-stage-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.18s ease;
+}
+
+.hero-lunging {
+  animation: heroAttackLunge 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes heroAttackLunge {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  40% {
+    transform: translateX(26px) translateY(-6px) scale(1.12);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
+.hero-character-box,
+.horde-character-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-equipped-weapon {
+  position: absolute;
+  right: -12px;
+  bottom: 2px;
+  transform: rotate(15deg);
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.8));
+}
+
+.actor-pedestal-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #14100d;
+  border: 1px solid #785233;
+  color: #fde68a;
+  white-space: nowrap;
+}
+
+.horde-label {
+  border-color: #dc2626;
+  color: #fca5a5;
+}
+
+/* Aged Parchment Speech Bubble in Center of Dungeon Stage */
+.stage-speech-scroll {
+  background: linear-gradient(180deg, #f3e5ab, #e6d296);
+  border: 3px solid #78350f;
+  outline: 2px solid #291509;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  color: #291509;
+  box-shadow: inset 0 0 12px rgba(133, 77, 14, 0.25), 0 6px 14px rgba(0, 0, 0, 0.65);
+}
+
+.stage-speech-scroll p {
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #291509;
+}
+
+.dungeon-floor-ledge {
+  height: 10px;
+  margin: 0 -18px;
+  background: repeating-linear-gradient(
+    90deg,
+    #57534e 0px,
+    #57534e 28px,
+    #292524 28px,
+    #292524 32px
+  );
+  border-top: 2px solid #78716c;
+}
+
+/* BACKPACK HERO LEATHER SATCHEL & RECESSED STONE GRID SLOTS */
+.tactical-grid {
+  background: #3b2618 !important;
+  border: 5px solid #6b4423 !important;
+  outline: 3px solid #1c1108 !important;
+  box-shadow:
+    inset 0 0 0 2px #8c5a32,
+    inset 0 8px 24px rgba(0, 0, 0, 0.8),
+    0 14px 32px rgba(0, 0, 0, 0.8) !important;
+}
+
+.grid-tile.tile-alive {
+  background: #27221e !important;
+  border: 3px solid #14100d !important;
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, 0.75),
+    0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.grid-tile.tile-alive.color-rose {
+  background: #3d1c17 !important;
+  border-color: #ea580c !important;
+}
+
+.grid-tile.tile-alive.color-amber {
+  background: #1f2842 !important;
+  border-color: #eab308 !important;
+}
+
+.grid-tile.tile-alive.color-emerald {
+  background: #153528 !important;
+  border-color: #10b981 !important;
+}
+
+.grid-tile.tile-alive.color-violet {
+  background: #3b1728 !important;
+  border-color: #facc15 !important;
+}
+
+.conduit-dir-tag {
+  position: absolute;
+  top: 22px;
+  right: 4px;
+  background: #1e3a8a;
+  border: 1px solid #facc15;
+  color: #fef08a;
+  font-size: 0.65rem;
+  font-weight: 900;
+  padding: 0 4px;
+  border-radius: 4px;
+  z-index: 5;
+}

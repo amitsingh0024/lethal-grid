@@ -45,62 +45,14 @@ import {
   getMonetizationConfig,
 } from './services/analytics';
 import { AdBannerSlot, RewardedAdModal } from './components/AdUnit';
-import { CreatureSprite, CommanderAvatar } from './components/CreatureSprite';
+import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
+import { DungeonStageBanner } from './components/DungeonStageBanner';
 
 const STORAGE_KEY = 'siege_of_emberkeep_save_v1';
 
-const ABILITY_ICONS = {
-  Crosshair,
-  Flame,
-  Zap,
-  Sparkles,
-};
-
-/**
- * Custom Medieval Weapon SVG Icons for the Weapon Dock
- */
 function WeaponIllustration({ id }) {
-  if (id === 'rail_beam') {
-    // Heavy Castle Ballista / Crossbow
-    return (
-      <svg viewBox="0 0 40 40" className="weapon-svg-icon">
-        <path d="M6 20 Q20 6 34 20" stroke="#d97706" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-        <line x1="6" y1="20" x2="34" y2="20" stroke="#d6d3d1" strokeWidth="1.5" />
-        <line x1="20" y1="6" x2="20" y2="35" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
-        <polygon points="20,2 15,10 25,10" fill="#e2e8f0" />
-      </svg>
-    );
-  }
-  if (id === 'nova_bomb') {
-    // Alchemist Wildfire Glass Flask
-    return (
-      <svg viewBox="0 0 40 40" className="weapon-svg-icon">
-        <rect x="16" y="5" width="8" height="7" rx="2" fill="#a16207" />
-        <path d="M15 12 L25 12 L31 24 A11 11 0 1 1 9 24 Z" fill="#ea580c" stroke="#fde68a" strokeWidth="2" />
-        <circle cx="17" cy="25" r="2.5" fill="#fef08a" />
-        <circle cx="23" cy="28" r="1.8" fill="#fef08a" />
-      </svg>
-    );
-  }
-  if (id === 'arc_chain') {
-    // Dwarven Thunder-Hammer
-    return (
-      <svg viewBox="0 0 40 40" className="weapon-svg-icon">
-        <line x1="20" y1="16" x2="20" y2="36" stroke="#78350f" strokeWidth="4.5" strokeLinecap="round" />
-        <rect x="7" y="7" width="26" height="13" rx="3" fill="#78716c" stroke="#facc15" strokeWidth="2" />
-        <path d="M18 10 L22 10 L19 16 L23 16" stroke="#fef08a" strokeWidth="1.8" fill="none" />
-      </svg>
-    );
-  }
-  // Executioner's Greatsword
-  return (
-    <svg viewBox="0 0 40 40" className="weapon-svg-icon">
-      <line x1="9" y1="31" x2="32" y2="8" stroke="#e2e8f0" strokeWidth="4" strokeLinecap="round" />
-      <line x1="11" y1="21" x2="19" y2="29" stroke="#fbbf24" strokeWidth="3.5" strokeLinecap="round" />
-      <line x1="7" y1="33" x2="12" y2="28" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
-    </svg>
-  );
+  return <WeaponPixelIcon id={id} size={36} />;
 }
 
 /**
@@ -945,49 +897,16 @@ export default function App() {
           ===================================================================== */}
       {(screen === 'PLAY' || screen === 'TUTORIAL') && (
         <main className="arena-focused-stage">
-          {/* SIR ALDRIC PARCHMENT SCROLL DIALOGUE */}
-          <div className="commander-dialogue-bar">
-            <CommanderAvatar mood={isBoardCleared ? 'excited' : 'happy'} />
-            <div className="commander-speech-box">
-              <div className="commander-name-row">
-                <strong>
-                  {screen === 'TUTORIAL'
-                    ? `SIR ALDRIC • ${activeTutorialLesson?.title}`
-                    : gameMode === 'DAILY'
-                    ? `ROYAL DAILY DECREE (#${getTodayDateSeed()})`
-                    : `SIR ALDRIC • SIEGE WAVE ${save.sector} (${activeGridSize}×${activeGridSize} COURTYARD)`}
-                </strong>
-
-                {screen === 'PLAY' && gameMode === 'CAMPAIGN' && (
-                  <div className="sector-stepper">
-                    <button
-                      type="button"
-                      disabled={save.sector <= 1}
-                      onClick={() => {
-                        const prevSec = Math.max(1, save.sector - 1);
-                        setSave((s) => ({ ...s, sector: prevSec }));
-                        startGameSession('CAMPAIGN', prevSec);
-                      }}
-                    >
-                      ◀ Prev Wave
-                    </button>
-                    <button
-                      type="button"
-                      disabled={save.sector >= save.maxSectorReached}
-                      onClick={() => {
-                        const nextSec = save.sector + 1;
-                        setSave((s) => ({ ...s, sector: nextSec }));
-                        startGameSession('CAMPAIGN', nextSec);
-                      }}
-                    >
-                      Next Wave ▶
-                    </button>
-                  </div>
-                )}
-              </div>
-              <p>&ldquo;{commanderMessage}&rdquo;</p>
-            </div>
-          </div>
+          {/* BACKPACK HERO / PEGLIN STYLE TOP DUNGEON STAGE SCENE */}
+          <DungeonStageBanner
+            waveNumber={screen === 'TUTORIAL' ? tutorialStep : save.sector}
+            remainingEnemies={remainingAliveNodes}
+            totalEnemies={board.filter((c) => c.type !== NODE_TYPES.EMPTY).length}
+            isAttacking={Boolean(firingWeaponId)}
+            isCleared={isBoardCleared}
+            commanderMessage={commanderMessage}
+            selectedWeaponId={selectedAbilityId}
+          />
 
           {/* STATUS STRIP: VOLLEY CHARGES + ACTIONS */}
           <div className="battle-hud-bar">
