@@ -2,212 +2,237 @@ import React from 'react';
 import { NODE_TYPES } from '../game/engine';
 
 /**
- * Animated SVG Cyber-Creatures & Bosses
- * Gives every grid cell a distinct, breathing, animated monster character:
- * 1. STANDARD -> "Cyber-Mite" (hovering mechanical beetle with blinking visor & wiggling legs)
- * 2. BOMB     -> "Pyro-Tick" (volatile magma bug with a pulsing, sparking plasma belly)
- * 3. CONDUIT  -> "Volt-Wisp" (crackling electric jellyfish with directional lightning tendrils)
- * 4. AMPLIFIER-> "Crystal-Sprite" (levitating emerald prism creature with rotating orbital shards)
- * 5. BOSS     -> "Apex Dreadnought" (horned cyber-mech titan with glowing core & menacing eyes)
+ * Handcrafted Medieval Fantasy Units & Sir Aldric the Siege Master
+ *
+ * Every unit has custom layered SVG illustration with idle breathing, weapon bobbing,
+ * and panic shake when targeted by your siege weapons:
+ * 1. STANDARD  -> "Goblin Footpad" (Pointy ears, iron Kettle helm, wooden buckler shield & dagger)
+ * 2. BOMB      -> "Powder-Keg Sapper" (Crazy goblin hugging a banded oak Black-Powder Barrel with a burning fuse!)
+ * 3. CONDUIT   -> "Storm-Rune Shaman" (Hooded battle-mage holding a crackling golden Runestone staff)
+ * 4. AMPLIFIER -> "Royal War-Horn Herald" (Golden banner-bearer whose horn rally boosts your turn damage by +50%!)
+ * 5. BOSS      -> "Ironclad Siege Ogre" (Massive horned iron-armored warlord with glowing crimson eyes)
  */
 export function CreatureSprite({ type, conduitAxis = 'ROW', isTargeted = false, isLowHp = false }) {
   const pulseClass = isTargeted ? 'creature-panicked' : 'creature-idle';
   const lowHpClass = isLowHp ? 'creature-wounded' : '';
 
   if (type === NODE_TYPES.BOMB) {
-    // PYRO-TICK (Volatile Bomb Creature — explodes in 3x3 on death!)
+    // POWDER-KEG SAPPER (Explodes in a 3x3 fireball when slain!)
     return (
-      <div className={`creature-wrap ${pulseClass} ${lowHpClass}`} title="Pyro-Tick: Explodes 3x3 on death!">
+      <div
+        className={`creature-wrap ${pulseClass} ${lowHpClass}`}
+        title="Powder-Keg Sapper: Black-powder barrel explodes in a 3x3 area when slain!"
+      >
         <svg viewBox="0 0 64 64" className="creature-svg">
-          {/* Glowing magma aura */}
-          <circle cx="32" cy="34" r="22" className="bomb-aura" />
-          {/* Little legs */}
-          <path d="M12 32 L4 26 M12 38 L4 42 M52 32 L60 26 M52 38 L60 42" stroke="#fb7185" strokeWidth="3.5" strokeLinecap="round" />
-          {/* Bomb Body */}
-          <circle cx="32" cy="35" r="18" fill="#be123c" stroke="#fda4af" strokeWidth="2.5" />
-          {/* Pulsing Magma Core */}
-          <circle cx="32" cy="36" r="10" fill="#fb923c" className="bomb-belly-pulse" />
-          {/* Sparking Fuse Horn */}
-          <path d="M32 17 Q36 9 43 10" stroke="#fde047" strokeWidth="3" fill="none" strokeLinecap="round" />
-          <circle cx="44" cy="10" r="4.5" fill="#fef08a" className="fuse-spark" />
-          {/* Angry Glowing Eyes */}
-          <polygon points="22,29 29,32 23,34" fill="#fef08a" />
-          <polygon points="42,29 35,32 41,34" fill="#fef08a" />
+          {/* Warm torchlight glow behind barrel */}
+          <circle cx="32" cy="36" r="22" className="bomb-aura" />
+
+          {/* Goblin Ears peeking from behind barrel */}
+          <path d="M14 22 L4 16 L12 28 Z" fill="#65a30d" stroke="#365314" strokeWidth="1.8" />
+          <path d="M50 22 L60 16 L52 28 Z" fill="#65a30d" stroke="#365314" strokeWidth="1.8" />
+
+          {/* Wooden Black-Powder Keg */}
+          <rect
+            x="16"
+            y="20"
+            width="32"
+            height="34"
+            rx="10"
+            fill="#78350f"
+            stroke="#451a03"
+            strokeWidth="2.5"
+          />
+          {/* Wood stave lines */}
+          <line x1="25" y1="21" x2="25" y2="53" stroke="#451a03" strokeWidth="1.8" />
+          <line x1="39" y1="21" x2="39" y2="53" stroke="#451a03" strokeWidth="1.8" />
+
+          {/* Hammered Iron Barrel Bands */}
+          <rect x="15" y="26" width="34" height="4.5" rx="2" fill="#57534e" stroke="#1c1917" strokeWidth="1.2" />
+          <rect x="15" y="42" width="34" height="4.5" rx="2" fill="#57534e" stroke="#1c1917" strokeWidth="1.2" />
+
+          {/* Glowing Skull / Powder Warning Sign on Barrel */}
+          <circle cx="32" cy="36" r="6" fill="#ea580c" className="bomb-belly-pulse" />
+          <path d="M29 35 L35 35 M32 32 L32 39" stroke="#fef08a" strokeWidth="2.2" strokeLinecap="round" />
+
+          {/* Burning Rope Fuse & Dancing Spark */}
+          <path d="M32 20 Q37 10 45 11" stroke="#d6d3d1" strokeWidth="3" fill="none" strokeLinecap="round" />
+          <circle cx="46" cy="11" r="5" fill="#f97316" className="fuse-spark" />
+          <circle cx="46" cy="11" r="2.5" fill="#fef08a" className="fuse-spark" />
         </svg>
       </div>
     );
   }
 
   if (type === NODE_TYPES.CONDUIT) {
-    // VOLT-WISP (Electric Jellyfish — shoots a lightning laser along its Row or Col on death!)
+    // STORM-RUNE SHAMAN (Unleashes a row/col lightning bolt on death!)
     return (
       <div
         className={`creature-wrap ${pulseClass} ${lowHpClass}`}
-        title={`Volt-Wisp: Shoots ${conduitAxis} lightning on death!`}
+        title={`Storm-Rune Shaman: Unleashes a ${conduitAxis} lightning bolt on death!`}
       >
         <svg viewBox="0 0 64 64" className="creature-svg">
-          {/* Directional Laser Indicator Arrows */}
+          {/* Directional Rune Arrows */}
           {conduitAxis === 'ROW' ? (
             <g className="conduit-arrows">
-              <path d="M3 32 L11 26 L11 38 Z" fill="#fde047" />
-              <path d="M61 32 L53 26 L53 38 Z" fill="#fde047" />
-              <line x1="8" y1="32" x2="56" y2="32" stroke="#facc15" strokeWidth="2" strokeDasharray="3 3" />
+              <path d="M2 34 L11 28 L11 40 Z" fill="#facc15" />
+              <path d="M62 34 L53 28 L53 40 Z" fill="#facc15" />
+              <line x1="8" y1="34" x2="56" y2="34" stroke="#eab308" strokeWidth="2" strokeDasharray="3 3" />
             </g>
           ) : (
             <g className="conduit-arrows">
-              <path d="M32 3 L26 11 L38 11 Z" fill="#fde047" />
-              <path d="M32 61 L26 53 L38 53 Z" fill="#fde047" />
-              <line x1="32" y1="8" x2="32" y2="56" stroke="#facc15" strokeWidth="2" strokeDasharray="3 3" />
+              <path d="M32 2 L26 11 L38 11 Z" fill="#facc15" />
+              <path d="M32 62 L26 53 L38 53 Z" fill="#facc15" />
+              <line x1="32" y1="8" x2="32" y2="56" stroke="#eab308" strokeWidth="2" strokeDasharray="3 3" />
             </g>
           )}
-          {/* Electric Dome Head */}
+
+          {/* Mage Hood & Cloak */}
           <path
-            d="M16 34 C16 18, 48 18, 48 34 C48 40, 16 40, 16 34 Z"
-            fill="#d97706"
-            stroke="#fef08a"
-            strokeWidth="2.5"
+            d="M32 12 L48 28 L45 52 L19 52 L16 28 Z"
+            fill="#1e3a8a"
+            stroke="#fbbf24"
+            strokeWidth="2.2"
           />
-          {/* Floating Tentacles */}
-          <path
-            d="M22 39 Q20 48 24 52 M32 40 Q34 49 30 54 M42 39 Q44 48 40 52"
-            stroke="#fde047"
-            strokeWidth="3"
-            fill="none"
-            strokeLinecap="round"
-            className="wisp-tentacles"
-          />
-          {/* Bright Visor Eyes */}
-          <circle cx="26" cy="30" r="3.2" fill="#fff" />
-          <circle cx="38" cy="30" r="3.2" fill="#fff" />
+          {/* Shadowed Face inside Hood */}
+          <ellipse cx="32" cy="29" rx="10" ry="8" fill="#0f172a" />
+          {/* Glowing Runic Eyes */}
+          <circle cx="28" cy="29" r="2.6" fill="#fde047" />
+          <circle cx="36" cy="29" r="2.6" fill="#fde047" />
+          {/* Crackling Lightning Rune on Chest */}
+          <path d="M34 36 L28 43 L33 43 L30 50" stroke="#fde047" strokeWidth="2.5" fill="none" strokeLinecap="round" />
         </svg>
       </div>
     );
   }
 
   if (type === NODE_TYPES.AMPLIFIER) {
-    // CRYSTAL-SPRITE (Buffs your damage by +50% when shattered!)
+    // WAR-BANNER HERALD (+50% Rally Damage for the rest of the turn when slain!)
     return (
-      <div className={`creature-wrap ${pulseClass} ${lowHpClass}`} title="Crystal-Sprite: +50% Damage Boost on death!">
+      <div
+        className={`creature-wrap ${pulseClass} ${lowHpClass}`}
+        title="War-Banner Herald: Slaying this unit rallies your siege weapons for +50% Turn Damage!"
+      >
         <svg viewBox="0 0 64 64" className="creature-svg">
-          {/* Rotating Orbiting Shards */}
+          {/* Golden Rally Aura */}
           <g className="crystal-orbit">
-            <polygon points="32,4 36,12 28,12" fill="#6ee7b7" />
-            <polygon points="32,60 36,52 28,52" fill="#6ee7b7" />
-            <polygon points="4,32 12,28 12,36" fill="#6ee7b7" />
-            <polygon points="60,32 52,28 52,36" fill="#6ee7b7" />
+            <circle cx="32" cy="32" r="24" fill="none" stroke="#34d399" strokeWidth="1.8" strokeDasharray="6 6" />
           </g>
-          {/* Main Diamond Body */}
-          <polygon
-            points="32,12 49,32 32,52 15,32"
-            fill="#059669"
-            stroke="#a7f3d0"
-            strokeWidth="2.5"
+          {/* Wooden Banner Pole */}
+          <line x1="20" y1="10" x2="20" y2="56" stroke="#a16207" strokeWidth="4" strokeLinecap="round" />
+          {/* Emerald & Gold Medieval Pennant Flag */}
+          <path
+            d="M22 14 L52 18 L44 28 L52 38 L22 42 Z"
+            fill="#15803d"
+            stroke="#fde047"
+            strokeWidth="2.2"
           />
-          <polygon points="32,18 42,32 32,46 22,32" fill="#34d399" opacity="0.55" />
-          {/* Cute Sprite Eyes */}
-          <circle cx="27" cy="31" r="2.8" fill="#ecfdf5" />
-          <circle cx="37" cy="31" r="2.8" fill="#ecfdf5" />
+          {/* Lion / Sword Crest on Banner */}
+          <path d="M33 21 L33 35 M28 26 L38 26" stroke="#fef08a" strokeWidth="2.8" strokeLinecap="round" />
         </svg>
       </div>
     );
   }
 
   if (type === NODE_TYPES.BOSS) {
-    // APEX DREADNOUGHT (Mini-Boss Creature)
+    // IRONCLAD SIEGE OGRE (Boss Unit)
     return (
-      <div className={`creature-wrap ${pulseClass} ${lowHpClass}`} title="Apex Dreadnought Boss!">
+      <div
+        className={`creature-wrap ${pulseClass} ${lowHpClass}`}
+        title="Ironclad Siege Ogre: Huge Gold Bounty + 5x5 Shockwave when slain!"
+      >
         <svg viewBox="0 0 64 64" className="creature-svg">
-          {/* Menacing Horns */}
-          <path d="M14 24 L6 10 L22 18 Z" fill="#c084fc" />
-          <path d="M50 24 L58 10 L42 18 Z" fill="#c084fc" />
-          {/* Armored Mech Skull */}
+          {/* Giant Curved Iron Horns */}
+          <path d="M16 24 L4 10 L22 18 Z" fill="#d6d3d1" stroke="#44403c" strokeWidth="2" />
+          <path d="M48 24 L60 10 L42 18 Z" fill="#d6d3d1" stroke="#44403c" strokeWidth="2" />
+          {/* Heavy Riveted Iron Great-Helm */}
           <rect
             x="14"
-            y="18"
+            y="16"
             width="36"
-            height="32"
-            rx="10"
-            fill="#5b21b6"
-            stroke="#e9d5ff"
+            height="36"
+            rx="8"
+            fill="#44403c"
+            stroke="#f59e0b"
             strokeWidth="2.8"
           />
-          {/* Crown Emblem */}
-          <polygon points="24,18 28,11 32,16 36,11 40,18" fill="#facc15" />
-          {/* Glowing Cyber Visor */}
-          <polygon points="19,28 30,33 20,36" fill="#f43f5e" />
-          <polygon points="45,28 34,33 44,36" fill="#f43f5e" />
-          {/* Jaw Grille */}
-          <line x1="24" y1="43" x2="40" y2="43" stroke="#ddd6fe" strokeWidth="3" strokeLinecap="round" />
+          {/* Gold Warlord Crown */}
+          <polygon points="22,16 27,8 32,14 37,8 42,16" fill="#facc15" stroke="#78350f" strokeWidth="1.2" />
+          {/* Glowing Fiery Visor Slits */}
+          <polygon points="19,29 30,33 20,35" fill="#ef4444" />
+          <polygon points="45,29 34,33 44,35" fill="#ef4444" />
+          {/* Iron Faceplate Grille */}
+          <line x1="23" y1="42" x2="23" y2="49" stroke="#1c1917" strokeWidth="3" />
+          <line x1="32" y1="41" x2="32" y2="49" stroke="#1c1917" strokeWidth="3" />
+          <line x1="41" y1="42" x2="41" y2="49" stroke="#1c1917" strokeWidth="3" />
         </svg>
       </div>
     );
   }
 
-  // DEFAULT: CYBER-MITE (Standard Creature)
+  // DEFAULT: GOBLIN FOOTPAD (Standard Raider with Kettle Helm & Wooden Shield)
   return (
-    <div className={`creature-wrap ${pulseClass} ${lowHpClass}`} title="Cyber-Mite">
+    <div className={`creature-wrap ${pulseClass} ${lowHpClass}`} title="Goblin Footpad">
       <svg viewBox="0 0 64 64" className="creature-svg">
-        {/* Mechanical Legs */}
+        {/* Pointy Goblin Ears */}
+        <path d="M16 32 L5 26 L15 39 Z" fill="#65a30d" stroke="#365314" strokeWidth="1.8" />
+        <path d="M48 32 L59 26 L49 39 Z" fill="#65a30d" stroke="#365314" strokeWidth="1.8" />
+
+        {/* Goblin Head */}
+        <circle cx="32" cy="36" r="15" fill="#65a30d" stroke="#365314" strokeWidth="2.2" />
+
+        {/* Iron Kettle Helmet */}
         <path
-          d="M15 28 L7 23 M14 38 L6 43 M49 28 L57 23 M50 38 L58 43"
-          stroke="#38bdf8"
-          strokeWidth="3.2"
-          strokeLinecap="round"
+          d="M14 29 C14 13, 50 13, 50 29 L54 31 L10 31 Z"
+          fill="#78716c"
+          stroke="#292524"
+          strokeWidth="2.2"
         />
-        {/* Antennae */}
-        <path d="M25 18 L20 10 M39 18 L44 10" stroke="#7dd3fc" strokeWidth="2.5" strokeLinecap="round" />
-        <circle cx="20" cy="10" r="2.5" fill="#38bdf8" />
-        <circle cx="44" cy="10" r="2.5" fill="#38bdf8" />
-        {/* Rounded Carapace */}
-        <rect
-          x="15"
-          y="18"
-          width="34"
-          height="30"
-          rx="14"
-          fill="#0369a1"
-          stroke="#7dd3fc"
-          strokeWidth="2.5"
-        />
-        {/* Glowing Eyes */}
-        <circle cx="25" cy="31" r="3.5" fill="#e0f2fe" className="creature-eye" />
-        <circle cx="39" cy="31" r="3.5" fill="#e0f2fe" className="creature-eye" />
-        {/* Little Mouth */}
-        <path d="M28 40 Q32 43 36 40" stroke="#bae6fd" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+        <circle cx="32" cy="15" r="2.5" fill="#a8a29e" />
+
+        {/* Yellow Sneaky Eyes */}
+        <circle cx="26" cy="36" r="3" fill="#fef08a" />
+        <circle cx="26" cy="36" r="1.3" fill="#1c1917" />
+        <circle cx="38" cy="36" r="3" fill="#fef08a" />
+        <circle cx="38" cy="36" r="1.3" fill="#1c1917" />
+
+        {/* Little Fang Grin */}
+        <path d="M26 44 Q32 47 38 44" stroke="#1c1917" strokeWidth="2" fill="none" />
+        <polygon points="28,44 30,41 32,45" fill="#fafaf9" />
       </svg>
     </div>
   );
 }
 
 /**
- * Commander NOVA — Your friendly tactical AI companion Avatar!
+ * SIR ALDRIC — Grizzled Medieval Siege Master & Tutorial Mentor
  */
 export function CommanderAvatar({ mood = 'happy' }) {
   return (
-    <div className={`commander-avatar mood-${mood}`}>
+    <div className={`commander-avatar mood-${mood}`} title="Sir Aldric, Siege Master">
       <svg viewBox="0 0 64 64" className="commander-svg">
-        <circle cx="32" cy="32" r="28" fill="#0f172a" stroke="#38bdf8" strokeWidth="3" />
-        {/* Headset Ears */}
-        <rect x="3" y="24" width="6" height="16" rx="3" fill="#06b6d4" />
-        <rect x="55" y="24" width="6" height="16" rx="3" fill="#06b6d4" />
-        {/* Robot Helmet */}
-        <rect x="14" y="16" width="36" height="32" rx="12" fill="#1e293b" stroke="#7dd3fc" strokeWidth="2" />
-        {/* Visor Screen */}
-        <rect x="18" y="22" width="28" height="16" rx="6" fill="#090d16" />
-        {/* Expressive Eyes */}
-        {mood === 'excited' ? (
-          <>
-            <path d="M22 31 L26 26 L30 31" stroke="#34d399" strokeWidth="3" fill="none" strokeLinecap="round" />
-            <path d="M34 31 L38 26 L42 31" stroke="#34d399" strokeWidth="3" fill="none" strokeLinecap="round" />
-          </>
-        ) : (
-          <>
-            <circle cx="25" cy="30" r="3.5" fill="#38bdf8" />
-            <circle cx="39" cy="30" r="3.5" fill="#38bdf8" />
-          </>
-        )}
-        {/* Smile */}
-        <path d="M27 42 Q32 46 37 42" stroke="#38bdf8" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+        {/* Crimson Cloak & Gold Pauldrons */}
+        <circle cx="32" cy="32" r="29" fill="#451a03" stroke="#d97706" strokeWidth="3" />
+        <path d="M12 54 C14 42, 50 42, 52 54" fill="#991b1b" stroke="#fbbf24" strokeWidth="2" />
+
+        {/* Knight Steel Helm Top */}
+        <path d="M16 26 C16 10, 48 10, 48 26 Z" fill="#a8a29e" stroke="#292524" strokeWidth="2.2" />
+        {/* Plume Feather */}
+        <path d="M32 12 Q42 4 48 11 Q39 14 32 12 Z" fill="#dc2626" />
+
+        {/* Warm Face & Bushy White Beard */}
+        <rect x="19" y="24" width="26" height="18" rx="6" fill="#fed7aa" />
+        <path
+          d="M17 34 C17 52, 47 52, 47 34 L41 34 Q32 39 23 34 Z"
+          fill="#e7e5e4"
+          stroke="#78716c"
+          strokeWidth="1.5"
+        />
+
+        {/* Eyes & Eyebrows */}
+        <line x1="22" y1="27" x2="29" y2="28" stroke="#57534e" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="42" y1="27" x2="35" y2="28" stroke="#57534e" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="26" cy="31" r="2.2" fill="#1c1917" />
+        <circle cx="38" cy="31" r="2.2" fill="#1c1917" />
       </svg>
     </div>
   );

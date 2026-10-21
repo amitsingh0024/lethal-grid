@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import confetti from 'canvas-confetti';
 import {
   Crosshair,
   Flame,
@@ -14,7 +15,6 @@ import {
   Activity,
   BookOpen,
   HelpCircle,
-  CheckCircle2,
   Volume2,
   VolumeX,
   FastForward,
@@ -46,8 +46,9 @@ import {
 } from './services/analytics';
 import { AdBannerSlot, RewardedAdModal } from './components/AdUnit';
 import { CreatureSprite, CommanderAvatar } from './components/CreatureSprite';
+import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 
-const STORAGE_KEY = 'lethal_grid_overclock_save_v2';
+const STORAGE_KEY = 'siege_of_emberkeep_save_v1';
 
 const ABILITY_ICONS = {
   Crosshair,
@@ -57,7 +58,53 @@ const ABILITY_ICONS = {
 };
 
 /**
- * Web Audio Synthesizer for crunchy, zero-dependency procedural laser & explosion SFX
+ * Custom Medieval Weapon SVG Icons for the Weapon Dock
+ */
+function WeaponIllustration({ id }) {
+  if (id === 'rail_beam') {
+    // Heavy Castle Ballista / Crossbow
+    return (
+      <svg viewBox="0 0 40 40" className="weapon-svg-icon">
+        <path d="M6 20 Q20 6 34 20" stroke="#d97706" strokeWidth="3.5" fill="none" strokeLinecap="round" />
+        <line x1="6" y1="20" x2="34" y2="20" stroke="#d6d3d1" strokeWidth="1.5" />
+        <line x1="20" y1="6" x2="20" y2="35" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+        <polygon points="20,2 15,10 25,10" fill="#e2e8f0" />
+      </svg>
+    );
+  }
+  if (id === 'nova_bomb') {
+    // Alchemist Wildfire Glass Flask
+    return (
+      <svg viewBox="0 0 40 40" className="weapon-svg-icon">
+        <rect x="16" y="5" width="8" height="7" rx="2" fill="#a16207" />
+        <path d="M15 12 L25 12 L31 24 A11 11 0 1 1 9 24 Z" fill="#ea580c" stroke="#fde68a" strokeWidth="2" />
+        <circle cx="17" cy="25" r="2.5" fill="#fef08a" />
+        <circle cx="23" cy="28" r="1.8" fill="#fef08a" />
+      </svg>
+    );
+  }
+  if (id === 'arc_chain') {
+    // Dwarven Thunder-Hammer
+    return (
+      <svg viewBox="0 0 40 40" className="weapon-svg-icon">
+        <line x1="20" y1="16" x2="20" y2="36" stroke="#78350f" strokeWidth="4.5" strokeLinecap="round" />
+        <rect x="7" y="7" width="26" height="13" rx="3" fill="#78716c" stroke="#facc15" strokeWidth="2" />
+        <path d="M18 10 L22 10 L19 16 L23 16" stroke="#fef08a" strokeWidth="1.8" fill="none" />
+      </svg>
+    );
+  }
+  // Executioner's Greatsword
+  return (
+    <svg viewBox="0 0 40 40" className="weapon-svg-icon">
+      <line x1="9" y1="31" x2="32" y2="8" stroke="#e2e8f0" strokeWidth="4" strokeLinecap="round" />
+      <line x1="11" y1="21" x2="19" y2="29" stroke="#fbbf24" strokeWidth="3.5" strokeLinecap="round" />
+      <line x1="7" y1="33" x2="12" y2="28" stroke="#78350f" strokeWidth="4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * Medieval Acoustic SFX Synthesizer (Bow Twang, Alchemist Shatter, Barrel Boom, Fanfare)
  */
 function playSound(type, muted) {
   if (muted || typeof window === 'undefined') return;
@@ -77,38 +124,43 @@ function playSound(type, muted) {
 
     const now = ctx.currentTime;
     if (type === 'strike') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(340, now);
-      osc.frequency.exponentialRampToValueAtTime(90, now + 0.16);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.16);
-      osc.start(now);
-      osc.stop(now + 0.16);
-    } else if (type === 'chain') {
+      // Bowstring twang / sword thud
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(520, now);
-      osc.frequency.exponentialRampToValueAtTime(180, now + 0.24);
-      gain.gain.setValueAtTime(0.16, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.24);
+      osc.frequency.setValueAtTime(210, now);
+      osc.frequency.exponentialRampToValueAtTime(75, now + 0.18);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
       osc.start(now);
-      osc.stop(now + 0.24);
+      osc.stop(now + 0.18);
+    } else if (type === 'chain') {
+      // Deep black-powder barrel boom
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(42, now + 0.32);
+      gain.gain.setValueAtTime(0.26, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
+      osc.start(now);
+      osc.stop(now + 0.32);
     } else if (type === 'clear') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.setValueAtTime(660, now + 0.08);
-      osc.frequency.setValueAtTime(880, now + 0.16);
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      // Royal Brass Horn Fanfare chord
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(293.66, now); // D4
+      osc.frequency.setValueAtTime(369.99, now + 0.09); // F#4
+      osc.frequency.setValueAtTime(440.0, now + 0.18); // A4
+      osc.frequency.setValueAtTime(587.33, now + 0.28); // D5
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
       osc.start(now);
-      osc.stop(now + 0.35);
+      osc.stop(now + 0.5);
     } else if (type === 'upgrade') {
+      // Blacksmith anvil clink
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(580, now);
-      osc.frequency.exponentialRampToValueAtTime(920, now + 0.14);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.14);
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
       osc.start(now);
-      osc.stop(now + 0.14);
+      osc.stop(now + 0.15);
     }
   } catch {
     // Ignore audio context blocks
@@ -117,15 +169,15 @@ function playSound(type, muted) {
 
 const DEFAULT_SAVE = {
   tutorialCompleted: false,
-  shards: 30,
+  shards: 30, // Gold Crowns
   totalShardsEarned: 30,
   sector: 1,
   maxSectorReached: 1,
   lethalClears: 0,
-  overclockCores: 0,
+  overclockCores: 0, // Royal Crests
   upgrades: {
-    grid_size: 0, // 0 = 3x3, up to 5 = 8x8
-    max_charges: 0, // 0 = 2 charges
+    grid_size: 0,
+    max_charges: 0,
     chain_amp: 0,
     shard_mult: 0,
     volatile_spawn: 0,
@@ -142,7 +194,6 @@ const DEFAULT_SAVE = {
 };
 
 export default function App() {
-  // 1. Load Persistent Save State
   const [save, setSave] = useState(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -169,8 +220,9 @@ export default function App() {
   const [muted, setMuted] = useState(false);
   const [screenShake, setScreenShake] = useState(false);
   const [floatingPopups, setFloatingPopups] = useState([]);
+  const [vfxQueue, setVfxQueue] = useState([]);
+  const [firingWeaponId, setFiringWeaponId] = useState(null);
 
-  // Derived Grid & Turn Stats
   const campaignGridSize = Math.min(8, 3 + (save.upgrades.grid_size || 0));
   const activeGridSize =
     screen === 'TUTORIAL' ? 3 : gameMode === 'DAILY' ? 5 : campaignGridSize;
@@ -188,7 +240,7 @@ export default function App() {
   );
 
   const [commanderMessage, setCommanderMessage] = useState(
-    'Pick a weapon below and click a creature on the grid to trigger a chain reaction!'
+    'Choose a Siege Weapon below and strike a raider in the stone courtyard!'
   );
   const [lastTurnStats, setLastTurnStats] = useState(null);
   const [adBoostSeconds, setAdBoostSeconds] = useState(0);
@@ -203,7 +255,6 @@ export default function App() {
   const [telemetryFeed, setTelemetryFeed] = useState([]);
   const [shareCopied, setShareCopied] = useState(false);
 
-  // Initialize GA4 & AdSense
   useEffect(() => {
     initAnalyticsAndAds();
     const unsub = subscribeToTelemetry((entries) => {
@@ -212,7 +263,6 @@ export default function App() {
     return unsub;
   }, []);
 
-  // Persist save
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
@@ -221,7 +271,6 @@ export default function App() {
     }
   }, [save]);
 
-  // Keyboard shortcuts [1-4] for abilities
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -234,7 +283,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Countdown for 2x Ad Boost Multiplier
   useEffect(() => {
     if (adBoostSeconds <= 0) return;
     const t = setInterval(() => {
@@ -243,7 +291,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [adBoostSeconds]);
 
-  // Passive Auto-Drone Automation Loop
+  // Passive Battlement Archers Gold Loop
   useEffect(() => {
     const droneLevel = save.upgrades.auto_drone || 0;
     if (droneLevel <= 0) return;
@@ -262,7 +310,6 @@ export default function App() {
     return () => clearInterval(timer);
   }, [save.upgrades.auto_drone, save.upgrades.shard_mult, adBoostSeconds]);
 
-  // Launch Guided Tutorial
   const startTutorial = (step = 1) => {
     setScreen('TUTORIAL');
     setTutorialStep(step);
@@ -276,7 +323,6 @@ export default function App() {
     trackEvent('tutorial_step_started', { step });
   };
 
-  // Launch Main Game (Campaign or Daily)
   const startGameSession = (targetMode = 'CAMPAIGN', targetSector = save.sector, customGridSize = null) => {
     setScreen('PLAY');
     setGameMode(targetMode);
@@ -298,12 +344,11 @@ export default function App() {
     setLastTurnStats(null);
     setCommanderMessage(
       isDaily
-        ? `Daily Seed #${getTodayDateSeed()}: Everyone on Earth gets this exact board today. Can you wipe it in 3 charges?`
-        : `Sector ${targetSector}: Aim for red Pyro-Ticks and yellow Volt-Wisps to trigger a 1-Turn Lethal Chain Reaction!`
+        ? `Royal Daily Decree #${getTodayDateSeed()}: Every Commander in the realm faces this exact Siege formation today!`
+        : `Wave ${targetSector}: Aim for Powder-Keg Sappers and Storm-Rune Shamans to rout the whole courtyard in ONE turn!`
     );
   };
 
-  // Preview highlighted tiles on hover
   const previewIndices = getAbilityPreviewIndices({
     abilityId: selectedAbilityId,
     abilityLevel:
@@ -318,9 +363,13 @@ export default function App() {
     cells: board,
   });
 
-  // Execute Tactical Strike on cell click
+  // Execute Weapon Strike + Trigger 60fps Canvas Weapon Animation
   const handleCellClick = (row, col) => {
     if (chargesLeft <= 0) return;
+
+    // Trigger physical recoil/use animation on the weapon card in the dock
+    setFiringWeaponId(selectedAbilityId);
+    setTimeout(() => setFiringWeaponId(null), 420);
 
     const prestigeMult = 1 + (save.overclockCores || 0) * 0.5;
     const adMult = (adBoostSeconds > 0 ? 2 : 1) * prestigeMult;
@@ -344,16 +393,34 @@ export default function App() {
       turnAmplifierBonus,
     });
 
+    // Enqueue 60fps Canvas weapon projectile & barrel explosion animations!
+    if (result.vfxAnimations && result.vfxAnimations.length > 0) {
+      setVfxQueue((prev) => [...prev.slice(-10), ...result.vfxAnimations]);
+    }
+
     const nextCharges = chargesLeft - 1;
     setBoard(result.nextCells);
     setChargesLeft(nextCharges);
     setTurnAmplifierBonus(result.nextTurnAmplifierBonus);
     setLastTurnStats(result.stats);
 
-    // Trigger screen shake & floating damage popup when chain reaction occurs
     if (result.stats.chainDepth > 0 || result.stats.isBoardClear) {
       setScreenShake(true);
       setTimeout(() => setScreenShake(false), 380);
+    }
+
+    // Celebrate 100% Lethal Siege Clear with Golden Confetti!
+    if (result.stats.isBoardClear) {
+      try {
+        confetti({
+          particleCount: 45,
+          spread: 65,
+          origin: { y: 0.6 },
+          colors: ['#fbbf24', '#f59e0b', '#fef08a', '#dc2626'],
+        });
+      } catch {
+        // Ignore confetti errors
+      }
     }
 
     const popupId = `${Date.now()}-${Math.random()}`;
@@ -364,15 +431,14 @@ export default function App() {
         row,
         col,
         text: result.stats.isBoardClear
-          ? `💥 LETHAL CLEAR! +${result.stats.shardsEarned}⚡`
-          : `-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}x Chain)`,
+          ? `⚔️ SIEGE BROKEN! +${result.stats.shardsEarned} Gold`
+          : `-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}× Chain)`,
       },
     ]);
     setTimeout(() => {
       setFloatingPopups((prev) => prev.filter((p) => p.id !== popupId));
-    }, 1100);
+    }, 1150);
 
-    // Sound effects
     if (result.stats.isBoardClear) {
       playSound('clear', muted);
     } else if (result.stats.chainDepth > 0) {
@@ -381,16 +447,15 @@ export default function App() {
       playSound('strike', muted);
     }
 
-    // Update Commander NOVA's dynamic reaction speech
     if (screen === 'TUTORIAL') {
       if (result.stats.isBoardClear) {
         if (tutorialStep < 3) {
           setCommanderMessage(
-            `BOOM! 100% LETHAL CLEAR! Click "Next Tutorial Lesson" below to learn the next creature combo!`
+            `HUZZAH! Every raider routed in a single volley! Click "Next Training Trial" below!`
           );
         } else {
           setCommanderMessage(
-            `🎉 Tutorial Complete! You've mastered Pyro-Ticks, Volt-Wisps, and Crystal-Sprites (+50 Bonus Shards awarded)!`
+            `🏆 Training Complete! You've mastered Powder-Kegs, Storm-Rune Shamans, and War-Banners (+50 Gold Crowns awarded)!`
           );
           setSave((prev) => ({
             ...prev,
@@ -401,24 +466,23 @@ export default function App() {
         }
       } else {
         setCommanderMessage(
-          `Almost! Remember to click the highlighted pulsing creature so its explosion chains to the whole board. Click "Retry Lesson" to try again!`
+          `Close, Commander! Strike the glowing yellow-circled unit so its explosion chains to the entire courtyard!`
         );
       }
       return;
     }
 
-    // Campaign / Daily progression
     if (result.stats.isBoardClear) {
       setCommanderMessage(
-        `⚡ OVERCLOCK LETHAL CLEAR! ${result.stats.chainDepth}x Chain Reaction wiped the sector for +${result.stats.shardsEarned} Shards!`
+        `⚔️ TOTAL VICTORY! ${result.stats.chainDepth}× Chain Reaction routed the siege for +${result.stats.shardsEarned} Gold Crowns!`
       );
     } else if (nextCharges > 0) {
       setCommanderMessage(
-        `Nice hit! ${result.stats.remainingNodes} creatures left and ${nextCharges} charge remaining—finish them off!`
+        `Direct hit! ${result.stats.remainingNodes} raiders remain and you have ${nextCharges} attack left—finish them!`
       );
     } else {
       setCommanderMessage(
-        `Turn finished! You collected +${result.stats.shardsEarned} Shards. Spawn a new wave or visit the Upgrade Lab to power up!`
+        `Volley spent! You looted +${result.stats.shardsEarned} Gold Crowns. Call a fresh wave or visit the Royal Forge to upgrade!`
       );
     }
 
@@ -449,7 +513,6 @@ export default function App() {
     }
   };
 
-  // Purchase an Incremental Upgrade
   const handleBuyUpgrade = (upgradeDef) => {
     const currentLvl = save.upgrades[upgradeDef.id] || 0;
     if (currentLvl >= upgradeDef.maxLevel) return;
@@ -475,7 +538,6 @@ export default function App() {
     });
   };
 
-  // Upgrade an Ability Tier
   const handleUpgradeAbility = (abilityId, idx) => {
     const currentLvl = save.abilityLevels[abilityId] || 1;
     const cost = getAbilityUpgradeCost(idx, currentLvl);
@@ -498,7 +560,6 @@ export default function App() {
     });
   };
 
-  // Prestige Overclock Reboot
   const handlePrestigeReboot = () => {
     if (save.sector < 10) return;
     const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
@@ -520,7 +581,6 @@ export default function App() {
     trackEvent('prestige_overclock', { cores_gained: coresToGain });
   };
 
-  // Copy Wordle-style Daily Share Result
   const handleShareScore = () => {
     const todaySeed = getTodayDateSeed();
     const emojiRows = [];
@@ -530,17 +590,17 @@ export default function App() {
         const cell = board[r * activeGridSize + c];
         if (!cell || cell.type === NODE_TYPES.EMPTY) rowStr += '⬛';
         else if (cell.hp <= 0 && cell.destroyedByChain) rowStr += '💥';
-        else if (cell.hp <= 0) rowStr += '⚡';
-        else rowStr += '🟥';
+        else if (cell.hp <= 0) rowStr += '⚔️';
+        else rowStr += '🛡️';
       }
       emojiRows.push(rowStr);
     }
 
     const shareText = [
-      `⚡ LETHAL GRID: OVERCLOCK (${
-        gameMode === 'DAILY' ? `Daily #${todaySeed}` : `Sector ${save.sector}`
+      `🏰 SIEGE OF EMBERKEEP (${
+        gameMode === 'DAILY' ? `Daily Decree #${todaySeed}` : `Wave ${save.sector}`
       })`,
-      `Grid: ${activeGridSize}x${activeGridSize} | Lethal Clears: ${save.lethalClears}`,
+      `Courtyard: ${activeGridSize}×${activeGridSize} | Sieges Broken: ${save.lethalClears}`,
       ...emojiRows,
       `Play Free: ${window.location.origin}`,
     ].join('\n');
@@ -551,12 +611,11 @@ export default function App() {
     trackEvent('share_score_copied', { mode: gameMode, sector: save.sector });
   };
 
-  // Trigger a Rewarded Video Ad
   const triggerRewardedAd = (type) => {
     if (type === 'DOUBLE_SHARDS') {
       setRewardedModalConfig({
         isOpen: true,
-        rewardTitle: '2x Overclock Shard Multiplier (3 Minutes)',
+        rewardTitle: '2× Royal Gold Plunder Charter (3 Minutes)',
         onClaim: () => {
           setAdBoostSeconds((s) => s + 180);
           setSave((prev) => ({
@@ -568,7 +627,7 @@ export default function App() {
     } else if (type === 'EXTRA_CHARGE') {
       setRewardedModalConfig({
         isOpen: true,
-        rewardTitle: '+1 Emergency Ability Charge + 50 Bonus Shards',
+        rewardTitle: '+1 Emergency Siege Volley + 50 Gold Crowns',
         onClaim: () => {
           setChargesLeft((c) => c + 1);
           setSave((prev) => ({
@@ -585,7 +644,6 @@ export default function App() {
   const isBoardCleared = remainingAliveNodes === 0;
   const monetizationConfig = getMonetizationConfig();
 
-  // Check how many upgrades are currently affordable so we can show a notification badge on the Upgrade Lab button!
   const affordableUpgradesCount =
     UPGRADE_CATALOG.filter((u) => {
       const lvl = save.upgrades[u.id] || 0;
@@ -601,7 +659,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* CLEAN, FOCUSED TOP BAR */}
+      {/* MEDIEVAL WOODEN TAVERN & IRON HEADER BAR */}
       <header className="top-nav">
         <div
           className="brand-group clickable"
@@ -611,11 +669,11 @@ export default function App() {
           onKeyDown={(e) => e.key === 'Enter' && setScreen('MENU')}
         >
           <div className="brand-logo">
-            <Zap size={20} className="text-cyan" />
+            <Shield size={20} className="text-amber" />
           </div>
           <div>
             <h1 className="brand-title">
-              LETHAL GRID <span className="badge-cyan">OVERCLOCK</span>
+              SIEGE OF EMBERKEEP <span className="badge-cyan">ROYAL EDITION</span>
             </h1>
           </div>
         </div>
@@ -628,7 +686,7 @@ export default function App() {
             onClick={() => setScreen('MENU')}
           >
             <Home size={15} />
-            <span>Menu</span>
+            <span>Keep Gate</span>
           </button>
 
           <button
@@ -637,7 +695,7 @@ export default function App() {
             onClick={() => startTutorial(1)}
           >
             <GraduationCap size={15} />
-            <span>Tutorial</span>
+            <span>Training Yard</span>
           </button>
 
           <button
@@ -646,7 +704,7 @@ export default function App() {
             onClick={() => startGameSession('CAMPAIGN', save.sector)}
           >
             <Play size={15} />
-            <span>Battle Arena</span>
+            <span>Defend Courtyard</span>
           </button>
 
           <button
@@ -655,19 +713,19 @@ export default function App() {
             onClick={() => setScreen('UPGRADES')}
           >
             <ShoppingBag size={15} />
-            <span>Upgrade Lab</span>
+            <span>Royal Forge</span>
             {affordableUpgradesCount > 0 && (
               <span className="nav-badge-count">{affordableUpgradesCount}</span>
             )}
           </button>
         </nav>
 
-        {/* SHARD WALLET & DEV TOOLS */}
+        {/* GOLD POUCH & TELEMETRY */}
         <div className="top-actions">
-          <div className="wallet-pill" title="Your Overclock Shards">
-            <Sparkles size={15} className="text-cyan" />
+          <div className="wallet-pill" title="Your Royal Gold Crowns">
+            <span className="gold-coin-dot">🪙</span>
             <strong>{save.shards.toLocaleString()}</strong>
-            <span>SHARDS</span>
+            <span>GOLD</span>
           </div>
 
           <button
@@ -677,7 +735,7 @@ export default function App() {
             title="Inspect Google Analytics 4 Events & AdSense Revenue"
           >
             <Activity size={15} className="text-emerald" />
-            <span className="hide-mobile">Ad Revenue</span>
+            <span className="hide-mobile">Ad Ledger</span>
             <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
           </button>
 
@@ -698,7 +756,7 @@ export default function App() {
           <div className="telemetry-header">
             <div>
               <h2>
-                <Activity size={18} className="text-emerald" /> Live Google Analytics 4 & AdSense Inspector
+                <Activity size={18} className="text-emerald" /> Live Google Analytics 4 & AdSense Ledger
               </h2>
               <p>
                 Real-time GA4 events and Ad impressions. Configure <code>.env</code> to send live data to
@@ -732,7 +790,7 @@ export default function App() {
       )}
 
       {/* =====================================================================
-          SCREEN 1: HERO START MENU (Clean, inviting, zero info overload!)
+          SCREEN 1: MEDIEVAL CASTLE GATE MENU
           ===================================================================== */}
       {screen === 'MENU' && (
         <main className="menu-screen">
@@ -745,25 +803,26 @@ export default function App() {
               <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
             </div>
 
-            <span className="menu-eyebrow">ONE-TURN TACTICAL CHAIN-REACTION GAME</span>
-            <h2 className="menu-headline">Can You Wipe the Grid in One Turn?</h2>
+            <span className="menu-eyebrow">TACTICAL ONE-TURN MEDIEVAL SIEGE PUZZLE</span>
+            <h2 className="menu-headline">Break the Goblin Siege in a Single Volley!</h2>
             <p className="menu-subheadline">
-              Detonate volatile <strong>Pyro-Ticks</strong>, chain lightning through{' '}
-              <strong>Volt-Wisps</strong>, and expand your battlefield from a cozy{' '}
-              <strong>3×3 grid</strong> to a chaotic <strong>8×8 mega-sector</strong>!
+              Loose piercing <strong>Ballista Bolts</strong>, hurl{' '}
+              <strong>Alchemist Wildfire Flasks</strong>, detonate reckless{' '}
+              <strong>Powder-Keg Sappers</strong>, and expand your stone courtyard from{' '}
+              <strong>3×3</strong> to a grand <strong>8×8 citadel</strong>!
             </p>
 
             <div className="menu-cta-stack">
               {!save.tutorialCompleted ? (
                 <button
                   type="button"
-                  className="btn-hero-primary pulse-glow"
+                  className="btn-hero-primary"
                   onClick={() => startTutorial(1)}
                 >
-                  <GraduationCap size={22} />
+                  <GraduationCap size={24} />
                   <div>
-                    <strong>Play 60-Second Interactive Tutorial</strong>
-                    <span>Recommended for first-time Commanders (+50 Free Shards!)</span>
+                    <strong>Enter the Training Yard (60s Tutorial)</strong>
+                    <span>Learn chain-reaction warfare with Sir Aldric (+50 Free Gold Crowns!)</span>
                   </div>
                 </button>
               ) : (
@@ -772,12 +831,12 @@ export default function App() {
                   className="btn-hero-primary"
                   onClick={() => startGameSession('CAMPAIGN', save.sector)}
                 >
-                  <Play size={22} />
+                  <Play size={24} />
                   <div>
-                    <strong>Continue Campaign (Sector {save.sector})</strong>
+                    <strong>Defend the Keep (Wave {save.sector})</strong>
                     <span>
-                      Current Grid: {campaignGridSize}×{campaignGridSize} • {save.shards.toLocaleString()}{' '}
-                      Shards Ready
+                      Courtyard: {campaignGridSize}×{campaignGridSize} • {save.shards.toLocaleString()}{' '}
+                      Gold Crowns in Treasury
                     </span>
                   </div>
                 </button>
@@ -790,10 +849,10 @@ export default function App() {
                     className="btn-menu-card"
                     onClick={() => startGameSession('CAMPAIGN', save.sector)}
                   >
-                    <Play size={18} className="text-cyan" />
+                    <Play size={18} className="text-amber" />
                     <div>
-                      <strong>Skip to Campaign</strong>
-                      <span>Sector {save.sector} ({campaignGridSize}×{campaignGridSize} Grid)</span>
+                      <strong>Skip to Siege Wave {save.sector}</strong>
+                      <span>{campaignGridSize}×{campaignGridSize} Stone Courtyard</span>
                     </div>
                   </button>
                 ) : (
@@ -802,10 +861,10 @@ export default function App() {
                     className="btn-menu-card"
                     onClick={() => startTutorial(1)}
                   >
-                    <GraduationCap size={18} className="text-cyan" />
+                    <GraduationCap size={18} className="text-amber" />
                     <div>
-                      <strong>Replay Tutorial</strong>
-                      <span>Practice chain-reaction combos</span>
+                      <strong>Replay Training Yard</strong>
+                      <span>Practice with Sir Aldric</span>
                     </div>
                   </button>
                 )}
@@ -815,10 +874,10 @@ export default function App() {
                   className="btn-menu-card"
                   onClick={() => startGameSession('DAILY', 5)}
                 >
-                  <Award size={18} className="text-amber" />
+                  <Award size={18} className="text-rose" />
                   <div>
-                    <strong>Daily Seed Challenge</strong>
-                    <span>Shared Global Board #{getTodayDateSeed()}</span>
+                    <strong>Royal Daily Decree</strong>
+                    <span>Shared Global Siege #{getTodayDateSeed()}</span>
                   </div>
                 </button>
 
@@ -829,44 +888,44 @@ export default function App() {
                 >
                   <ShoppingBag size={18} className="text-emerald" />
                   <div>
-                    <strong>Upgrade Lab</strong>
+                    <strong>The Royal Forge</strong>
                     <span>
                       {affordableUpgradesCount > 0
-                        ? `${affordableUpgradesCount} Upgrades Available!`
-                        : 'Scale Grid & Evolve Weapons'}
+                        ? `${affordableUpgradesCount} Upgrades Ready to Forge!`
+                        : 'Expand Courtyard & Weapons'}
                     </span>
                   </div>
                 </button>
               </div>
             </div>
 
-            {/* CREATURE BESTIARY PREVIEW */}
+            {/* MEDIEVAL BESTIARY FIELD GUIDE */}
             <div className="bestiary-strip">
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.STANDARD} />
                 <div>
-                  <strong className="text-cyan">Cyber-Mite</strong>
-                  <span>Drops Shards on kill</span>
+                  <strong className="text-amber">Goblin Footpad</strong>
+                  <span>Drops Gold Crowns</span>
                 </div>
               </div>
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.BOMB} />
                 <div>
-                  <strong className="text-rose">Pyro-Tick</strong>
-                  <span>Explodes 3×3 on death!</span>
+                  <strong className="text-rose">Powder-Keg Sapper</strong>
+                  <span>3×3 Barrel Blast on death!</span>
                 </div>
               </div>
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.CONDUIT} />
                 <div>
-                  <strong className="text-amber">Volt-Wisp</strong>
-                  <span>Fires Row/Col laser on death!</span>
+                  <strong className="text-cyan">Storm-Rune Shaman</strong>
+                  <span>Row/Col Lightning on death!</span>
                 </div>
               </div>
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
                 <div>
-                  <strong className="text-emerald">Crystal-Sprite</strong>
+                  <strong className="text-emerald">War-Banner Herald</strong>
                   <span>+50% Turn Damage on death!</span>
                 </div>
               </div>
@@ -875,28 +934,28 @@ export default function App() {
 
           <AdBannerSlot
             slotId={import.meta.env.VITE_ADSENSE_TOP_SLOT || '1111111111'}
-            label="Main Menu Bottom Banner (728x90)"
+            label="Royal Proclamation Banner (728x90)"
             format="horizontal"
           />
         </main>
       )}
 
       {/* =====================================================================
-          SCREEN 2: FOCUSED BATTLE ARENA & INTERACTIVE TUTORIAL
+          SCREEN 2: STONE COURTYARD BATTLEFIELD & INTERACTIVE TRAINING YARD
           ===================================================================== */}
       {(screen === 'PLAY' || screen === 'TUTORIAL') && (
         <main className="arena-focused-stage">
-          {/* COMMANDER NOVA DIALOGUE & MISSION HEADER */}
+          {/* SIR ALDRIC PARCHMENT SCROLL DIALOGUE */}
           <div className="commander-dialogue-bar">
             <CommanderAvatar mood={isBoardCleared ? 'excited' : 'happy'} />
             <div className="commander-speech-box">
               <div className="commander-name-row">
                 <strong>
                   {screen === 'TUTORIAL'
-                    ? `COMMANDER NOVA • ${activeTutorialLesson?.title}`
+                    ? `SIR ALDRIC • ${activeTutorialLesson?.title}`
                     : gameMode === 'DAILY'
-                    ? `DAILY LETHAL CHALLENGE (#${getTodayDateSeed()})`
-                    : `COMMANDER NOVA • SECTOR ${save.sector} (${activeGridSize}×${activeGridSize} GRID)`}
+                    ? `ROYAL DAILY DECREE (#${getTodayDateSeed()})`
+                    : `SIR ALDRIC • SIEGE WAVE ${save.sector} (${activeGridSize}×${activeGridSize} COURTYARD)`}
                 </strong>
 
                 {screen === 'PLAY' && gameMode === 'CAMPAIGN' && (
@@ -910,7 +969,7 @@ export default function App() {
                         startGameSession('CAMPAIGN', prevSec);
                       }}
                     >
-                      ◀ Prev Sector
+                      ◀ Prev Wave
                     </button>
                     <button
                       type="button"
@@ -921,30 +980,33 @@ export default function App() {
                         startGameSession('CAMPAIGN', nextSec);
                       }}
                     >
-                      Next Sector ▶
+                      Next Wave ▶
                     </button>
                   </div>
                 )}
               </div>
-              <p>{commanderMessage}</p>
+              <p>&ldquo;{commanderMessage}&rdquo;</p>
             </div>
           </div>
 
-          {/* STATUS STRIP: CHARGES LEFT + QUICK ACTIONS */}
+          {/* STATUS STRIP: VOLLEY CHARGES + ACTIONS */}
           <div className="battle-hud-bar">
             <div className="charges-display">
-              <span className="charges-label">1-TURN CHARGES:</span>
+              <span className="charges-label">SIEGE VOLLEYS LEFT:</span>
               <div className="charge-pips">
                 {Array.from({ length: maxTurnCharges }).map((_, i) => (
                   <span
                     key={i}
                     className={`charge-pip ${i < chargesLeft ? 'active' : 'spent'}`}
-                  />
+                    title="Available Weapon Attack"
+                  >
+                    ⚔️
+                  </span>
                 ))}
               </div>
               {turnAmplifierBonus > 1 && (
                 <span className="amp-pill">
-                  +{Math.round((turnAmplifierBonus - 1) * 100)}% CRYSTAL BOOST
+                  +{Math.round((turnAmplifierBonus - 1) * 100)}% RALLY DAMAGE
                 </span>
               )}
             </div>
@@ -958,7 +1020,7 @@ export default function App() {
                 >
                   <Gift size={14} />
                   <span>
-                    {adBoostSeconds > 0 ? `2x Shards (${adBoostSeconds}s)` : '2x Shards Boost'}
+                    {adBoostSeconds > 0 ? `2× Gold (${adBoostSeconds}s)` : '2× Gold Charter'}
                   </span>
                 </button>
               )}
@@ -973,120 +1035,125 @@ export default function App() {
                 }
               >
                 <RotateCcw size={14} />
-                <span>{screen === 'TUTORIAL' ? 'Retry Lesson' : 'New Wave'}</span>
+                <span>{screen === 'TUTORIAL' ? 'Reset Trial' : 'New Wave'}</span>
               </button>
 
               {screen === 'PLAY' && (
                 <button type="button" className="btn-secondary btn-sm" onClick={handleShareScore}>
                   <Share2 size={14} />
-                  <span>{shareCopied ? 'Copied!' : 'Share'}</span>
+                  <span>{shareCopied ? 'Scroll Copied!' : 'Share'}</span>
                 </button>
               )}
             </div>
           </div>
 
-          {/* THE INTERACTIVE CREATURE GRID */}
+          {/* COBBLESTONE COURTYARD GRID + 60FPS CANVAS WEAPON VFX OVERLAY */}
           <div className={`grid-stage ${screenShake ? 'board-shake' : ''}`}>
-            <div
-              className="tactical-grid"
-              style={{
-                gridTemplateColumns: `repeat(${activeGridSize}, minmax(0, 1fr))`,
-              }}
-              onMouseLeave={() => setHoverCell({ row: null, col: null })}
-            >
-              {board.map((cell, idx) => {
-                const isTargeted = previewIndices.has(idx);
-                const isDead = cell.type === NODE_TYPES.EMPTY || cell.hp <= 0;
-                const meta = NODE_META[cell.type] || NODE_META.STANDARD;
-                const hpPercent = cell.maxHp > 0 ? Math.max(0, (cell.hp / cell.maxHp) * 100) : 0;
+            <div className="courtyard-board-wrap">
+              {/* 60FPS WEAPON TRAJECTORY & EXPLOSION CANVAS */}
+              <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} />
 
-                const isTutorialTarget =
-                  screen === 'TUTORIAL' &&
-                  !isDead &&
-                  activeTutorialLesson?.highlightCell.row === cell.row &&
-                  activeTutorialLesson?.highlightCell.col === cell.col;
+              <div
+                className="tactical-grid"
+                style={{
+                  gridTemplateColumns: `repeat(${activeGridSize}, minmax(0, 1fr))`,
+                }}
+                onMouseLeave={() => setHoverCell({ row: null, col: null })}
+              >
+                {board.map((cell, idx) => {
+                  const isTargeted = previewIndices.has(idx);
+                  const isDead = cell.type === NODE_TYPES.EMPTY || cell.hp <= 0;
+                  const meta = NODE_META[cell.type] || NODE_META.STANDARD;
+                  const hpPercent = cell.maxHp > 0 ? Math.max(0, (cell.hp / cell.maxHp) * 100) : 0;
 
-                const cellPopup = floatingPopups.find(
-                  (p) => p.row === cell.row && p.col === cell.col
-                );
+                  const isTutorialTarget =
+                    screen === 'TUTORIAL' &&
+                    !isDead &&
+                    activeTutorialLesson?.highlightCell.row === cell.row &&
+                    activeTutorialLesson?.highlightCell.col === cell.col;
 
-                return (
-                  <button
-                    key={cell.id}
-                    type="button"
-                    disabled={chargesLeft <= 0}
-                    className={[
-                      'grid-tile',
-                      isDead ? 'tile-dead' : `tile-alive color-${meta.color}`,
-                      isTargeted ? 'tile-targeted' : '',
-                      isTutorialTarget ? 'tile-tutorial-beacon' : '',
-                      cell.justHit ? 'tile-hit-flash' : '',
-                      cell.destroyedByChain ? 'tile-chain-wrecked' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                    onMouseEnter={() => setHoverCell({ row: cell.row, col: cell.col })}
-                    onFocus={() => setHoverCell({ row: cell.row, col: cell.col })}
-                    onClick={() => handleCellClick(cell.row, cell.col)}
-                  >
-                    {cellPopup && <span className="floating-dmg-popup">{cellPopup.text}</span>}
+                  const cellPopup = floatingPopups.find(
+                    (p) => p.row === cell.row && p.col === cell.col
+                  );
 
-                    {isTutorialTarget && (
-                      <span className="tutorial-click-tag">👇 CLICK HERE!</span>
-                    )}
+                  return (
+                    <button
+                      key={cell.id}
+                      type="button"
+                      disabled={chargesLeft <= 0}
+                      className={[
+                        'grid-tile',
+                        isDead ? 'tile-dead' : `tile-alive color-${meta.color}`,
+                        isTargeted ? 'tile-targeted' : '',
+                        isTutorialTarget ? 'tile-tutorial-beacon' : '',
+                        cell.justHit ? 'tile-hit-flash' : '',
+                        cell.destroyedByChain ? 'tile-chain-wrecked' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      onMouseEnter={() => setHoverCell({ row: cell.row, col: cell.col })}
+                      onFocus={() => setHoverCell({ row: cell.row, col: cell.col })}
+                      onClick={() => handleCellClick(cell.row, cell.col)}
+                    >
+                      {cellPopup && <span className="floating-dmg-popup">{cellPopup.text}</span>}
 
-                    {!isDead ? (
-                      <>
-                        <div className="tile-top-row">
-                          <span className="tile-type-tag">{meta.short}</span>
-                          <span className="tile-hp-pill">{cell.hp} HP</span>
-                        </div>
+                      {isTutorialTarget && (
+                        <span className="tutorial-click-tag">👇 STRIKE HERE!</span>
+                      )}
 
-                        <CreatureSprite
-                          type={cell.type}
-                          conduitAxis={cell.conduitAxis}
-                          isTargeted={isTargeted}
-                          isLowHp={hpPercent <= 40}
-                        />
+                      {!isDead ? (
+                        <>
+                          <div className="tile-top-row">
+                            <span className="tile-type-tag">{meta.short}</span>
+                            <span className="tile-hp-pill">❤️ {cell.hp}</span>
+                          </div>
 
-                        <div className="tile-hp-bar-bg">
-                          <div
-                            className="tile-hp-bar-fill"
-                            style={{ width: `${hpPercent}%` }}
+                          <CreatureSprite
+                            type={cell.type}
+                            conduitAxis={cell.conduitAxis}
+                            isTargeted={isTargeted}
+                            isLowHp={hpPercent <= 40}
                           />
+
+                          <div className="tile-hp-bar-bg">
+                            <div
+                              className="tile-hp-bar-fill"
+                              style={{ width: `${hpPercent}%` }}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="tile-wreckage">
+                          {cell.destroyedByChain ? (
+                            <span className="explosion-burst">💥</span>
+                          ) : (
+                            <span className="tile-cleared-mark">🪨</span>
+                          )}
                         </div>
-                      </>
-                    ) : (
-                      <div className="tile-wreckage">
-                        {cell.destroyedByChain ? (
-                          <span className="explosion-burst">💥</span>
-                        ) : (
-                          <span className="tile-cleared-mark">·</span>
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* CLEAR / NEXT WAVE BANNER */}
+            {/* WAVE VICTORY OR RETRY BANNER */}
             {(isBoardCleared || chargesLeft === 0) && (
               <div className={`turn-result-banner ${isBoardCleared ? 'win' : 'retry'}`}>
                 <div>
                   <strong>
                     {isBoardCleared
-                      ? '⚡ 100% LETHAL OVERCLOCK CLEAR!'
-                      : `Out of Charges • ${remainingAliveNodes} Creatures Survived`}
+                      ? '🎺 SIEGE BROKEN! 100% COURTYARD CLEARED!'
+                      : `Volley Expended • ${remainingAliveNodes} Raiders Still Standing`}
                   </strong>
                   <p>
                     {screen === 'TUTORIAL'
                       ? isBoardCleared
-                        ? 'You triggered a full chain reaction!'
-                        : 'Click Retry Lesson and hit the highlighted creature!'
+                        ? 'Glorious chain reaction, Commander!'
+                        : 'Click Reset Trial and strike the highlighted target!'
                       : isBoardCleared
-                      ? `Earned +${lastTurnStats?.shardsEarned || 0} Shards (1.75x Lethal Bonus!)`
-                      : 'Tip: Visit the Upgrade Lab to boost your damage or expand your charges!'}
+                      ? `Looted +${lastTurnStats?.shardsEarned || 0} Gold Crowns (with 1.75× Total Victory Bonus!)`
+                      : 'Tip: Visit the Royal Forge to sharpen your weapons or add extra Siege Volleys!'}
                   </p>
                 </div>
 
@@ -1100,7 +1167,7 @@ export default function App() {
                           onClick={() => startTutorial(tutorialStep + 1)}
                         >
                           <FastForward size={16} />
-                          <span>Next Tutorial Lesson ({tutorialStep + 1}/3)</span>
+                          <span>Next Training Trial ({tutorialStep + 1}/3)</span>
                         </button>
                       ) : (
                         <button
@@ -1109,7 +1176,7 @@ export default function App() {
                           onClick={() => startGameSession('CAMPAIGN', save.sector)}
                         >
                           <Play size={16} />
-                          <span>Start Real Campaign!</span>
+                          <span>March to Wave 1!</span>
                         </button>
                       )
                     ) : (
@@ -1119,7 +1186,7 @@ export default function App() {
                         onClick={() => startTutorial(tutorialStep)}
                       >
                         <RotateCcw size={16} />
-                        <span>Retry Lesson</span>
+                        <span>Reset Trial</span>
                       </button>
                     )
                   ) : (
@@ -1130,7 +1197,7 @@ export default function App() {
                           className="btn-reward-inline"
                           onClick={() => triggerRewardedAd('EXTRA_CHARGE')}
                         >
-                          📺 +1 Charge (Ad)
+                          📺 +1 Volley (Ad)
                         </button>
                       )}
                       {affordableUpgradesCount > 0 && (
@@ -1140,7 +1207,7 @@ export default function App() {
                           onClick={() => setScreen('UPGRADES')}
                         >
                           <ShoppingBag size={15} />
-                          <span>Upgrade Lab ({affordableUpgradesCount})</span>
+                          <span>Royal Forge ({affordableUpgradesCount})</span>
                         </button>
                       )}
                       <button
@@ -1150,7 +1217,7 @@ export default function App() {
                       >
                         <FastForward size={16} />
                         <span>
-                          {isBoardCleared ? `Launch Sector ${save.sector}` : 'Spawn Fresh Wave'}
+                          {isBoardCleared ? `March to Wave ${save.sector}` : 'Call Next Wave'}
                         </span>
                       </button>
                     </>
@@ -1160,10 +1227,9 @@ export default function App() {
             )}
           </div>
 
-          {/* COMPACT BOTTOM WEAPON DOCK (4 Weapons side-by-side) */}
-          <div className="weapon-dock" role="radiogroup" aria-label="Select Tactical Weapon">
+          {/* TACTILE WOODEN & IRON WEAPON DOCK */}
+          <div className="weapon-dock" role="radiogroup" aria-label="Select Siege Weapon">
             {ABILITIES.map((ab) => {
-              const IconComponent = ABILITY_ICONS[ab.icon] || Crosshair;
               const lvl =
                 screen === 'TUTORIAL'
                   ? 2
@@ -1172,16 +1238,24 @@ export default function App() {
                   : save.abilityLevels[ab.id] || 1;
               const stats = ab.getStats(lvl);
               const isSelected = selectedAbilityId === ab.id;
+              const isFiring = firingWeaponId === ab.id;
 
               return (
                 <button
                   key={ab.id}
                   type="button"
-                  className={`weapon-dock-btn color-${ab.color} ${isSelected ? 'selected' : ''}`}
+                  className={[
+                    'weapon-dock-btn',
+                    `color-${ab.color}`,
+                    isSelected ? 'selected' : '',
+                    isFiring ? 'weapon-firing-recoil' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   onClick={() => setSelectedAbilityId(ab.id)}
                 >
                   <div className={`ability-icon bg-${ab.color}`}>
-                    <IconComponent size={18} />
+                    <WeaponIllustration id={ab.id} />
                     <span className="hotkey-badge">{ab.hotkey}</span>
                   </div>
                   <div className="weapon-dock-text">
@@ -1199,18 +1273,18 @@ export default function App() {
       )}
 
       {/* =====================================================================
-          SCREEN 3: SEPARATE UPGRADE LAB SCREEN (No clutter during battle!)
+          SCREEN 3: THE ROYAL FORGE (Separate Upgrade Screen)
           ===================================================================== */}
       {screen === 'UPGRADES' && (
         <main className="upgrade-lab-screen">
           <div className="upgrade-lab-header">
             <div>
               <h2>
-                <TrendingUp size={22} className="text-emerald" /> OVERCLOCK UPGRADE LAB
+                <TrendingUp size={22} className="text-amber" /> THE ROYAL BLACKSMITH FORGE
               </h2>
               <p>
-                Spend your Overclock Shards to expand the grid size (3×3 → 8×8), add extra 1-Turn
-                Charges, and evolve your 4 weapons!
+                Spend your Gold Crowns to expand the castle courtyard (3×3 → 8×8), add extra Siege
+                Volleys, and temper your 4 weapons!
               </p>
             </div>
             <button
@@ -1219,16 +1293,15 @@ export default function App() {
               onClick={() => startGameSession('CAMPAIGN', save.sector)}
             >
               <Play size={16} />
-              <span>Return to Battle (Sector {save.sector})</span>
+              <span>Return to Courtyard (Wave {save.sector})</span>
             </button>
           </div>
 
           <div className="upgrade-lab-columns">
-            {/* LEFT: GRID & MATRIX UPGRADES */}
             <section className="panel">
               <div className="section-heading">
-                <h2>1. BATTLEFIELD & SYNERGY UPGRADES</h2>
-                <span>Expand your tactical grid and chain-reaction damage</span>
+                <h2>I. FORTIFICATIONS & BLACK POWDER</h2>
+                <span>Expand your courtyard size and chain explosion damage</span>
               </div>
 
               <div className="upgrade-list">
@@ -1256,7 +1329,7 @@ export default function App() {
                         disabled={!canAfford || isMax}
                         onClick={() => handleBuyUpgrade(upg)}
                       >
-                        {isMax ? 'MAXED' : `${cost.toLocaleString()} ⚡`}
+                        {isMax ? 'MAXED' : `${cost.toLocaleString()} 🪙`}
                       </button>
                     </div>
                   );
@@ -1264,16 +1337,14 @@ export default function App() {
               </div>
             </section>
 
-            {/* RIGHT: WEAPON EVOLUTIONS & PRESTIGE */}
             <section className="panel">
               <div className="section-heading">
-                <h2>2. EVOLVE TACTICAL WEAPONS</h2>
-                <span>Boost direct strike damage & unlock wider blast patterns</span>
+                <h2>II. TEMPER SIEGE WEAPONS</h2>
+                <span>Increase direct strike damage & unlock wider blast patterns</span>
               </div>
 
               <div className="ability-list">
                 {ABILITIES.map((ab, idx) => {
-                  const IconComponent = ABILITY_ICONS[ab.icon] || Crosshair;
                   const lvl = save.abilityLevels[ab.id] || 1;
                   const stats = ab.getStats(lvl);
                   const upgCost = getAbilityUpgradeCost(idx, lvl);
@@ -1283,7 +1354,7 @@ export default function App() {
                     <div key={ab.id} className={`ability-card color-${ab.color}`}>
                       <div className="ability-card-main">
                         <div className={`ability-icon bg-${ab.color}`}>
-                          <IconComponent size={18} />
+                          <WeaponIllustration id={ab.id} />
                         </div>
                         <div className="ability-info">
                           <div className="ability-title-row">
@@ -1303,7 +1374,7 @@ export default function App() {
                         disabled={!canAfford}
                         onClick={() => handleUpgradeAbility(ab.id, idx)}
                       >
-                        Evolve ({upgCost.toLocaleString()} ⚡)
+                        Forge ({upgCost.toLocaleString()} 🪙)
                       </button>
                     </div>
                   );
@@ -1313,11 +1384,11 @@ export default function App() {
               <div className="prestige-card">
                 <div className="prestige-info">
                   <strong>
-                    <Cpu size={15} className="text-violet" /> Prestige: Overclock Reboot
+                    <Cpu size={15} className="text-amber" /> Royal Ascension (Prestige)
                   </strong>
                   <p>
-                    Requires Sector 10 (Current: Sector {save.sector}). Reboots sector progress for
-                    permanent <strong>+50% Shard & Damage Overclock Cores</strong>!
+                    Requires Wave 10 (Current: Wave {save.sector}). Dedicate your stronghold to the
+                    King in exchange for permanent <strong>+50% Gold & Damage Royal Crests</strong>!
                   </p>
                 </div>
                 <button
@@ -1328,10 +1399,10 @@ export default function App() {
                 >
                   {save.sector < 10 ? (
                     <>
-                      <Lock size={13} /> Unlock at Sector 10
+                      <Lock size={13} /> Unlocks at Wave 10
                     </>
                   ) : (
-                    `Reboot for +${Math.max(1, Math.floor((save.sector - 5) / 4))} Cores`
+                    `Ascend for +${Math.max(1, Math.floor((save.sector - 5) / 4))} Royal Crests`
                   )}
                 </button>
               </div>
@@ -1340,20 +1411,20 @@ export default function App() {
 
           <AdBannerSlot
             slotId={import.meta.env.VITE_ADSENSE_SIDEBAR_SLOT || '2222222222'}
-            label="Upgrade Lab Banner Slot"
+            label="Royal Forge Banner Slot"
             format="horizontal"
           />
         </main>
       )}
 
-      {/* CLEAN FOOTER BAR (Keeps AdSense SEO Guide & Privacy Policy accessible without cluttering gameplay) */}
+      {/* CLEAN FOOTER BAR */}
       <footer className="clean-footer">
         <button
           type="button"
           className="btn-link"
           onClick={() => setShowGuideDrawer((v) => !v)}
         >
-          <BookOpen size={14} /> {showGuideDrawer ? 'Hide Game Guide' : 'How to Play & Strategy Guide'}
+          <BookOpen size={14} /> {showGuideDrawer ? 'Close Field Manual' : 'Siege Field Manual & Rules'}
         </button>
         <span>•</span>
         <button
@@ -1361,20 +1432,20 @@ export default function App() {
           className="btn-link"
           onClick={() => setShowPrivacyModal(true)}
         >
-          <Shield size={14} /> Privacy Policy & AdSense Disclosure
+          <Shield size={14} /> Privacy Charter & AdSense Disclosure
         </button>
         <span>•</span>
         <button
           type="button"
           className="btn-link"
           onClick={() => {
-            if (window.confirm('Reset all local save progress?')) {
+            if (window.confirm('Reset all local Kingdom save progress?')) {
               localStorage.removeItem(STORAGE_KEY);
               window.location.reload();
             }
           }}
         >
-          Reset Save Data
+          Reset Kingdom Save
         </button>
       </footer>
 
@@ -1383,42 +1454,42 @@ export default function App() {
           <div className="seo-grid">
             <article className="seo-card">
               <h3>
-                <BookOpen size={18} className="text-cyan" /> How to Play Lethal Grid: Overclock
+                <BookOpen size={18} className="text-amber" /> How to Play Siege of Emberkeep
               </h3>
               <p>
-                <strong>Lethal Grid: Overclock</strong> blends tactical one-turn puzzle mechanics
-                (&ldquo;Find Lethal&rdquo;) with incremental progression. Wipe 100% of the cyber
-                creatures on the grid in a single turn using your available Charges!
+                <strong>Siege of Emberkeep</strong> blends tactical one-turn medieval puzzle warfare
+                (&ldquo;Find Lethal&rdquo;) with incremental stronghold progression. Rout 100% of the
+                invading raiders in the courtyard in a single turn using your Siege Volleys!
               </p>
               <ul>
                 <li>
-                  <strong>Pyro-Ticks (Red):</strong> Explode in a 3×3 area when destroyed.
+                  <strong>Powder-Keg Sappers (Red Barrel):</strong> Explode in a 3×3 fireball when
+                  slain.
                 </li>
                 <li>
-                  <strong>Volt-Wisps (Yellow):</strong> Shoot a lightning beam across their row or
-                  column when destroyed.
+                  <strong>Storm-Rune Shamans (Blue Hood):</strong> Unleash a lightning bolt across
+                  their row or column when slain.
                 </li>
                 <li>
-                  <strong>Crystal-Sprites (Green):</strong> Boost all subsequent damage this turn by
-                  +50% when shattered.
+                  <strong>War-Banner Heralds (Emerald Flag):</strong> Rally your siege weapons for
+                  +50% turn damage when shattered.
                 </li>
               </ul>
             </article>
             <article className="seo-card">
               <h3>
-                <HelpCircle size={18} className="text-amber" /> Incremental Scaling & Daily Seeds
+                <HelpCircle size={18} className="text-amber" /> The Royal Forge & Daily Decrees
               </h3>
               <p>
-                Visit the <strong>Upgrade Lab</strong> anytime to expand your battlefield from a 3×3
-                grid up to an 8×8 mega-sector, unlock an Autonomous Pulse Drone, and evolve your 4
-                weapons.
+                Visit the <strong>Royal Forge</strong> anytime to expand your castle courtyard from a
+                3×3 grid up to an 8×8 grand citadel, hire Battlement Archers for passive Gold Crowns,
+                and temper your 4 siege weapons.
               </p>
             </article>
           </div>
         </section>
       )}
 
-      {/* REWARDED VIDEO AD MODAL */}
       <RewardedAdModal
         isOpen={rewardedModalConfig.isOpen}
         onClose={() => setRewardedModalConfig((prev) => ({ ...prev, isOpen: false }))}
@@ -1426,18 +1497,17 @@ export default function App() {
         onRewardClaimed={rewardedModalConfig.onClaim}
       />
 
-      {/* PRIVACY POLICY & COOKIE DISCLOSURE MODAL */}
       {showPrivacyModal && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal-card privacy-modal-card">
-            <h3>Privacy Policy & Google AdSense / Analytics Disclosure</h3>
+            <h3>Privacy Charter & Google AdSense / Analytics Disclosure</h3>
             <p>
-              <strong>1. Local Browser Storage:</strong> Lethal Grid: Overclock stores your game
+              <strong>1. Local Browser Storage:</strong> Siege of Emberkeep stores your Kingdom
               progress locally in your browser&apos;s <code>localStorage</code>.
             </p>
             <p>
               <strong>2. Google Analytics (GA4):</strong> We use Google Analytics to measure anonymous
-              gameplay metrics such as waves cleared and upgrade popularity.
+              gameplay metrics such as waves cleared and weapon popularity.
             </p>
             <p>
               <strong>3. Google AdSense & Cookies:</strong> Third-party vendors, including Google, use
@@ -1450,7 +1520,7 @@ export default function App() {
                 className="btn-primary"
                 onClick={() => setShowPrivacyModal(false)}
               >
-                Close
+                Close Scroll
               </button>
             </div>
           </div>

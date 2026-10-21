@@ -1,16 +1,16 @@
 /**
- * LETHAL GRID: OVERCLOCK — Core Game Engine
+ * SIEGE OF EMBERKEEP — Medieval Tactical Chain-Reaction Engine
  *
  * Implements:
- * - Mulberry32 deterministic PRNG for 100% client-side Daily "Find Lethal" seeds
- * - Dynamic Grid Scaling (3x3 -> 4x4 -> 5x5 -> 6x6 -> 7x7 -> 8x8)
- * - 5 Node Types with recursive chain-reaction physics:
- *   1. STANDARD ( Drone Core ) — Standard armor, drops base Shards
- *   2. BOMB ( Volatile Mine ) — Explodes in a 3x3 area when destroyed!
- *   3. CONDUIT ( Arc Pylon ) — Fires chain lightning along its row/col on death!
- *   4. AMPLIFIER ( Prism Node ) — Boosts all subsequent ability & chain damage by +50% on death!
- *   5. BOSS ( Dreadnought Core ) — High HP, huge Shard jackpot, triggers a board shockwave on death!
- * - 4 Upgradable Tactical Abilities with preview targeting & evolution tiers
+ * - Mulberry32 deterministic PRNG for 100% client-side Daily Siege seeds
+ * - Dynamic Courtyard Scaling (3x3 -> 4x4 -> 5x5 -> 6x6 -> 7x7 -> 8x8)
+ * - 5 Medieval Unit Types with recursive chain-reaction physics:
+ *   1. STANDARD ( Goblin Footpad ) — Standard shield raider, drops Gold Crowns
+ *   2. BOMB ( Powder-Keg Sapper ) — Carries a black-powder barrel that explodes 3x3 on death!
+ *   3. CONDUIT ( Storm-Rune Shaman ) — Discharges a lightning bolt along its row/col on death!
+ *   4. AMPLIFIER ( War-Banner Herald ) — Slaying him rallies your siege weapons for +50% turn damage!
+ *   5. BOSS ( Ironclad Siege Ogre ) — Armored warlord, drops 5x Gold & triggers a 5x5 shockwave!
+ * - 4 Upgradable Medieval Siege Weapons with trajectory metadata for the 60FPS Canvas VFX Engine
  */
 
 export const NODE_TYPES = {
@@ -24,106 +24,106 @@ export const NODE_TYPES = {
 
 export const NODE_META = {
   STANDARD: {
-    label: 'Drone Core',
-    short: 'DRN',
+    label: 'Goblin Footpad',
+    short: 'GOBLIN',
     color: 'cyan',
-    desc: 'Standard cyber-node. Awards Overclock Shards when destroyed.',
+    desc: 'Shield-bearing goblin raider. Drops Gold Crowns when slain.',
   },
   BOMB: {
-    label: 'Volatile Mine',
-    short: 'BMB',
+    label: 'Powder-Keg Sapper',
+    short: 'KEG',
     color: 'rose',
-    desc: 'Explodes on destruction, dealing heavy blast damage to all 8 surrounding tiles!',
+    desc: 'Carries an unstable black-powder barrel! Explodes in a 3×3 fireball when slain!',
   },
   CONDUIT: {
-    label: 'Arc Pylon',
-    short: 'ARC',
+    label: 'Storm-Rune Shaman',
+    short: 'SHAMAN',
     color: 'amber',
-    desc: 'Discharges a high-voltage beam across its entire Row or Column when destroyed!',
+    desc: 'Unleashes a crackling Runic Lightning bolt across its entire Row or Column when slain!',
   },
   AMPLIFIER: {
-    label: 'Prism Catalyst',
-    short: 'AMP',
+    label: 'War-Banner Herald',
+    short: 'BANNER',
     color: 'emerald',
-    desc: 'Shattering this node permanently boosts ALL chain-reaction damage this turn by +50%!',
+    desc: 'Slaying this herald rallies your defenders, boosting ALL damage this turn by +50%!',
   },
   BOSS: {
-    label: 'Overlord Core',
-    short: 'BOSS',
+    label: 'Ironclad Siege Ogre',
+    short: 'OGRE',
     color: 'violet',
-    desc: 'Armored command unit. Drops 5x Shards and detonates all adjacent tiles when destroyed!',
+    desc: 'Towering iron-plated warlord. Drops 5× Gold Crowns and shatters surrounding tiles on death!',
   },
 };
 
 export const ABILITIES = [
   {
     id: 'rail_beam',
-    name: 'Rail-Cross Laser',
+    name: 'Heavy Ballista Volley',
     hotkey: '1',
     icon: 'Crosshair',
-    color: 'cyan',
-    baseDesc: 'Strikes target tile + entire Row & Column (+ shape).',
+    color: 'amber',
+    baseDesc: 'Fires iron-tipped bolts across the entire Row & Column (+ shape).',
     getStats: (level) => {
       const dmg = Math.floor(2 + level * 1.8);
-      const radius = level >= 5 ? 1 : 0; // Level 5+ widens center blast
+      const radius = level >= 5 ? 1 : 0;
       return {
         damage: dmg,
         radius,
         tierLabel:
           level >= 5
-            ? 'Tier III: Superheated Cross + 3x3 Core'
+            ? 'Tier III: Dragon-Piercer Bolts + 3×3 Shrapnel'
             : level >= 3
-            ? 'Tier II: High-Pierce Cross Beam'
-            : 'Tier I: Orthogonal Laser (+)',
+            ? 'Tier II: Tempered Iron Bolts'
+            : 'Tier I: Castle Wall Ballista (+)',
       };
     },
   },
   {
     id: 'nova_bomb',
-    name: 'Nova Detonator',
+    name: 'Alchemist Wildfire Flask',
     hotkey: '2',
     icon: 'Flame',
     color: 'rose',
-    baseDesc: 'Heavy explosive blast in a 3x3 square around target tile.',
+    baseDesc: 'Hurls a volatile glass potion that shatters into a 3×3 wildfire blast.',
     getStats: (level) => {
       const dmg = Math.floor(3 + level * 2.2);
-      const range = level >= 6 ? 2 : 1; // Level 6+ expands to 5x5!
+      const range = level >= 6 ? 2 : 1;
       return {
         damage: dmg,
         range,
         tierLabel:
           level >= 6
-            ? 'Tier III: 5x5 Thermonuclear Nova'
+            ? 'Tier III: 5×5 Dragonfire Cauldron'
             : level >= 3
-            ? 'Tier II: High-Yield 3x3 Blast'
-            : 'Tier I: 3x3 Tactical Blast',
+            ? 'Tier II: Volatile Pitch Flask (3×3)'
+            : 'Tier I: Alchemist Fire Flask (3×3)',
       };
     },
   },
   {
     id: 'arc_chain',
-    name: 'Tesla Ricochet',
+    name: 'Dwarven Thunder-Hammer',
     hotkey: '3',
     icon: 'Zap',
-    color: 'amber',
-    baseDesc: 'Strikes target tile and ricochets to highest-HP nodes on the board.',
+    color: 'cyan',
+    baseDesc: 'Hurls a runic warhammer that ricochets to the highest-HP enemies.',
     getStats: (level) => {
       const dmg = Math.floor(2 + level * 1.6);
       const bounces = 3 + Math.floor(level * 1.2);
       return {
         damage: dmg,
         bounces,
-        tierLabel: `Tier ${level >= 5 ? 'III' : level >= 3 ? 'II' : 'I'}: Chains to ${bounces} Targets`,
+        tierLabel: `Tier ${level >= 5 ? 'III' : level >= 3 ? 'II' : 'I'}: Ricochets to ${bounces} Foes`,
       };
     },
   },
   {
     id: 'overclock_pulse',
-    name: 'Singularity X-Wave',
+    name: "Executioner's Greatsword",
     hotkey: '4',
     icon: 'Sparkles',
     color: 'violet',
-    baseDesc: 'Strikes diagonals (X-shape) + weakens armor of hit nodes by doubling their damage taken.',
+    baseDesc: 'Cleaves diagonals (X-slash) and sunders enemy armor (2× damage taken).',
     getStats: (level) => {
       const dmg = Math.floor(2 + level * 1.7);
       return {
@@ -131,8 +131,8 @@ export const ABILITIES = [
         weakenMultiplier: level >= 4 ? 2.5 : 2,
         tierLabel:
           level >= 4
-            ? 'Tier II: Diagonal X-Slash + 2.5x Vulnerability'
-            : 'Tier I: Diagonal X-Slash + 2x Vulnerability',
+            ? 'Tier II: Royal Whirlwind Cleave (2.5× Sunder)'
+            : 'Tier I: Diagonal Steel Cleave (2× Sunder)',
       };
     },
   },
@@ -141,74 +141,72 @@ export const ABILITIES = [
 export const UPGRADE_CATALOG = [
   {
     id: 'grid_size',
-    name: 'Expand Tactical Grid',
+    name: 'Expand Castle Courtyard',
     category: 'BF_EXPANSION',
-    maxLevel: 5, // Level 0 = 3x3, Lv1 = 4x4, Lv2 = 5x5, Lv3 = 6x6, Lv4 = 7x7, Lv5 = 8x8
+    maxLevel: 5,
     baseCost: 25,
     costScale: 3.4,
     getEffectText: (lvl) => {
       const size = 3 + lvl;
       const next = Math.min(8, size + 1);
       return lvl >= 5
-        ? `MAX: ${size}x${size} Mega-Sector Grid`
-        : `${size}x${size} → ${next}x${next} Grid (+More Nodes & Combos!)`;
+        ? `MAX: ${size}×${size} Grand Citadel Courtyard`
+        : `${size}×${size} → ${next}×${next} Stone Courtyard (+More Enemies & Chain Combos!)`;
     },
   },
   {
     id: 'max_charges',
-    name: 'Action Point Capacitor',
+    name: 'Extra Siege Volley',
     category: 'BF_EXPANSION',
-    maxLevel: 5, // Starts with 2 charges per turn -> up to 7 charges per turn!
+    maxLevel: 5,
     baseCost: 40,
     costScale: 3.2,
-    getEffectText: (lvl) => `${2 + lvl} → ${3 + lvl} Ability Charges per 1-Turn Lethal attempt`,
+    getEffectText: (lvl) => `${2 + lvl} → ${3 + lvl} Weapon Attacks per 1-Turn Siege Wave`,
   },
   {
     id: 'chain_amp',
-    name: 'Chain Reaction Core',
+    name: 'Refined Black Powder',
     category: 'SYNERGY',
     maxLevel: 25,
     baseCost: 15,
     costScale: 1.65,
     getEffectText: (lvl) =>
-      `+${lvl * 25}% → +${(lvl + 1) * 25}% Bomb & Conduit Chain Explosion Damage`,
+      `+${lvl * 25}% → +${(lvl + 1) * 25}% Powder-Keg & Shaman Chain Explosion Damage`,
   },
   {
     id: 'shard_mult',
-    name: 'Shard Harvester Matrix',
+    name: 'Royal Tax & Plunder Charter',
     category: 'SYNERGY',
     maxLevel: 30,
     baseCost: 18,
     costScale: 1.6,
-    getEffectText: (lvl) => `x${(1 + lvl * 0.35).toFixed(2)} → x${(1 + (lvl + 1) * 0.35).toFixed(2)} Shards Earned`,
+    getEffectText: (lvl) =>
+      `×${(1 + lvl * 0.35).toFixed(2)} → ×${(1 + (lvl + 1) * 0.35).toFixed(2)} Gold Crowns Looted`,
   },
   {
     id: 'volatile_spawn',
-    name: 'Volatile Seeding Protocol',
+    name: 'Saboteur Ambush Traps',
     category: 'SYNERGY',
     maxLevel: 8,
     baseCost: 30,
     costScale: 2.1,
     getEffectText: (lvl) =>
-      `+${lvl * 5}% → +${(lvl + 1) * 5}% extra Bomb, Conduit & Prism nodes spawned`,
+      `+${lvl * 5}% → +${(lvl + 1) * 5}% extra Powder-Kegs, Shamans & Banners on every wave`,
   },
   {
     id: 'auto_drone',
-    name: 'Autonomous Pulse Drone',
+    name: 'Battlement Archer Garrison',
     category: 'AUTOMATION',
     maxLevel: 15,
     baseCost: 35,
     costScale: 1.85,
     getEffectText: (lvl) =>
       lvl === 0
-        ? 'Unlock Idle Auto-Drone (Fires every 2.5s + Offline Shards)'
-        : `Auto-Strikes for ${lvl * 3} DMG/pulse & +${lvl * 4} Passive Shards/sec`,
+        ? 'Hire Castle Archers (Passively loots Gold Crowns every 2.5s!)'
+        : `Archers loot +${lvl * 4} Passive Gold Crowns every 2.5 seconds`,
   },
 ];
 
-/**
- * Deterministic PRNG (Mulberry32) so Daily Seeds are 100% identical across all browsers
- */
 export function createSeededRandom(seedString) {
   let h = 2166136261 >>> 0;
   const str = String(seedString);
@@ -245,25 +243,25 @@ export function getAbilityUpgradeCost(abilityIndex, currentLevel) {
 export const TUTORIAL_LESSONS = [
   {
     step: 1,
-    title: 'Lesson 1: The Volatile Pyro-Tick',
+    title: 'Lesson I: The Powder-Keg Sapper',
     commanderSpeech:
-      'Welcome, Commander! See that glowing red Pyro-Tick in the center? When it dies, its magma belly explodes in a 3×3 blast! Click the center tile (Row 2, Col 2) to wipe all 5 creatures in ONE shot!',
+      'Hail, Commander! Behold that reckless Goblin hugging a Black-Powder Keg in the center of our courtyard. Loose a Ballista Bolt at the center stone (Row 2, Col 2) to detonate his barrel and rout all 5 raiders in ONE shot!',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 1, col: 1 },
   },
   {
     step: 2,
-    title: 'Lesson 2: Electric Volt-Wisp Chains',
+    title: 'Lesson II: Storm-Rune Chain Lightning',
     commanderSpeech:
-      'Awesome chain reaction! Now look at the yellow Volt-Wisp on the left—when destroyed, it fires a lightning beam across its entire row, which will detonate the Pyro-Tick on the right! Click the Volt-Wisp (Row 2, Col 1)!',
+      'A glorious blast! Now spy the hooded Storm-Rune Shaman on the left—slaying him unleashes a lightning bolt across his entire row, igniting the Powder-Keg on the right! Strike the Shaman at Row 2, Col 1!',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 1, col: 0 },
   },
   {
     step: 3,
-    title: 'Lesson 3: Crystal-Sprite Damage Boost',
+    title: 'Lesson III: The War-Banner Rally',
     commanderSpeech:
-      'Final test! An armored Apex Boss has appeared! First, shatter the green Crystal-Sprite at the top (Row 1, Col 2) to boost all your damage by +50% and trigger a domino reaction that finishes the Boss!',
+      'Final trial! An Ironclad Siege Ogre approaches the gate! Strike the emerald War-Banner at the top (Row 1, Col 2) first—shattering their banner grants +50% Rally Damage and sets off a chain reaction that fells the Ogre!',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 0, col: 1 },
   },
@@ -292,21 +290,18 @@ export function generateTutorialBoard(step = 1) {
   }
 
   if (step === 1) {
-    // Center Pyro-Tick surrounded by 4 Cyber-Mites
     cells[1 * 3 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
     cells[0 * 3 + 1] = makeCell(0, 1, NODE_TYPES.STANDARD, 3);
     cells[2 * 3 + 1] = makeCell(2, 1, NODE_TYPES.STANDARD, 3);
     cells[1 * 3 + 0] = makeCell(1, 0, NODE_TYPES.STANDARD, 3);
     cells[1 * 3 + 2] = makeCell(1, 2, NODE_TYPES.STANDARD, 3);
   } else if (step === 2) {
-    // Left Volt-Wisp (ROW) shoots right Pyro-Tick, which blows up surrounding Cyber-Mites
     cells[1 * 3 + 0] = makeCell(1, 0, NODE_TYPES.CONDUIT, 3, 'ROW');
     cells[1 * 3 + 2] = makeCell(1, 2, NODE_TYPES.BOMB, 3);
     cells[0 * 3 + 2] = makeCell(0, 2, NODE_TYPES.STANDARD, 3);
     cells[2 * 3 + 2] = makeCell(2, 2, NODE_TYPES.STANDARD, 3);
     cells[0 * 3 + 0] = makeCell(0, 0, NODE_TYPES.STANDARD, 3);
   } else {
-    // Step 3: Top Crystal-Sprite (0,1) + Center Pyro-Tick (1,1) + Bottom Boss (2,1) + Side Mites
     cells[0 * 3 + 1] = makeCell(0, 1, NODE_TYPES.AMPLIFIER, 2);
     cells[1 * 3 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
     cells[2 * 3 + 1] = makeCell(2, 1, NODE_TYPES.BOSS, 6);
@@ -317,9 +312,6 @@ export function generateTutorialBoard(step = 1) {
   return cells;
 }
 
-/**
- * Generate a tactical board for either Campaign Sector or Daily Seed Challenge
- */
 export function generateBoard({
   gridSize = 3,
   sector = 1,
@@ -331,14 +323,12 @@ export function generateBoard({
   const totalCells = gridSize * gridSize;
   const cells = [];
 
-  // Scale HP smoothly so chain reactions feel crunchy and winnable
   const baseHp = isDaily
     ? 4
     : Math.max(2, Math.floor(2 + (sector - 1) * 1.45 + Math.pow(sector, 1.15) * 0.4));
 
   const specialChanceBonus = volatileBonusLevel * 0.04;
 
-  // Guarantee at least 1 Bomb and 1 Conduit on every board so chain reactions are always possible
   const guaranteedBombIdx = Math.floor(rng() * totalCells);
   let guaranteedConduitIdx = Math.floor(rng() * totalCells);
   if (guaranteedConduitIdx === guaranteedBombIdx) {
@@ -399,9 +389,6 @@ export function generateBoard({
   return cells;
 }
 
-/**
- * Preview which cells an ability will directly target when hovering over (targetRow, targetCol)
- */
 export function getAbilityPreviewIndices({
   abilityId,
   abilityLevel,
@@ -467,13 +454,6 @@ export function getAbilityPreviewIndices({
   return indices;
 }
 
-/**
- * Execute an ability on (targetRow, targetCol) and resolve recursive chain reactions!
- * Returns:
- * - nextCells: updated board state
- * - events: ordered list of chain steps for visual/combat log feedback
- * - stats: { nodesDestroyed, chainDepth, shardsEarned, totalDamageDealt, isBoardClear }
- */
 export function executeAbilityAndResolveChains({
   cells,
   gridSize,
@@ -494,6 +474,7 @@ export function executeAbilityAndResolveChains({
   }));
 
   const events = [];
+  const vfxAnimations = [];
   let totalDamageDealt = 0;
   let nodesDestroyed = 0;
   let chainDepth = 0;
@@ -506,6 +487,29 @@ export function executeAbilityAndResolveChains({
     2,
     Math.floor((2 + sector * 1.35) * (1 + chainAmpLevel * 0.25))
   );
+
+  // Enqueue Primary Weapon Animation for the 60FPS Canvas VFX Layer
+  const bounceTargets = [];
+  if (abilityId === 'arc_chain') {
+    const { bounces } = ABILITIES[2].getStats(abilityLevel);
+    const primaryIdx = targetRow * gridSize + targetCol;
+    cells
+      .map((cell, idx) => ({ cell, idx }))
+      .filter(({ cell, idx }) => idx !== primaryIdx && cell.type !== NODE_TYPES.EMPTY && cell.hp > 0)
+      .sort((a, b) => b.cell.hp - a.cell.hp)
+      .slice(0, bounces - 1)
+      .forEach(({ cell }) => bounceTargets.push({ row: cell.row, col: cell.col }));
+  }
+
+  vfxAnimations.push({
+    id: `vfx-primary-${Date.now()}-${Math.random()}`,
+    type: abilityId,
+    row: targetRow,
+    col: targetCol,
+    bounceTargets,
+    delayMs: 0,
+    duration: abilityId === 'nova_bomb' ? 560 : 440,
+  });
 
   function applyDamageToCell(idx, rawDamage, sourceLabel, isChainReaction = false) {
     const cell = nextCells[idx];
@@ -531,7 +535,7 @@ export function executeAbilityAndResolveChains({
           dynamicAmp += 0.5;
           events.push({
             type: 'AMPLIFIER',
-            text: `Prism Catalyst shattered at (${cell.row + 1},${cell.col + 1})! Damage boosted to ${(
+            text: `War-Banner shattered at (${cell.row + 1},${cell.col + 1})! Rally Damage boosted to ${(
               dynamicAmp * 100
             ).toFixed(0)}%!`,
           });
@@ -553,7 +557,7 @@ export function executeAbilityAndResolveChains({
     }
   }
 
-  // 1. Apply Primary Ability Strike
+  // 1. Apply Primary Weapon Strike
   const targetIndices = getAbilityPreviewIndices({
     abilityId,
     abilityLevel,
@@ -570,7 +574,6 @@ export function executeAbilityAndResolveChains({
     const cell = nextCells[idx];
     if (!cell || cell.type === NODE_TYPES.EMPTY) return;
 
-    // Singularity X-Wave applies armor vulnerability BEFORE and AFTER damage
     if (abilityId === 'overclock_pulse' && cell.hp > 0) {
       cell.vulnerable = Math.max(cell.vulnerable || 1, abilityStats.weakenMultiplier);
     }
@@ -578,7 +581,7 @@ export function executeAbilityAndResolveChains({
     applyDamageToCell(idx, abilityStats.damage, abilityObj.name, false);
   });
 
-  // 2. Resolve Recursive Chain Reactions (Bombs, Conduits, Boss Shockwaves)
+  // 2. Resolve Recursive Chain Reactions (Powder-Kegs, Storm-Rune Shamans, Ogre Boss)
   while (chainExplosionQueue.length > 0) {
     chainDepth += 1;
     const currentWave = [...chainExplosionQueue];
@@ -589,11 +592,21 @@ export function executeAbilityAndResolveChains({
 
       if (type === NODE_TYPES.BOMB || type === NODE_TYPES.BOSS) {
         const radius = type === NODE_TYPES.BOSS ? 2 : 1;
+        vfxAnimations.push({
+          id: `vfx-chain-keg-${Date.now()}-${Math.random()}`,
+          type: 'BARREL_EXPLOSION',
+          row,
+          col,
+          delayMs: chainDepth * 160,
+          duration: 460,
+          impactAt: 0.1,
+        });
+
         events.push({
           type: 'EXPLOSION',
-          text: `${type === NODE_TYPES.BOSS ? 'Overlord Core' : 'Volatile Mine'} detonated at (${
+          text: `${type === NODE_TYPES.BOSS ? 'Siege Ogre' : 'Powder-Keg'} detonated at (${
             row + 1
-          },${col + 1}) for ${Math.ceil(baseChainDamage * dynamicAmp)} AoE DMG!`,
+          },${col + 1}) for ${Math.ceil(baseChainDamage * dynamicAmp)} Blast DMG!`,
         });
 
         for (let dr = -radius; dr <= radius; dr++) {
@@ -605,31 +618,42 @@ export function executeAbilityAndResolveChains({
               applyDamageToCell(
                 nIdx,
                 type === NODE_TYPES.BOSS ? baseChainDamage * 1.5 : baseChainDamage,
-                'Chain Blast',
+                'Powder Blast',
                 true
               );
             }
           }
         }
       } else if (type === NODE_TYPES.CONDUIT) {
+        vfxAnimations.push({
+          id: `vfx-chain-rune-${Date.now()}-${Math.random()}`,
+          type: 'RUNE_LIGHTNING',
+          row,
+          col,
+          axis: conduitAxis,
+          delayMs: chainDepth * 160,
+          duration: 420,
+          impactAt: 0.1,
+        });
+
         events.push({
           type: 'CONDUIT',
-          text: `Arc Pylon discharged a ${conduitAxis} lightning beam from (${row + 1},${col + 1})!`,
+          text: `Storm-Rune Shaman unleashed a ${conduitAxis} lightning bolt from (${row + 1},${
+            col + 1
+          })!`,
         });
 
         for (let i = 0; i < gridSize; i++) {
           const nIdx = conduitAxis === 'ROW' ? row * gridSize + i : i * gridSize + col;
-          applyDamageToCell(nIdx, Math.ceil(baseChainDamage * 1.1), 'Arc Discharge', true);
+          applyDamageToCell(nIdx, Math.ceil(baseChainDamage * 1.1), 'Rune Lightning', true);
         }
       }
     }
   }
 
-  // 3. Check if the entire board is cleared!
   const remainingNodes = nextCells.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0).length;
   const isBoardClear = remainingNodes === 0;
 
-  // 4. Calculate Overclock Shards Reward
   const baseShardPerKill = 2 + Math.floor(sector * 0.9);
   const comboMultiplier = 1 + chainDepth * 0.25;
   const upgradeMultiplier = 1 + shardMultLevel * 0.35;
@@ -647,6 +671,7 @@ export function executeAbilityAndResolveChains({
   return {
     nextCells,
     events,
+    vfxAnimations,
     nextTurnAmplifierBonus: dynamicAmp,
     stats: {
       nodesDestroyed,
