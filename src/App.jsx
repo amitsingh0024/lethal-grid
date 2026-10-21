@@ -973,7 +973,7 @@ export default function App() {
               <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} />
 
               <div
-                className="tactical-grid"
+                className={`tactical-grid grid-size-${activeGridSize}`}
                 style={{
                   gridTemplateColumns: `repeat(${activeGridSize}, minmax(0, 1fr))`,
                 }}
