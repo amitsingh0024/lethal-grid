@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Crosshair,
@@ -44,8 +44,9 @@ import {
   trackEvent,
   subscribeToTelemetry,
   getMonetizationConfig,
+  SHOW_DEV_TOOLS,
 } from './services/analytics';
-import { AdBannerSlot, RewardedAdModal } from './components/AdUnit';
+import { RewardedAdModal } from './components/AdUnit';
 import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 import { DungeonStageBanner } from './components/DungeonStageBanner';
@@ -174,6 +175,9 @@ export default function App() {
   const [gameMode, setGameMode] = useState('CAMPAIGN'); // 'CAMPAIGN' | 'DAILY'
   const [selectedAbilityId, setSelectedAbilityId] = useState('rail_beam');
   const [hoverCell, setHoverCell] = useState({ row: null, col: null });
+  // Touch has no hover, so the first tap aims (shows the blast preview) and a second tap fires
+  const [armedCellId, setArmedCellId] = useState(null);
+  const lastPointerTypeRef = useRef('mouse');
   const [muted, setMuted] = useState(false);
   const [screenShake, setScreenShake] = useState(false);
   const [floatingPopups, setFloatingPopups] = useState([]);
@@ -187,6 +191,8 @@ export default function App() {
     screen === 'TUTORIAL' ? 1 : gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
 
   const [chargesLeft, setChargesLeft] = useState(maxTurnCharges);
+  // Wave the board on screen belongs to; save.sector moves ahead as soon as a wave is cleared
+  const [boardSector, setBoardSector] = useState(save.sector);
   const [turnAmplifierBonus, setTurnAmplifierBonus] = useState(1);
   const [board, setBoard] = useState(() =>
     generateBoard({
@@ -262,7 +268,8 @@ export default function App() {
     if (droneLevel <= 0) return;
 
     const timer = setInterval(() => {
-      if (screen === 'PLAY') {
+      // The Daily board is shared by everyone, so campaign archers stay off it
+      if (screen === 'PLAY' && gameMode !== 'DAILY') {
         const aliveCells = board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
         if (aliveCells.length > 0) {
           const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
@@ -351,6 +358,7 @@ export default function App() {
     setTutorialStep(step);
     setSelectedAbilityId('rail_beam');
     setBoard(generateTutorialBoard(step));
+    setArmedCellId(null);
     setChargesLeft(1);
     setTurnAmplifierBonus(1);
     setLastTurnStats(null);
@@ -378,6 +386,8 @@ export default function App() {
     });
 
     setBoard(nextCells);
+    setArmedCellId(null);
+    setBoardSector(isDaily ? 5 : targetSector);
     setChargesLeft(maxChg);
     setTurnAmplifierBonus(1);
     setLastTurnStats(null);
@@ -404,8 +414,16 @@ export default function App() {
   });
 
   // Execute Weapon Strike + Trigger 60fps Canvas Weapon Animation
-  const handleCellClick = (row, col) => {
+  const handleCellClick = (cell) => {
     if (chargesLeft <= 0) return;
+    const { row, col } = cell;
+
+    if (lastPointerTypeRef.current === 'touch' && armedCellId !== cell.id) {
+      setArmedCellId(cell.id);
+      setHoverCell({ row, col });
+      return;
+    }
+    setArmedCellId(null);
 
     // Trigger physical recoil/use animation on the weapon card in the dock
     setFiringWeaponId(selectedAbilityId);
@@ -673,7 +691,7 @@ export default function App() {
 
     const shareText = [
       `🏰 SIEGE OF EMBERKEEP (${
-        gameMode === 'DAILY' ? `Daily Decree #${todaySeed}` : `Wave ${save.sector}`
+        gameMode === 'DAILY' ? `Daily Decree #${todaySeed}` : `Wave ${boardSector}`
       })`,
       `Courtyard: ${activeGridSize}×${activeGridSize} | Sieges Broken: ${save.lethalClears}`,
       ...emojiRows,
@@ -842,15 +860,17 @@ export default function App() {
               <BookOpen size={16} />
             </button>
 
-            <button
-              type="button"
-              className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
-              onClick={() => setShowRevenueDashboard((v) => !v)}
-              title="Inspect Google Analytics 4 Events & AdSense Revenue"
-            >
-              <Activity size={15} className="text-emerald" />
-              <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
-            </button>
+            {SHOW_DEV_TOOLS && (
+              <button
+                type="button"
+                className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
+                onClick={() => setShowRevenueDashboard((v) => !v)}
+                title="Inspect Google Analytics 4 Events & AdSense Revenue"
+              >
+                <Activity size={15} className="text-emerald" />
+                <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -865,7 +885,7 @@ export default function App() {
       )}
 
       {/* COLLAPSIBLE GA4 & AD REVENUE OWNER INSPECTOR */}
-      {showRevenueDashboard && (
+      {SHOW_DEV_TOOLS && showRevenueDashboard && (
         <section className="owner-telemetry-panel" aria-label="Analytics and Ad Revenue Dashboard">
           <div className="telemetry-header">
             <div>
@@ -929,15 +949,17 @@ export default function App() {
                 <span>Bestiary</span>
               </button>
 
-              <button
-                type="button"
-                className={`title-utility-btn ${showRevenueDashboard ? 'active' : ''}`}
-                onClick={() => setShowRevenueDashboard((v) => !v)}
-                title="GA4 & AdSense Revenue Ledger"
-              >
-                <Activity size={15} className="text-emerald" />
-                <span>${save.estSessionRevenueUsd.toFixed(3)}</span>
-              </button>
+              {SHOW_DEV_TOOLS && (
+                <button
+                  type="button"
+                  className={`title-utility-btn ${showRevenueDashboard ? 'active' : ''}`}
+                  onClick={() => setShowRevenueDashboard((v) => !v)}
+                  title="GA4 & AdSense Revenue Ledger"
+                >
+                  <Activity size={15} className="text-emerald" />
+                  <span>${save.estSessionRevenueUsd.toFixed(3)}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1051,7 +1073,7 @@ export default function App() {
         <main className="arena-focused-stage">
           {/* BACKPACK HERO / PEGLIN STYLE TOP DUNGEON STAGE SCENE */}
           <DungeonStageBanner
-            waveNumber={screen === 'TUTORIAL' ? tutorialStep : save.sector}
+            waveNumber={screen === 'TUTORIAL' ? tutorialStep : boardSector}
             remainingEnemies={remainingAliveNodes}
             totalEnemies={board.filter((c) => c.type !== NODE_TYPES.EMPTY).length}
             isAttacking={Boolean(firingWeaponId)}
@@ -1137,7 +1159,9 @@ export default function App() {
                 style={{
                   gridTemplateColumns: `repeat(${activeGridSize}, minmax(0, 1fr))`,
                 }}
-                onMouseLeave={() => setHoverCell({ row: null, col: null })}
+                onMouseLeave={() => {
+                  if (lastPointerTypeRef.current !== 'touch') setHoverCell({ row: null, col: null });
+                }}
               >
                 {board.map((cell, idx) => {
                   const isTargeted = previewIndices.has(idx);
@@ -1150,6 +1174,8 @@ export default function App() {
                     !isDead &&
                     activeTutorialLesson?.highlightCell.row === cell.row &&
                     activeTutorialLesson?.highlightCell.col === cell.col;
+
+                  const isArmed = armedCellId === cell.id && chargesLeft > 0;
 
                   const cellPopup = floatingPopups.find(
                     (p) => p.row === cell.row && p.col === cell.col
@@ -1165,19 +1191,31 @@ export default function App() {
                         isDead ? 'tile-dead' : `tile-alive color-${meta.color}`,
                         isTargeted ? 'tile-targeted' : '',
                         isTutorialTarget ? 'tile-tutorial-beacon' : '',
+                        isArmed ? 'tile-armed' : '',
                         cell.justHit ? 'tile-hit-flash' : '',
                         cell.destroyedByChain ? 'tile-chain-wrecked' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
-                      onMouseEnter={() => setHoverCell({ row: cell.row, col: cell.col })}
+                      onPointerDown={(e) => {
+                        lastPointerTypeRef.current = e.pointerType;
+                      }}
+                      onMouseEnter={() => {
+                        if (lastPointerTypeRef.current !== 'touch') {
+                          setHoverCell({ row: cell.row, col: cell.col });
+                        }
+                      }}
                       onFocus={() => setHoverCell({ row: cell.row, col: cell.col })}
-                      onClick={() => handleCellClick(cell.row, cell.col)}
+                      onClick={() => handleCellClick(cell)}
                     >
                       {cellPopup && <span className="floating-dmg-popup">{cellPopup.text}</span>}
 
-                      {isTutorialTarget && (
-                        <span className="tutorial-click-tag">👇 STRIKE HERE!</span>
+                      {isArmed ? (
+                        <span className="tutorial-click-tag">TAP AGAIN TO FIRE</span>
+                      ) : (
+                        isTutorialTarget && (
+                          <span className="tutorial-click-tag">👇 STRIKE HERE!</span>
+                        )
                       )}
 
                       {!isDead ? (
@@ -1384,11 +1422,6 @@ export default function App() {
             onReturnToBattle={() => startGameSession('CAMPAIGN', save.sector)}
           />
 
-          <AdBannerSlot
-            slotId={import.meta.env.VITE_ADSENSE_SIDEBAR_SLOT || '2222222222'}
-            label="Royal Forge Banner Slot"
-            format="horizontal"
-          />
         </main>
       )}
 

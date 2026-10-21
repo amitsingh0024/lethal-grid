@@ -97,7 +97,7 @@ export function RewardedAdModal({ isOpen, onClose, rewardTitle, onRewardClaimed 
       <div className="modal-card rewarded-ad-card">
         <div className="rewarded-ad-header">
           <span className="badge-amber">
-            <Tv size={14} /> SPONSORED OVERCLOCK TRANSMISSION
+            <Tv size={14} /> OPTIONAL REWARD
           </span>
           <span className="rewarded-timer">
             {secondsLeft > 0 ? `Reward unlocks in ${secondsLeft}s...` : 'Reward Ready!'}
@@ -109,8 +109,7 @@ export function RewardedAdModal({ isOpen, onClose, rewardTitle, onRewardClaimed 
           <Sparkles size={42} className="text-cyan" />
           <h3 id="reward-ad-title">{rewardTitle}</h3>
           <p className="rewarded-subtext">
-            Rewarded Video Ads pay <strong>10x–15x higher eCPM ($15–$30 per 1,000 views)</strong> than standard
-            banners because players opt in voluntarily!
+            Watch a short ad to claim this reward. Ads are always optional, and you can cancel at any time.
           </p>
         </div>
 
@@ -125,7 +124,7 @@ export function RewardedAdModal({ isOpen, onClose, rewardTitle, onRewardClaimed 
             onClick={handleClaim}
           >
             <Play size={16} />
-            {secondsLeft > 0 ? `Watching Ad (${secondsLeft}s)...` : 'Claim Overclock Reward!'}
+            {secondsLeft > 0 ? `Watching Ad (${secondsLeft}s)...` : 'Claim Reward'}
           </button>
         </div>
       </div>

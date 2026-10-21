@@ -23,6 +23,11 @@ const isRealAdSenseConfigured = () =>
       ADSENSE_CLIENT_ID.startsWith('ca-pub-')
   );
 
+// Owner-only tooling (revenue ledger, sandbox ad labels) shows in dev builds or with ?debug in the URL
+export const SHOW_DEV_TOOLS =
+  import.meta.env.DEV ||
+  (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'));
+
 // In-memory listener list so the in-game Revenue & Analytics Inspector can show live events
 const eventListeners = new Set();
 const eventLog = [];

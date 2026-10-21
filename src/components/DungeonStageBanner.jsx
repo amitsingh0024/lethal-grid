@@ -41,7 +41,7 @@ export function DungeonStageBanner({
         {/* LEFT: PLAYER KNIGHT + EQUIPPED WEAPON */}
         <div className={`hero-stage-side ${isAttacking ? 'hero-lunging' : ''}`}>
           <div className="hero-character-box">
-            <PixelSprite frame0="HERO_IDLE_0" frame1="HERO_IDLE_1" size={64} fps={3} />
+            <PixelSprite frame0="HERO_IDLE_0" frame1="HERO_IDLE_1" size={64} />
             <div className="hero-equipped-weapon">
               <PixelSprite
                 frame0={
@@ -71,9 +71,9 @@ export function DungeonStageBanner({
             {isCleared ? (
               <span className="victory-flag-icon">🏳️</span>
             ) : waveNumber % 5 === 0 ? (
-              <PixelSprite frame0="BOSS_0" frame1="BOSS_1" size={64} fps={2.5} />
+              <PixelSprite frame0="BOSS_0" frame1="BOSS_1" size={64} />
             ) : (
-              <PixelSprite frame0="GOBLIN_0" frame1="GOBLIN_1" size={60} fps={3} />
+              <PixelSprite frame0="GOBLIN_0" frame1="GOBLIN_1" size={60} />
             )}
           </div>
           <span className="actor-pedestal-label horde-label">

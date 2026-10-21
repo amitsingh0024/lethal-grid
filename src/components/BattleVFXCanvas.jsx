@@ -23,6 +23,8 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
   const activeAnimsRef = useRef([]);
   const particlesRef = useRef([]);
   const processedIdsRef = useRef(new Set());
+  // Starts the draw loop; the loop stops itself once nothing is left to draw
+  const wakeLoopRef = useRef(() => {});
 
   // Enqueue new weapon & chain-reaction animations
   useEffect(() => {
@@ -36,13 +38,14 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
         startTime: performance.now() + (item.delayMs || 0),
       });
     });
+    wakeLoopRef.current();
   }, [vfxQueue]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    let rafId;
+    let rafId = null;
 
     const spawnBurstParticles = (x, y, colorPalette, count = 24, speedScale = 1) => {
       for (let i = 0; i < count; i++) {
@@ -363,11 +366,25 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
       }
       particlesRef.current = nextParticles;
 
+      if (remainingAnims.length === 0 && nextParticles.length === 0) {
+        ctx.clearRect(0, 0, width, height);
+        rafId = null;
+        return;
+      }
       rafId = requestAnimationFrame(renderLoop);
     };
 
-    rafId = requestAnimationFrame(renderLoop);
-    return () => cancelAnimationFrame(rafId);
+    const wakeLoop = () => {
+      if (rafId === null) rafId = requestAnimationFrame(renderLoop);
+    };
+    wakeLoopRef.current = wakeLoop;
+    if (activeAnimsRef.current.length > 0 || particlesRef.current.length > 0) wakeLoop();
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+      wakeLoopRef.current = () => {};
+    };
   }, [gridSize]);
 
   return (

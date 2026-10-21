@@ -90,7 +90,7 @@ The game is a static site, so it is hosted on **Cloudflare Pages**, deployed fro
 - **Production** deploys from `main`.
 - **Preview** deploys build every branch and pull request. Leave the ad and analytics variables unset for Preview so previews stay in sandbox mode.
 - **Rollback:** open the Pages project, go to Deployments, and roll back to an earlier build.
-- **Caching:** `public/_headers` sets a one-week cache for `/assets/*` and adds security headers.
+- **Caching:** `public/_headers` caches `/assets/*` for a year as immutable and adds security headers. Everything in `/assets/` has a content hash in its name, so put images in `src/assets/` and reference them from code or CSS, never from `public/assets/`.
 - **Crawlers:** `public/robots.txt` allows all crawlers.
 
 ### Release workflow
@@ -109,5 +109,6 @@ src/
   game/engine.js          board generation, enemies, weapons, upgrades
   components/             battle effects, sprites, upgrade tree, ad units
   services/analytics.js   GA4, AdSense and local telemetry
-public/                   static files: ads.txt, _headers, robots.txt, assets
+  assets/                 images (WebP), hashed by Vite at build time
+public/                   static files: ads.txt, _headers, robots.txt, favicon
 ```
