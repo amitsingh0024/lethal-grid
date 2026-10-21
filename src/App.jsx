@@ -49,6 +49,7 @@ import { AdBannerSlot, RewardedAdModal } from './components/AdUnit';
 import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 import { DungeonStageBanner } from './components/DungeonStageBanner';
+import { UpgradeSkillTree, SKILL_TREE_NODES } from './components/UpgradeSkillTree';
 
 const STORAGE_KEY = 'siege_of_emberkeep_save_v2';
 
@@ -718,8 +719,25 @@ export default function App() {
   const isBoardCleared = remainingAliveNodes === 0;
   const monetizationConfig = getMonetizationConfig();
 
-  const affordableUpgradesCount =
-    UPGRADE_CATALOG.filter((u) => {
+  const getSkillNodeLevel = (nodeId) => {
+    const node = SKILL_TREE_NODES.find((n) => n.id === nodeId);
+    if (!node) return 0;
+    if (node.kind === 'ABILITY') {
+      return save.abilityLevels[nodeId] ?? (node.abilityIndex === 0 ? 1 : 0);
+    }
+    if (node.kind === 'UPGRADE') {
+      return save.upgrades[nodeId] || 0;
+    }
+    return 0;
+  };
+
+  const affordableUpgradesCount = SKILL_TREE_NODES.filter((node) => {
+    const parentLvl = node.parentId ? getSkillNodeLevel(node.parentId) : 999;
+    if (node.parentId && parentLvl < node.parentReqLevel) return false;
+
+    if (node.kind === 'UPGRADE') {
+      const u = UPGRADE_CATALOG.find((item) => item.id === node.id);
+      if (!u) return false;
       const lvl = save.upgrades[u.id] || 0;
       const reqSector = getUpgradeRequiredSector(u, lvl);
       return (
@@ -727,14 +745,18 @@ export default function App() {
         save.maxSectorReached >= reqSector &&
         save.shards >= getUpgradeCost(u, lvl)
       );
-    }).length +
-    ABILITIES.filter((ab, idx) => {
-      const lvl = save.abilityLevels[ab.id] ?? (idx === 0 ? 1 : 0);
+    }
+    if (node.kind === 'ABILITY') {
+      const ab = ABILITIES[node.abilityIndex];
+      const lvl = save.abilityLevels[ab.id] ?? (node.abilityIndex === 0 ? 1 : 0);
+      if (lvl >= 15) return false;
       if (lvl === 0) {
         return save.maxSectorReached >= (ab.minSector || 1) && save.shards >= ab.unlockCost;
       }
-      return save.shards >= getAbilityUpgradeCost(idx, lvl);
-    }).length;
+      return save.shards >= getAbilityUpgradeCost(node.abilityIndex, lvl);
+    }
+    return false;
+  }).length;
 
   const activeTutorialLesson =
     screen === 'TUTORIAL' ? TUTORIAL_LESSONS[tutorialStep - 1] || TUTORIAL_LESSONS[0] : null;
@@ -1350,160 +1372,17 @@ export default function App() {
       )}
 
       {/* =====================================================================
-          SCREEN 3: THE ROYAL FORGE (Separate Upgrade Screen)
+          SCREEN 3: THE ROYAL FORGE INTERACTIVE SKILL TREE
           ===================================================================== */}
       {screen === 'UPGRADES' && (
         <main className="upgrade-lab-screen">
-          <div className="upgrade-lab-header">
-            <div>
-              <h2>
-                <TrendingUp size={22} className="text-amber" /> THE ROYAL BLACKSMITH FORGE
-              </h2>
-              <p>
-                Invest your hard-won Gold Crowns into Luck & Contagion synergies, expand the
-                courtyard (3×3 → 8×8), and unlock new Siege Weapons!
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => startGameSession('CAMPAIGN', save.sector)}
-            >
-              <Play size={16} />
-              <span>Return to Courtyard (Wave {save.sector})</span>
-            </button>
-          </div>
-
-          <div className="upgrade-lab-columns">
-            <section className="panel">
-              <div className="section-heading">
-                <h2>I. FORTIFICATIONS, LUCK & SNOWBALL SYNERGIES</h2>
-                <span>Expand your courtyard, boost Lucky Instant-Ignitions & hire Auto-Archers</span>
-              </div>
-
-              <div className="upgrade-list">
-                {UPGRADE_CATALOG.map((upg) => {
-                  const lvl = save.upgrades[upg.id] || 0;
-                  const isMax = lvl >= upg.maxLevel;
-                  const reqSector = getUpgradeRequiredSector(upg, lvl);
-                  const sectorLocked = !isMax && save.maxSectorReached < reqSector;
-                  const cost = getUpgradeCost(upg, lvl);
-                  const canAfford = !isMax && !sectorLocked && save.shards >= cost;
-
-                  return (
-                    <div key={upg.id} className={`upgrade-item ${canAfford ? 'can-buy' : ''}`}>
-                      <div className="upgrade-meta">
-                        <div className="upgrade-title-line">
-                          <strong>{upg.name}</strong>
-                          <span className="upgrade-level-pill">
-                            Lv.{lvl}/{upg.maxLevel}
-                          </span>
-                        </div>
-                        <p className="upgrade-effect">{upg.getEffectText(lvl)}</p>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={`btn-buy-upgrade ${canAfford ? 'affordable' : ''}`}
-                        disabled={!canAfford || isMax || sectorLocked}
-                        onClick={() => handleBuyUpgrade(upg)}
-                      >
-                        {isMax
-                          ? 'MAXED'
-                          : sectorLocked
-                          ? `🔒 Wave ${reqSector} (${cost.toLocaleString()} 🪙)`
-                          : `${cost.toLocaleString()} 🪙`}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="panel">
-              <div className="section-heading">
-                <h2>II. UNLOCK & TEMPER SIEGE WEAPONS</h2>
-                <span>Reach higher waves & spend Gold Crowns to unlock and temper all 4 weapons</span>
-              </div>
-
-              <div className="ability-list">
-                {ABILITIES.map((ab, idx) => {
-                  const lvl = save.abilityLevels[ab.id] ?? (idx === 0 ? 1 : 0);
-                  const isUnlocked = lvl >= 1;
-                  const stats = ab.getStats(Math.max(1, lvl));
-                  const reqSector = ab.minSector || 1;
-                  const sectorLocked = !isUnlocked && save.maxSectorReached < reqSector;
-                  const upgCost = isUnlocked
-                    ? getAbilityUpgradeCost(idx, lvl)
-                    : ab.unlockCost;
-                  const canAfford = !sectorLocked && save.shards >= upgCost;
-
-                  return (
-                    <div key={ab.id} className={`ability-card color-${ab.color}`}>
-                      <div className="ability-card-main">
-                        <div className={`ability-icon bg-${ab.color}`}>
-                          <WeaponIllustration id={ab.id} />
-                        </div>
-                        <div className="ability-info">
-                          <div className="ability-title-row">
-                            <strong>{ab.name}</strong>
-                            <span className="ability-lvl">
-                              {isUnlocked ? `Lv.${lvl}` : `🔒 Wave ${reqSector}`}
-                            </span>
-                          </div>
-                          <p className="ability-tier">
-                            {isUnlocked ? stats.tierLabel : 'Locked Royal Blueprint'}
-                          </p>
-                          <p className="ability-desc">
-                            <strong className="text-white">{stats.damage} DMG</strong> • {ab.baseDesc}
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        className={`btn-buy-upgrade ${canAfford ? 'affordable' : ''}`}
-                        disabled={!canAfford}
-                        onClick={() => handleUpgradeAbility(ab.id, idx)}
-                      >
-                        {sectorLocked
-                          ? `🔒 Reach Wave ${reqSector}`
-                          : isUnlocked
-                          ? `Temper (${upgCost.toLocaleString()} 🪙)`
-                          : `Unlock (${upgCost.toLocaleString()} 🪙)`}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="prestige-card">
-                <div className="prestige-info">
-                  <strong>
-                    <Cpu size={15} className="text-amber" /> Royal Ascension (Prestige)
-                  </strong>
-                  <p>
-                    Requires Wave 10 (Current: Wave {save.sector}). Dedicate your stronghold to the
-                    King in exchange for permanent <strong>+50% Gold & Damage Royal Crests</strong>!
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="btn-prestige"
-                  disabled={save.sector < 10}
-                  onClick={handlePrestigeReboot}
-                >
-                  {save.sector < 10 ? (
-                    <>
-                      <Lock size={13} /> Unlocks at Wave 10
-                    </>
-                  ) : (
-                    `Ascend for +${Math.max(1, Math.floor((save.sector - 5) / 4))} Royal Crests`
-                  )}
-                </button>
-              </div>
-            </section>
-          </div>
+          <UpgradeSkillTree
+            save={save}
+            onBuyUpgrade={handleBuyUpgrade}
+            onUpgradeAbility={handleUpgradeAbility}
+            onPrestigeReboot={handlePrestigeReboot}
+            onReturnToBattle={() => startGameSession('CAMPAIGN', save.sector)}
+          />
 
           <AdBannerSlot
             slotId={import.meta.env.VITE_ADSENSE_SIDEBAR_SLOT || '2222222222'}

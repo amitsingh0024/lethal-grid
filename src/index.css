@@ -2380,4 +2380,438 @@ body {
   filter: grayscale(0.15);
 }
 
+/* ============================================================================
+   INTERACTIVE ROYAL FORGE UPGRADE SKILL TREE (NODEBUSTER / RPG CONSTELLATION)
+   ============================================================================ */
+.skill-tree-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skill-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, #2b1e14, #1b120c);
+  border: 2px solid #785233;
+  border-radius: 16px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
+  flex-wrap: wrap;
+}
+
+.skill-tree-eyebrow {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #fbbf24;
+  margin-bottom: 2px;
+}
+
+.skill-tree-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.25rem;
+  color: #fef3c7;
+}
+
+.skill-tree-header p {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.skill-tree-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tree-treasury-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #140d08;
+  border: 1px solid #d97706;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #fde68a;
+}
+
+.skill-tree-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .skill-tree-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Interactive Tree Canvas */
+.skill-tree-canvas {
+  position: relative;
+  min-height: 580px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(217, 119, 6, 0.16), transparent 62%),
+    radial-gradient(circle at 20% 50%, rgba(225, 29, 72, 0.08), transparent 45%),
+    radial-gradient(circle at 80% 50%, rgba(56, 189, 248, 0.08), transparent 45%),
+    linear-gradient(180deg, rgba(22, 15, 10, 0.95), rgba(14, 9, 6, 0.98));
+  border: 3px solid #785233;
+  outline: 2px solid #140d08;
+  box-shadow:
+    inset 0 0 48px rgba(0, 0, 0, 0.85),
+    0 16px 40px rgba(0, 0, 0, 0.75);
+  overflow: hidden;
+}
+
+/* Subtle Grid Blueprint Lines inside the Skill Tree Canvas */
+.skill-tree-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(217, 160, 91, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(217, 160, 91, 0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+  pointer-events: none;
+}
+
+.tree-branch-tag {
+  position: absolute;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(20, 14, 9, 0.82);
+  border: 1px solid rgba(146, 102, 62, 0.4);
+  color: #d6c3ad;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tree-branch-tag.north {
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fde68a;
+}
+
+.tree-branch-tag.west {
+  top: 12px;
+  left: 14px;
+  color: #fda4af;
+}
+
+.tree-branch-tag.east {
+  top: 12px;
+  right: 14px;
+  color: #7dd3fc;
+}
+
+.tree-branch-tag.south {
+  bottom: 10px;
+  left: 20px;
+  color: #6ee7b7;
+}
+
+/* SVG Dependency Connector Lines */
+.skill-tree-svg-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tree-edge-line {
+  stroke-width: 0.55;
+  transition: stroke 0.25s ease, stroke-width 0.25s ease;
+}
+
+.tree-edge-line.edge-locked {
+  stroke: rgba(120, 82, 51, 0.35);
+  stroke-dasharray: 1.4 1.4;
+}
+
+.tree-edge-line.edge-unlocked {
+  stroke: rgba(245, 158, 11, 0.65);
+  stroke-dasharray: none;
+}
+
+.tree-edge-line.edge-active {
+  stroke: #fbbf24;
+  stroke-width: 0.85;
+  filter: drop-shadow(0 0 3px rgba(251, 191, 36, 0.65));
+}
+
+/* Skill Tree Node Cards */
+.tree-node-btn {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 132px;
+  padding: 8px 8px 7px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #2e2016, #1b120c);
+  border: 2px solid #6b4c32;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 3;
+  transition:
+    transform 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.tree-node-btn.node-root {
+  width: 146px;
+  background: radial-gradient(circle, #451a03, #1f1209);
+  border-color: #f59e0b;
+}
+
+.tree-node-btn:hover {
+  transform: translate(-50%, -53%) scale(1.04);
+  border-color: #fde68a;
+  z-index: 5;
+}
+
+.tree-node-btn.node-selected {
+  border-color: #fef08a;
+  box-shadow:
+    0 0 0 3px rgba(251, 191, 36, 0.45),
+    0 12px 26px rgba(0, 0, 0, 0.85);
+  z-index: 6;
+}
+
+.tree-node-btn.node-affordable {
+  border-color: #22c55e;
+  box-shadow:
+    0 0 16px rgba(34, 197, 94, 0.4),
+    0 8px 20px rgba(0, 0, 0, 0.75);
+}
+
+.tree-node-btn.node-maxed {
+  border-color: #fbbf24;
+  background: linear-gradient(180deg, #422810, #241508);
+}
+
+.tree-node-btn.node-parent-locked {
+  opacity: 0.46;
+  filter: grayscale(0.65);
+  border-style: dashed;
+}
+
+.tree-node-icon-wrap {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #140d08;
+  border: 1px solid #5c4028;
+  display: grid;
+  place-items: center;
+}
+
+.tree-node-emoji {
+  font-size: 1.35rem;
+}
+
+.tree-node-lock-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #7f1d1d;
+  border: 1px solid #fca5a5;
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.tree-node-short-title {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fef3c7;
+  line-height: 1.15;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tree-node-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+}
+
+.tree-node-lvl {
+  font-size: 0.64rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #d6c3ad;
+}
+
+.tree-node-price {
+  font-size: 0.64rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(180, 83, 9, 0.3);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fde68a;
+}
+
+.tree-node-price.price-ready {
+  background: #15803d;
+  border-color: #86efac;
+  color: #fff;
+}
+
+/* Right Side Blacksmith Node Inspector Panel */
+.skill-tree-inspector {
+  background: linear-gradient(180deg, #271b12, #18100a);
+  border: 2px solid #785233;
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65);
+}
+
+.inspector-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inspector-branch-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #3b2618;
+  border: 1px solid #92663e;
+  color: #fde68a;
+}
+
+.inspector-lvl-pill {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fbbf24;
+}
+
+.inspector-hero-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.inspector-icon-box {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: #140d08;
+  border: 2px solid #b45309;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.inspector-big-emoji {
+  font-size: 2rem;
+}
+
+.inspector-hero-row h3 {
+  font-size: 1.1rem;
+  color: #fef3c7;
+  margin-bottom: 4px;
+}
+
+.inspector-req-warning {
+  font-size: 0.76rem;
+  color: #fca5a5;
+}
+
+.inspector-effect-box {
+  background: #140d08;
+  border: 1px solid #4a3423;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.effect-box-label {
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #fbbf24;
+  margin-bottom: 4px;
+}
+
+.inspector-effect-box p {
+  font-size: 0.88rem;
+  color: #f3e5ab;
+  line-height: 1.4;
+}
+
+.btn-forge-node {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #2b1f16;
+  border: 2px solid #5c4028;
+  border-bottom-width: 4px;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #d6c3ad;
+  transition: all 0.14s ease;
+}
+
+.btn-forge-node.ready {
+  background: linear-gradient(180deg, #15803d, #166534);
+  border-color: #86efac;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(21, 128, 61, 0.45);
+}
+
+.btn-forge-node.ready:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.08);
+}
+
+.inspector-hint {
+  margin-top: auto;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+
 
