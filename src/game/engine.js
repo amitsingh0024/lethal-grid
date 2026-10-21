@@ -1,5 +1,5 @@
 /**
- * SIEGE OF EMBERKEEP — Medieval Tactical Chain-Reaction & Snowball Incremental Engine
+ * LETHAL GRID: OVERCLOCK — Medieval Tactical Chain-Reaction & Snowball Incremental Engine
  *
  * Implements:
  * - Mulberry32 deterministic PRNG for 100% client-side Daily Siege seeds
