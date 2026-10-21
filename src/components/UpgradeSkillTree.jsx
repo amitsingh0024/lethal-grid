@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Lock,
-  Sparkles,
-  Flame,
-  Zap,
-  Crosshair,
-  Shield,
-  Award,
   TrendingUp,
-  Cpu,
-  Check,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Move,
 } from 'lucide-react';
 import {
   ABILITIES,
@@ -21,17 +17,23 @@ import {
 import { WeaponPixelIcon } from './CreatureSprite';
 
 /**
- * Nodebuster / RPG Style Interactive Upgrade Skill Tree
- * Coordinates (x, y) are in percentages (0-100) on the 920x580 tree canvas.
+ * Spacious 1800x1200 Virtual World Coordinate Space (Center = 900, 600)
+ * Every node is 240px–320px apart so the tree never feels cramped or cluttered,
+ * and supports smooth Click-and-Drag Panning + Scroll/Button Zooming!
  */
+export const WORLD_WIDTH = 1800;
+export const WORLD_HEIGHT = 1200;
+export const WORLD_CENTER_X = 900;
+export const WORLD_CENTER_Y = 600;
+
 export const SKILL_TREE_NODES = [
-  // CENTER ROOT NODE: Heavy Ballista
+  // CENTER ROOT NODE: Heavy Ballista (900, 600)
   {
     id: 'rail_beam',
     kind: 'ABILITY',
     abilityIndex: 0,
-    x: 50,
-    y: 50,
+    x: 900,
+    y: 600,
     branch: 'CORE',
     iconEmoji: '🏹',
     parentId: null,
@@ -42,8 +44,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'grid_size',
     kind: 'UPGRADE',
-    x: 50,
-    y: 24,
+    x: 900,
+    y: 340,
     branch: 'CITADEL',
     iconEmoji: '🏰',
     parentId: 'rail_beam',
@@ -52,8 +54,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'max_charges',
     kind: 'UPGRADE',
-    x: 32,
-    y: 11,
+    x: 680,
+    y: 140,
     branch: 'CITADEL',
     iconEmoji: '⚔️',
     parentId: 'grid_size',
@@ -62,8 +64,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'prestige_ascension',
     kind: 'PRESTIGE',
-    x: 68,
-    y: 11,
+    x: 1120,
+    y: 140,
     branch: 'CITADEL',
     iconEmoji: '👑',
     parentId: 'grid_size',
@@ -74,8 +76,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'chain_amp',
     kind: 'UPGRADE',
-    x: 27,
-    y: 44,
+    x: 590,
+    y: 540,
     branch: 'DEMOLITION',
     iconEmoji: '🛢️',
     parentId: 'rail_beam',
@@ -84,8 +86,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'volatile_spawn',
     kind: 'UPGRADE',
-    x: 12,
-    y: 26,
+    x: 310,
+    y: 340,
     branch: 'DEMOLITION',
     iconEmoji: '💣',
     parentId: 'chain_amp',
@@ -95,8 +97,8 @@ export const SKILL_TREE_NODES = [
     id: 'nova_bomb',
     kind: 'ABILITY',
     abilityIndex: 1,
-    x: 13,
-    y: 58,
+    x: 310,
+    y: 680,
     branch: 'DEMOLITION',
     iconEmoji: '🧪',
     parentId: 'chain_amp',
@@ -105,8 +107,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'contagion',
     kind: 'UPGRADE',
-    x: 18,
-    y: 84,
+    x: 240,
+    y: 960,
     branch: 'DEMOLITION',
     iconEmoji: '💥',
     parentId: 'nova_bomb',
@@ -117,8 +119,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'lucky_spark',
     kind: 'UPGRADE',
-    x: 73,
-    y: 44,
+    x: 1210,
+    y: 540,
     branch: 'FORTUNE',
     iconEmoji: '🎲',
     parentId: 'rail_beam',
@@ -128,8 +130,8 @@ export const SKILL_TREE_NODES = [
     id: 'arc_chain',
     kind: 'ABILITY',
     abilityIndex: 2,
-    x: 87,
-    y: 30,
+    x: 1490,
+    y: 360,
     branch: 'FORTUNE',
     iconEmoji: '🔨',
     parentId: 'lucky_spark',
@@ -139,8 +141,8 @@ export const SKILL_TREE_NODES = [
     id: 'overclock_pulse',
     kind: 'ABILITY',
     abilityIndex: 3,
-    x: 86,
-    y: 66,
+    x: 1520,
+    y: 720,
     branch: 'FORTUNE',
     iconEmoji: '🗡️',
     parentId: 'arc_chain',
@@ -151,8 +153,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'shard_mult',
     kind: 'UPGRADE',
-    x: 50,
-    y: 75,
+    x: 900,
+    y: 860,
     branch: 'ECONOMY',
     iconEmoji: '🪙',
     parentId: 'rail_beam',
@@ -161,8 +163,8 @@ export const SKILL_TREE_NODES = [
   {
     id: 'auto_drone',
     kind: 'UPGRADE',
-    x: 56,
-    y: 91,
+    x: 900,
+    y: 1090,
     branch: 'ECONOMY',
     iconEmoji: '🎯',
     parentId: 'shard_mult',
@@ -178,6 +180,61 @@ export function UpgradeSkillTree({
   onReturnToBattle,
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState('rail_beam');
+  const [zoom, setZoom] = useState(0.85);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0, moved: false });
+
+  const clampZoom = (z) => Math.min(1.45, Math.max(0.5, +z.toFixed(2)));
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.08 : -0.08;
+    setZoom((z) => clampZoom(z + delta));
+  };
+
+  const handlePointerDown = (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      panX: pan.x,
+      panY: pan.y,
+      moved: false,
+    };
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+      dragStartRef.current.moved = true;
+    }
+    setPan({
+      x: Math.max(-650, Math.min(650, dragStartRef.current.panX + dx)),
+      y: Math.max(-450, Math.min(450, dragStartRef.current.panY + dy)),
+    });
+  };
+
+  const handlePointerUp = () => {
+    setIsDragging(false);
+  };
+
+  const resetCamera = () => {
+    setPan({ x: 0, y: 0 });
+    setZoom(0.85);
+  };
+
+  const centerOnNode = (node) => {
+    const offsetX = (WORLD_CENTER_X - node.x) * zoom;
+    const offsetY = (WORLD_CENTER_Y - node.y) * zoom;
+    setPan({
+      x: Math.max(-650, Math.min(650, offsetX * 0.45)),
+      y: Math.max(-450, Math.min(450, offsetY * 0.45)),
+    });
+  };
 
   const getNodeLevel = (nodeId) => {
     const node = SKILL_TREE_NODES.find((n) => n.id === nodeId);
@@ -193,6 +250,14 @@ export function UpgradeSkillTree({
     }
     return 0;
   };
+
+  function getNodeTitle(node) {
+    if (node.kind === 'ABILITY') return ABILITIES[node.abilityIndex].name;
+    if (node.kind === 'UPGRADE') {
+      return UPGRADE_CATALOG.find((u) => u.id === node.id)?.name || node.id;
+    }
+    return 'Royal Ascension';
+  }
 
   const getNodeDetails = (node) => {
     const currentLvl = getNodeLevel(node.id);
@@ -284,7 +349,6 @@ export function UpgradeSkillTree({
       };
     }
 
-    // PRESTIGE NODE
     const canPrestige = isParentMet && save.sector >= 10;
     const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
     return {
@@ -310,14 +374,6 @@ export function UpgradeSkillTree({
     };
   };
 
-  function getNodeTitle(node) {
-    if (node.kind === 'ABILITY') return ABILITIES[node.abilityIndex].name;
-    if (node.kind === 'UPGRADE') {
-      return UPGRADE_CATALOG.find((u) => u.id === node.id)?.name || node.id;
-    }
-    return 'Royal Ascension';
-  }
-
   const selectedNode =
     SKILL_TREE_NODES.find((n) => n.id === selectedNodeId) || SKILL_TREE_NODES[0];
   const selectedDetails = getNodeDetails(selectedNode);
@@ -340,12 +396,13 @@ export function UpgradeSkillTree({
       {/* HEADER BAR */}
       <div className="skill-tree-header">
         <div>
-          <span className="skill-tree-eyebrow">INTERACTIVE CONSTELLATION & BLACKSMITH TREE</span>
+          <span className="skill-tree-eyebrow">PANNABLE & ZOOMABLE CONSTELLATION TREE</span>
           <h2>
             <TrendingUp size={20} className="text-amber" /> THE ROYAL FORGE SKILL TREE
           </h2>
           <p>
-            Click any node to inspect or forge it. Level up core nodes to unlock outer branches!
+            Drag anywhere to pan • Scroll or use <strong>+/-</strong> to zoom • Click a medallion to
+            inspect or forge!
           </p>
         </div>
 
@@ -361,21 +418,81 @@ export function UpgradeSkillTree({
         </div>
       </div>
 
-      {/* MAIN TREE STAGE + SIDE INSPECTOR */}
-      <div className="skill-tree-layout">
-        {/* INTERACTIVE NODEBUSTER-STYLE TREE CANVAS */}
-        <div className="skill-tree-canvas">
-          {/* BRANCH QUADRANT LABELS */}
-          <span className="tree-branch-tag north">🏰 CITADEL & VOLLEYS</span>
-          <span className="tree-branch-tag west">🛢️ BLACK POWDER & CONTAGION</span>
-          <span className="tree-branch-tag east">🎲 LUCK, CRITS & ARSENAL</span>
-          <span className="tree-branch-tag south">🪙 TREASURY & AUTO-ARCHERS</span>
+      {/* FULL-WIDTH PANNABLE & ZOOMABLE SKILL TREE VIEWPORT */}
+      <div
+        className={`skill-tree-viewport ${isDragging ? 'is-dragging' : ''}`}
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        {/* FLOATING ZOOM & CAMERA CONTROLS */}
+        <div
+          className="tree-camera-controls"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="tree-cam-btn"
+            onClick={() => setZoom((z) => clampZoom(z + 0.15))}
+            title="Zoom In"
+          >
+            <ZoomIn size={16} />
+          </button>
+          <span className="tree-zoom-readout">{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            className="tree-cam-btn"
+            onClick={() => setZoom((z) => clampZoom(z - 0.15))}
+            title="Zoom Out"
+          >
+            <ZoomOut size={16} />
+          </button>
+          <button
+            type="button"
+            className="tree-cam-btn"
+            onClick={resetCamera}
+            title="Reset & Center Camera"
+          >
+            <Maximize2 size={15} />
+            <span>Center</span>
+          </button>
+        </div>
 
-          {/* SVG DEPENDENCY LINES */}
+        <div className="tree-drag-hint">
+          <Move size={13} /> Drag to Pan • Scroll to Zoom
+        </div>
+
+        {/* TRANSFORMABLE 1800x1200 WORLD PLANE */}
+        <div
+          className="skill-tree-world-plane"
+          style={{
+            width: `${WORLD_WIDTH}px`,
+            height: `${WORLD_HEIGHT}px`,
+            transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
+          }}
+        >
+          {/* QUADRANT BANNERS IN WORLD SPACE */}
+          <div className="world-branch-banner" style={{ left: '900px', top: '55px' }}>
+            🏰 NORTH: CITADEL FORTIFICATIONS & VOLLEYS
+          </div>
+          <div className="world-branch-banner" style={{ left: '300px', top: '230px' }}>
+            🛢️ WEST: BLACK POWDER & CONTAGION
+          </div>
+          <div className="world-branch-banner" style={{ left: '1490px', top: '230px' }}>
+            🎲 EAST: FORTUNE, CRITS & ARSENAL
+          </div>
+          <div className="world-branch-banner" style={{ left: '900px', top: '1165px' }}>
+            🪙 SOUTH: ROYAL TREASURY & AUTO-ARCHERS
+          </div>
+
+          {/* 1:1 PIXEL SVG DEPENDENCY LINES */}
           <svg
             className="skill-tree-svg-lines"
-            viewBox="0 0 100 100"
-            preserveAspectRatio="none"
+            width={WORLD_WIDTH}
+            height={WORLD_HEIGHT}
+            viewBox={`0 0 ${WORLD_WIDTH} ${WORLD_HEIGHT}`}
           >
             {SKILL_TREE_NODES.filter((n) => n.parentId).map((node) => {
               const parent = SKILL_TREE_NODES.find((p) => p.id === node.parentId);
@@ -404,7 +521,7 @@ export function UpgradeSkillTree({
             })}
           </svg>
 
-          {/* SKILL TREE NODES */}
+          {/* SPACIOUS MEDALLION NODES */}
           {SKILL_TREE_NODES.map((node) => {
             const details = getNodeDetails(node);
             const isSelected = selectedNodeId === node.id;
@@ -414,9 +531,9 @@ export function UpgradeSkillTree({
               <button
                 key={node.id}
                 type="button"
-                style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                style={{ left: `${node.x}px`, top: `${node.y}px` }}
                 className={[
-                  'tree-node-btn',
+                  'tree-medallion-node',
                   `branch-${node.branch.toLowerCase()}`,
                   isRoot ? 'node-root' : '',
                   isSelected ? 'node-selected' : '',
@@ -428,97 +545,98 @@ export function UpgradeSkillTree({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (dragStartRef.current.moved) return;
                   if (selectedNodeId === node.id && details.canAfford) {
                     handlePurchaseNode(node);
                   } else {
                     setSelectedNodeId(node.id);
+                    centerOnNode(node);
                   }
                 }}
-                title={`${details.title} (${details.actionLabel})`}
               >
-                <div className="tree-node-icon-wrap">
+                <div className="medallion-circle">
                   {node.kind === 'ABILITY' ? (
-                    <WeaponPixelIcon id={node.id} size={32} />
+                    <WeaponPixelIcon id={node.id} size={38} />
                   ) : (
-                    <span className="tree-node-emoji">{node.iconEmoji}</span>
+                    <span className="medallion-emoji">{node.iconEmoji}</span>
                   )}
 
                   {!details.isParentMet && (
                     <span className="tree-node-lock-badge">
-                      <Lock size={11} />
+                      <Lock size={12} />
                     </span>
                   )}
-                </div>
 
-                <span className="tree-node-short-title">{details.title}</span>
-
-                <div className="tree-node-meta-row">
-                  <span className="tree-node-lvl">
+                  <span className="medallion-lvl-pip">
                     {details.isMax
                       ? 'MAX'
                       : node.kind === 'ABILITY' && details.currentLvl === 0
-                      ? 'LOCKED'
-                      : `Lv.${details.currentLvl}/${details.maxLvl}`}
+                      ? '🔒'
+                      : `${details.currentLvl}/${details.maxLvl}`}
                   </span>
-                  {!details.isMax && details.isParentMet && (
-                    <span
-                      className={`tree-node-price ${
-                        details.canAfford ? 'price-ready' : ''
-                      }`}
-                    >
-                      {details.sectorLocked
-                        ? `W${details.reqSector}`
-                        : `${details.cost.toLocaleString()}🪙`}
-                    </span>
-                  )}
                 </div>
+
+                <span className="medallion-caption">{details.title}</span>
+
+                {!details.isMax && details.isParentMet && (
+                  <span
+                    className={`medallion-cost-pill ${
+                      details.canAfford ? 'price-ready' : ''
+                    }`}
+                  >
+                    {details.sectorLocked
+                      ? `🔒 Wave ${details.reqSector}`
+                      : `${details.cost.toLocaleString()} 🪙`}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
+      </div>
 
-        {/* SELECTED NODE BLACKSMITH INSPECTOR CARD */}
-        <aside className="skill-tree-inspector">
-          <div className="inspector-badge-row">
-            <span className={`inspector-branch-tag branch-${selectedNode.branch.toLowerCase()}`}>
-              {selectedDetails.subtitle}
-            </span>
-            <span className="inspector-lvl-pill">
-              Level {selectedDetails.currentLvl} / {selectedDetails.maxLvl}
-            </span>
+      {/* BOTTOM HORIZONTAL BLACKSMITH INSPECTOR BAR */}
+      <aside className="skill-tree-bottom-dock">
+        <div className="dock-node-summary">
+          <div className="inspector-icon-box">
+            {selectedNode.kind === 'ABILITY' ? (
+              <WeaponPixelIcon id={selectedNode.id} size={44} />
+            ) : (
+              <span className="inspector-big-emoji">{selectedNode.iconEmoji}</span>
+            )}
           </div>
 
-          <div className="inspector-hero-row">
-            <div className="inspector-icon-box">
-              {selectedNode.kind === 'ABILITY' ? (
-                <WeaponPixelIcon id={selectedNode.id} size={46} />
-              ) : (
-                <span className="inspector-big-emoji">{selectedNode.iconEmoji}</span>
-              )}
-            </div>
-            <div>
+          <div className="dock-node-text">
+            <div className="dock-title-row">
               <h3>{selectedDetails.title}</h3>
-              {!selectedDetails.isParentMet && (
-                <p className="inspector-req-warning">
-                  🔒 Requires <strong>{selectedDetails.parentName}</strong> at Level{' '}
-                  {selectedDetails.parentReqLevel}
-                </p>
-              )}
-              {selectedDetails.isParentMet && selectedDetails.sectorLocked && (
-                <p className="inspector-req-warning">
-                  🔒 Milestone Locked: Reach <strong>Siege Wave {selectedDetails.reqSector}</strong>{' '}
-                  first!
-                </p>
-              )}
+              <span className="inspector-branch-tag">
+                {selectedDetails.subtitle}
+              </span>
+              <span className="inspector-lvl-pill">
+                Lv. {selectedDetails.currentLvl} / {selectedDetails.maxLvl}
+              </span>
             </div>
-          </div>
 
-          <div className="inspector-effect-box">
-            <span className="effect-box-label">CURRENT / NEXT FORGE EFFECT</span>
-            <p>{selectedDetails.description}</p>
-          </div>
+            <p className="dock-effect-desc">{selectedDetails.description}</p>
 
+            {!selectedDetails.isParentMet && (
+              <p className="inspector-req-warning">
+                🔒 Prerequisite: Forge <strong>{selectedDetails.parentName}</strong> to Level{' '}
+                {selectedDetails.parentReqLevel} first.
+              </p>
+            )}
+            {selectedDetails.isParentMet && selectedDetails.sectorLocked && (
+              <p className="inspector-req-warning">
+                🔒 Milestone Locked: Reach <strong>Siege Wave {selectedDetails.reqSector}</strong> in
+                battle first.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="dock-node-action">
           <button
             type="button"
             className={`btn-forge-node ${selectedDetails.canAfford ? 'ready' : ''}`}
@@ -527,13 +645,8 @@ export function UpgradeSkillTree({
           >
             {selectedDetails.actionLabel}
           </button>
-
-          <p className="inspector-hint">
-            💡 Tip: Click any node on the tree to inspect it. Click a highlighted node twice to
-            rapidly forge upgrades!
-          </p>
-        </aside>
-      </div>
+        </div>
+      </aside>
     </div>
   );
 }
