@@ -188,6 +188,8 @@ export default function App() {
     screen === 'TUTORIAL' ? 1 : gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
 
   const [chargesLeft, setChargesLeft] = useState(maxTurnCharges);
+  // Wave the board on screen belongs to; save.sector moves ahead as soon as a wave is cleared
+  const [boardSector, setBoardSector] = useState(save.sector);
   const [turnAmplifierBonus, setTurnAmplifierBonus] = useState(1);
   const [board, setBoard] = useState(() =>
     generateBoard({
@@ -379,6 +381,7 @@ export default function App() {
     });
 
     setBoard(nextCells);
+    setBoardSector(isDaily ? 5 : targetSector);
     setChargesLeft(maxChg);
     setTurnAmplifierBonus(1);
     setLastTurnStats(null);
@@ -674,7 +677,7 @@ export default function App() {
 
     const shareText = [
       `🏰 SIEGE OF EMBERKEEP (${
-        gameMode === 'DAILY' ? `Daily Decree #${todaySeed}` : `Wave ${save.sector}`
+        gameMode === 'DAILY' ? `Daily Decree #${todaySeed}` : `Wave ${boardSector}`
       })`,
       `Courtyard: ${activeGridSize}×${activeGridSize} | Sieges Broken: ${save.lethalClears}`,
       ...emojiRows,
@@ -1056,7 +1059,7 @@ export default function App() {
         <main className="arena-focused-stage">
           {/* BACKPACK HERO / PEGLIN STYLE TOP DUNGEON STAGE SCENE */}
           <DungeonStageBanner
-            waveNumber={screen === 'TUTORIAL' ? tutorialStep : save.sector}
+            waveNumber={screen === 'TUTORIAL' ? tutorialStep : boardSector}
             remainingEnemies={remainingAliveNodes}
             totalEnemies={board.filter((c) => c.type !== NODE_TYPES.EMPTY).length}
             isAttacking={Boolean(firingWeaponId)}
