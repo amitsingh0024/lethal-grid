@@ -1970,3 +1970,76 @@ button:disabled {
   border-radius: 4px;
   z-index: 5;
 }
+
+/* ============================================================================
+   VIBRANT PIXEL-ART ENVIRONMENTAL BACKGROUNDS & CARVED BOARD TEXTURES
+   ============================================================================ */
+body {
+  background-image:
+    linear-gradient(180deg, rgba(16, 11, 8, 0.72), rgba(14, 9, 6, 0.88)),
+    url('/assets/medieval_world_bg.jpg') !important;
+  background-size: cover !important;
+  background-position: center top !important;
+  background-attachment: fixed !important;
+}
+
+.menu-hero-card {
+  background:
+    linear-gradient(180deg, rgba(22, 14, 9, 0.72), rgba(18, 12, 8, 0.92)),
+    url('/assets/dungeon_stage_bg.jpg') center/cover no-repeat !important;
+  border: 3px solid #d97706 !important;
+  outline: 3px solid #1c1108 !important;
+}
+
+.dungeon-stage-banner {
+  background:
+    linear-gradient(180deg, rgba(15, 10, 8, 0.18) 0%, rgba(15, 10, 8, 0.65) 100%),
+    url('/assets/dungeon_stage_bg.jpg') center 65% / cover no-repeat !important;
+  border: 3px solid #b45309 !important;
+  outline: 3px solid #140d08 !important;
+  min-height: 168px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.tactical-grid {
+  background:
+    linear-gradient(rgba(18, 13, 9, 0.25), rgba(18, 13, 9, 0.25)),
+    url('/assets/stone_board_texture.jpg') center/cover no-repeat !important;
+  padding: 28px !important;
+  border: 3px solid #b45309 !important;
+  border-radius: 14px !important;
+}
+
+.grid-tile.tile-alive {
+  background: rgba(28, 23, 20, 0.82) !important;
+  backdrop-filter: blur(1px);
+  border: 2px solid rgba(254, 240, 138, 0.28) !important;
+  border-bottom: 4px solid rgba(0, 0, 0, 0.85) !important;
+}
+
+.grid-tile.tile-alive.color-rose {
+  background: rgba(88, 24, 18, 0.86) !important;
+  border-color: #fb923c !important;
+}
+
+.grid-tile.tile-alive.color-amber {
+  background: rgba(30, 42, 74, 0.86) !important;
+  border-color: #facc15 !important;
+}
+
+.grid-tile.tile-alive.color-emerald {
+  background: rgba(18, 62, 44, 0.86) !important;
+  border-color: #34d399 !important;
+}
+
+.grid-tile.tile-alive.color-violet {
+  background: rgba(74, 21, 48, 0.9) !important;
+  border-color: #facc15 !important;
+}
+
+.grid-tile.tile-dead {
+  background: rgba(12, 10, 8, 0.45) !important;
+  border: 1px dashed rgba(255, 255, 255, 0.14) !important;
+}
