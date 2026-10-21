@@ -242,6 +242,81 @@ export function getAbilityUpgradeCost(abilityIndex, currentLevel) {
   return Math.floor(base * Math.pow(1.62, currentLevel - 1));
 }
 
+export const TUTORIAL_LESSONS = [
+  {
+    step: 1,
+    title: 'Lesson 1: The Volatile Pyro-Tick',
+    commanderSpeech:
+      'Welcome, Commander! See that glowing red Pyro-Tick in the center? When it dies, its magma belly explodes in a 3×3 blast! Click the center tile (Row 2, Col 2) to wipe all 5 creatures in ONE shot!',
+    recommendedAbility: 'rail_beam',
+    highlightCell: { row: 1, col: 1 },
+  },
+  {
+    step: 2,
+    title: 'Lesson 2: Electric Volt-Wisp Chains',
+    commanderSpeech:
+      'Awesome chain reaction! Now look at the yellow Volt-Wisp on the left—when destroyed, it fires a lightning beam across its entire row, which will detonate the Pyro-Tick on the right! Click the Volt-Wisp (Row 2, Col 1)!',
+    recommendedAbility: 'rail_beam',
+    highlightCell: { row: 1, col: 0 },
+  },
+  {
+    step: 3,
+    title: 'Lesson 3: Crystal-Sprite Damage Boost',
+    commanderSpeech:
+      'Final test! An armored Apex Boss has appeared! First, shatter the green Crystal-Sprite at the top (Row 1, Col 2) to boost all your damage by +50% and trigger a domino reaction that finishes the Boss!',
+    recommendedAbility: 'rail_beam',
+    highlightCell: { row: 0, col: 1 },
+  },
+];
+
+export function generateTutorialBoard(step = 1) {
+  const gridSize = 3;
+  const makeCell = (r, c, type = NODE_TYPES.EMPTY, hp = 0, conduitAxis = 'ROW') => ({
+    id: `tut-${step}-${r}-${c}`,
+    row: r,
+    col: c,
+    type,
+    hp,
+    maxHp: hp,
+    vulnerable: 1,
+    conduitAxis,
+    justHit: false,
+    destroyedByChain: false,
+  });
+
+  const cells = [];
+  for (let r = 0; r < gridSize; r++) {
+    for (let c = 0; c < gridSize; c++) {
+      cells.push(makeCell(r, c));
+    }
+  }
+
+  if (step === 1) {
+    // Center Pyro-Tick surrounded by 4 Cyber-Mites
+    cells[1 * 3 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
+    cells[0 * 3 + 1] = makeCell(0, 1, NODE_TYPES.STANDARD, 3);
+    cells[2 * 3 + 1] = makeCell(2, 1, NODE_TYPES.STANDARD, 3);
+    cells[1 * 3 + 0] = makeCell(1, 0, NODE_TYPES.STANDARD, 3);
+    cells[1 * 3 + 2] = makeCell(1, 2, NODE_TYPES.STANDARD, 3);
+  } else if (step === 2) {
+    // Left Volt-Wisp (ROW) shoots right Pyro-Tick, which blows up surrounding Cyber-Mites
+    cells[1 * 3 + 0] = makeCell(1, 0, NODE_TYPES.CONDUIT, 3, 'ROW');
+    cells[1 * 3 + 2] = makeCell(1, 2, NODE_TYPES.BOMB, 3);
+    cells[0 * 3 + 2] = makeCell(0, 2, NODE_TYPES.STANDARD, 3);
+    cells[2 * 3 + 2] = makeCell(2, 2, NODE_TYPES.STANDARD, 3);
+    cells[0 * 3 + 0] = makeCell(0, 0, NODE_TYPES.STANDARD, 3);
+  } else {
+    // Step 3: Top Crystal-Sprite (0,1) + Center Pyro-Tick (1,1) + Bottom Boss (2,1) + Side Mites
+    cells[0 * 3 + 1] = makeCell(0, 1, NODE_TYPES.AMPLIFIER, 2);
+    cells[1 * 3 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
+    cells[2 * 3 + 1] = makeCell(2, 1, NODE_TYPES.BOSS, 6);
+    cells[2 * 3 + 0] = makeCell(2, 0, NODE_TYPES.STANDARD, 4);
+    cells[2 * 3 + 2] = makeCell(2, 2, NODE_TYPES.STANDARD, 4);
+  }
+
+  return cells;
+}
+
 /**
  * Generate a tactical board for either Campaign Sector or Daily Seed Challenge
  */

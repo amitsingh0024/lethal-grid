@@ -5,7 +5,6 @@ import {
   Zap,
   Sparkles,
   TrendingUp,
-  Layers,
   Cpu,
   Shield,
   Award,
@@ -20,13 +19,19 @@ import {
   VolumeX,
   FastForward,
   Lock,
+  Play,
+  Home,
+  ShoppingBag,
+  GraduationCap,
 } from 'lucide-react';
 import {
   NODE_TYPES,
   NODE_META,
   ABILITIES,
   UPGRADE_CATALOG,
+  TUTORIAL_LESSONS,
   generateBoard,
+  generateTutorialBoard,
   getAbilityPreviewIndices,
   executeAbilityAndResolveChains,
   getUpgradeCost,
@@ -40,8 +45,9 @@ import {
   getMonetizationConfig,
 } from './services/analytics';
 import { AdBannerSlot, RewardedAdModal } from './components/AdUnit';
+import { CreatureSprite, CommanderAvatar } from './components/CreatureSprite';
 
-const STORAGE_KEY = 'lethal_grid_overclock_save_v1';
+const STORAGE_KEY = 'lethal_grid_overclock_save_v2';
 
 const ABILITY_ICONS = {
   Crosshair,
@@ -110,12 +116,13 @@ function playSound(type, muted) {
 }
 
 const DEFAULT_SAVE = {
+  tutorialCompleted: false,
   shards: 30,
   totalShardsEarned: 30,
   sector: 1,
   maxSectorReached: 1,
   lethalClears: 0,
-  overclockCores: 0, // Prestige currency
+  overclockCores: 0,
   upgrades: {
     grid_size: 0, // 0 = 3x3, up to 5 = 8x8
     max_charges: 0, // 0 = 2 charges
@@ -131,12 +138,11 @@ const DEFAULT_SAVE = {
     overclock_pulse: 1,
   },
   dailyClearedDate: null,
-  dailyMovesHistory: [],
   estSessionRevenueUsd: 0.004,
 };
 
 export default function App() {
-  // 1. Load Persistent Save State from Browser localStorage
+  // 1. Load Persistent Save State
   const [save, setSave] = useState(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -153,33 +159,37 @@ export default function App() {
     }
   });
 
+  // Top-level screen state: 'MENU' | 'TUTORIAL' | 'PLAY' | 'UPGRADES'
+  const [screen, setScreen] = useState('MENU');
+  const [tutorialStep, setTutorialStep] = useState(1);
+
   const [gameMode, setGameMode] = useState('CAMPAIGN'); // 'CAMPAIGN' | 'DAILY'
   const [selectedAbilityId, setSelectedAbilityId] = useState('rail_beam');
   const [hoverCell, setHoverCell] = useState({ row: null, col: null });
   const [muted, setMuted] = useState(false);
+  const [screenShake, setScreenShake] = useState(false);
+  const [floatingPopups, setFloatingPopups] = useState([]);
 
   // Derived Grid & Turn Stats
   const campaignGridSize = Math.min(8, 3 + (save.upgrades.grid_size || 0));
-  const activeGridSize = gameMode === 'DAILY' ? 5 : campaignGridSize;
-  const maxTurnCharges = gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
+  const activeGridSize =
+    screen === 'TUTORIAL' ? 3 : gameMode === 'DAILY' ? 5 : campaignGridSize;
+  const maxTurnCharges =
+    screen === 'TUTORIAL' ? 1 : gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
 
   const [chargesLeft, setChargesLeft] = useState(maxTurnCharges);
   const [turnAmplifierBonus, setTurnAmplifierBonus] = useState(1);
   const [board, setBoard] = useState(() =>
     generateBoard({
-      gridSize: activeGridSize,
+      gridSize: campaignGridSize,
       sector: save.sector,
       volatileBonusLevel: save.upgrades.volatile_spawn,
     })
   );
 
-  const [combatLog, setCombatLog] = useState([
-    {
-      id: 'init',
-      type: 'INFO',
-      text: 'Select an ability [1-4] and click any grid node to trigger a 1-Turn Lethal Chain Reaction!',
-    },
-  ]);
+  const [commanderMessage, setCommanderMessage] = useState(
+    'Pick a weapon below and click a creature on the grid to trigger a chain reaction!'
+  );
   const [lastTurnStats, setLastTurnStats] = useState(null);
   const [adBoostSeconds, setAdBoostSeconds] = useState(0);
   const [rewardedModalConfig, setRewardedModalConfig] = useState({
@@ -189,10 +199,11 @@ export default function App() {
   });
   const [showRevenueDashboard, setShowRevenueDashboard] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showGuideDrawer, setShowGuideDrawer] = useState(false);
   const [telemetryFeed, setTelemetryFeed] = useState([]);
   const [shareCopied, setShareCopied] = useState(false);
 
-  // Initialize GA4 & AdSense + subscribe to live telemetry feed
+  // Initialize GA4 & AdSense
   useEffect(() => {
     initAnalyticsAndAds();
     const unsub = subscribeToTelemetry((entries) => {
@@ -201,7 +212,7 @@ export default function App() {
     return unsub;
   }, []);
 
-  // Persist save to localStorage
+  // Persist save
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
@@ -210,7 +221,7 @@ export default function App() {
     }
   }, [save]);
 
-  // Keyboard shortcuts [1-4] for abilities and [R] for new wave
+  // Keyboard shortcuts [1-4] for abilities
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -232,10 +243,10 @@ export default function App() {
     return () => clearInterval(t);
   }, [adBoostSeconds]);
 
-  // Passive Auto-Drone Automation Loop (Fires every 2.5s if unlocked in Campaign mode)
+  // Passive Auto-Drone Automation Loop
   useEffect(() => {
     const droneLevel = save.upgrades.auto_drone || 0;
-    if (droneLevel <= 0 || gameMode !== 'CAMPAIGN') return;
+    if (droneLevel <= 0) return;
 
     const timer = setInterval(() => {
       const passiveIncome = Math.ceil(
@@ -249,10 +260,26 @@ export default function App() {
     }, 2500);
 
     return () => clearInterval(timer);
-  }, [save.upgrades.auto_drone, save.upgrades.shard_mult, gameMode, adBoostSeconds]);
+  }, [save.upgrades.auto_drone, save.upgrades.shard_mult, adBoostSeconds]);
 
-  // Spawn a fresh board for Campaign or Daily Challenge
-  const startNewBoard = (targetMode = gameMode, targetSector = save.sector, customGridSize = null) => {
+  // Launch Guided Tutorial
+  const startTutorial = (step = 1) => {
+    setScreen('TUTORIAL');
+    setTutorialStep(step);
+    setSelectedAbilityId('rail_beam');
+    setBoard(generateTutorialBoard(step));
+    setChargesLeft(1);
+    setTurnAmplifierBonus(1);
+    setLastTurnStats(null);
+    const lesson = TUTORIAL_LESSONS[step - 1] || TUTORIAL_LESSONS[0];
+    setCommanderMessage(lesson.commanderSpeech);
+    trackEvent('tutorial_step_started', { step });
+  };
+
+  // Launch Main Game (Campaign or Daily)
+  const startGameSession = (targetMode = 'CAMPAIGN', targetSector = save.sector, customGridSize = null) => {
+    setScreen('PLAY');
+    setGameMode(targetMode);
     const isDaily = targetMode === 'DAILY';
     const gSize = isDaily ? 5 : customGridSize || Math.min(8, 3 + (save.upgrades.grid_size || 0));
     const maxChg = isDaily ? 3 : 2 + (save.upgrades.max_charges || 0);
@@ -269,19 +296,22 @@ export default function App() {
     setChargesLeft(maxChg);
     setTurnAmplifierBonus(1);
     setLastTurnStats(null);
-  };
-
-  // Switch between Incremental Campaign and Daily Seed Challenge
-  const handleSwitchMode = (nextMode) => {
-    setGameMode(nextMode);
-    startNewBoard(nextMode, save.sector);
-    trackEvent('switch_game_mode', { mode: nextMode });
+    setCommanderMessage(
+      isDaily
+        ? `Daily Seed #${getTodayDateSeed()}: Everyone on Earth gets this exact board today. Can you wipe it in 3 charges?`
+        : `Sector ${targetSector}: Aim for red Pyro-Ticks and yellow Volt-Wisps to trigger a 1-Turn Lethal Chain Reaction!`
+    );
   };
 
   // Preview highlighted tiles on hover
   const previewIndices = getAbilityPreviewIndices({
     abilityId: selectedAbilityId,
-    abilityLevel: gameMode === 'DAILY' ? 3 : save.abilityLevels[selectedAbilityId] || 1,
+    abilityLevel:
+      screen === 'TUTORIAL'
+        ? 2
+        : gameMode === 'DAILY'
+        ? 3
+        : save.abilityLevels[selectedAbilityId] || 1,
     targetRow: hoverCell.row,
     targetCol: hoverCell.col,
     gridSize: activeGridSize,
@@ -301,11 +331,16 @@ export default function App() {
       targetRow: row,
       targetCol: col,
       abilityId: selectedAbilityId,
-      abilityLevel: gameMode === 'DAILY' ? 3 : save.abilityLevels[selectedAbilityId] || 1,
-      chainAmpLevel: gameMode === 'DAILY' ? 4 : save.upgrades.chain_amp || 0,
+      abilityLevel:
+        screen === 'TUTORIAL'
+          ? 2
+          : gameMode === 'DAILY'
+          ? 3
+          : save.abilityLevels[selectedAbilityId] || 1,
+      chainAmpLevel: screen === 'TUTORIAL' ? 3 : gameMode === 'DAILY' ? 4 : save.upgrades.chain_amp || 0,
       shardMultLevel: save.upgrades.shard_mult || 0,
       adBoostMultiplier: adMult,
-      sector: gameMode === 'DAILY' ? 5 : save.sector,
+      sector: screen === 'TUTORIAL' ? 2 : gameMode === 'DAILY' ? 5 : save.sector,
       turnAmplifierBonus,
     });
 
@@ -314,6 +349,28 @@ export default function App() {
     setChargesLeft(nextCharges);
     setTurnAmplifierBonus(result.nextTurnAmplifierBonus);
     setLastTurnStats(result.stats);
+
+    // Trigger screen shake & floating damage popup when chain reaction occurs
+    if (result.stats.chainDepth > 0 || result.stats.isBoardClear) {
+      setScreenShake(true);
+      setTimeout(() => setScreenShake(false), 380);
+    }
+
+    const popupId = `${Date.now()}-${Math.random()}`;
+    setFloatingPopups((prev) => [
+      ...prev.slice(-4),
+      {
+        id: popupId,
+        row,
+        col,
+        text: result.stats.isBoardClear
+          ? `💥 LETHAL CLEAR! +${result.stats.shardsEarned}⚡`
+          : `-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}x Chain)`,
+      },
+    ]);
+    setTimeout(() => {
+      setFloatingPopups((prev) => prev.filter((p) => p.id !== popupId));
+    }, 1100);
 
     // Sound effects
     if (result.stats.isBoardClear) {
@@ -324,17 +381,47 @@ export default function App() {
       playSound('strike', muted);
     }
 
-    // Combat log update
-    const summaryLine = {
-      id: `${Date.now()}-sum`,
-      type: result.stats.isBoardClear ? 'CLEAR' : 'STRIKE',
-      text: result.stats.isBoardClear
-        ? `⚡ LETHAL OVERCLOCK CLEAR! Wiped board with ${result.stats.chainDepth}x Chain Depth (+${result.stats.shardsEarned} Shards)!`
-        : `Dealt ${result.stats.totalDamageDealt} DMG (${result.stats.nodesDestroyed} destroyed, ${result.stats.chainDepth}x chain) → +${result.stats.shardsEarned} Shards`,
-    };
-    setCombatLog((prev) => [summaryLine, ...result.events.slice(0, 4), ...prev].slice(0, 12));
+    // Update Commander NOVA's dynamic reaction speech
+    if (screen === 'TUTORIAL') {
+      if (result.stats.isBoardClear) {
+        if (tutorialStep < 3) {
+          setCommanderMessage(
+            `BOOM! 100% LETHAL CLEAR! Click "Next Tutorial Lesson" below to learn the next creature combo!`
+          );
+        } else {
+          setCommanderMessage(
+            `🎉 Tutorial Complete! You've mastered Pyro-Ticks, Volt-Wisps, and Crystal-Sprites (+50 Bonus Shards awarded)!`
+          );
+          setSave((prev) => ({
+            ...prev,
+            tutorialCompleted: true,
+            shards: prev.shards + 50,
+            totalShardsEarned: prev.totalShardsEarned + 50,
+          }));
+        }
+      } else {
+        setCommanderMessage(
+          `Almost! Remember to click the highlighted pulsing creature so its explosion chains to the whole board. Click "Retry Lesson" to try again!`
+        );
+      }
+      return;
+    }
 
-    // Update Save State & Progression
+    // Campaign / Daily progression
+    if (result.stats.isBoardClear) {
+      setCommanderMessage(
+        `⚡ OVERCLOCK LETHAL CLEAR! ${result.stats.chainDepth}x Chain Reaction wiped the sector for +${result.stats.shardsEarned} Shards!`
+      );
+    } else if (nextCharges > 0) {
+      setCommanderMessage(
+        `Nice hit! ${result.stats.remainingNodes} creatures left and ${nextCharges} charge remaining—finish them off!`
+      );
+    } else {
+      setCommanderMessage(
+        `Turn finished! You collected +${result.stats.shardsEarned} Shards. Spawn a new wave or visit the Upgrade Lab to power up!`
+      );
+    }
+
     const todaySeed = getTodayDateSeed();
     setSave((prev) => {
       const isClear = result.stats.isBoardClear;
@@ -386,14 +473,6 @@ export default function App() {
       new_level: nextLvl,
       cost,
     });
-
-    // If the player expanded the grid size or max charges, refresh the board immediately!
-    if (upgradeDef.id === 'grid_size' && gameMode === 'CAMPAIGN') {
-      const newSize = Math.min(8, 3 + nextLvl);
-      startNewBoard('CAMPAIGN', save.sector, newSize);
-    } else if (upgradeDef.id === 'max_charges' && gameMode === 'CAMPAIGN') {
-      setChargesLeft((c) => c + 1);
-    }
   };
 
   // Upgrade an Ability Tier
@@ -419,7 +498,7 @@ export default function App() {
     });
   };
 
-  // Prestige Overclock Reboot (Available at Sector 10+)
+  // Prestige Overclock Reboot
   const handlePrestigeReboot = () => {
     if (save.sector < 10) return;
     const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
@@ -427,6 +506,7 @@ export default function App() {
 
     setSave((prev) => ({
       ...DEFAULT_SAVE,
+      tutorialCompleted: true,
       shards: 50,
       totalShardsEarned: prev.totalShardsEarned,
       maxSectorReached: prev.maxSectorReached,
@@ -436,11 +516,11 @@ export default function App() {
       estSessionRevenueUsd: prev.estSessionRevenueUsd,
     }));
 
-    startNewBoard('CAMPAIGN', 1, 3);
+    startGameSession('CAMPAIGN', 1, 3);
     trackEvent('prestige_overclock', { cores_gained: coresToGain });
   };
 
-  // Copy Wordle-style Daily Share Result to Clipboard
+  // Copy Wordle-style Daily Share Result
   const handleShareScore = () => {
     const todaySeed = getTodayDateSeed();
     const emojiRows = [];
@@ -505,11 +585,31 @@ export default function App() {
   const isBoardCleared = remainingAliveNodes === 0;
   const monetizationConfig = getMonetizationConfig();
 
+  // Check how many upgrades are currently affordable so we can show a notification badge on the Upgrade Lab button!
+  const affordableUpgradesCount =
+    UPGRADE_CATALOG.filter((u) => {
+      const lvl = save.upgrades[u.id] || 0;
+      return lvl < u.maxLevel && save.shards >= getUpgradeCost(u, lvl);
+    }).length +
+    ABILITIES.filter((ab, idx) => {
+      const lvl = save.abilityLevels[ab.id] || 1;
+      return save.shards >= getAbilityUpgradeCost(idx, lvl);
+    }).length;
+
+  const activeTutorialLesson =
+    screen === 'TUTORIAL' ? TUTORIAL_LESSONS[tutorialStep - 1] || TUTORIAL_LESSONS[0] : null;
+
   return (
     <div className="app-shell">
-      {/* TOP NAVIGATION & TELEMETRY BAR */}
+      {/* CLEAN, FOCUSED TOP BAR */}
       <header className="top-nav">
-        <div className="brand-group">
+        <div
+          className="brand-group clickable"
+          onClick={() => setScreen('MENU')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && setScreen('MENU')}
+        >
           <div className="brand-logo">
             <Zap size={20} className="text-cyan" />
           </div>
@@ -517,37 +617,59 @@ export default function App() {
             <h1 className="brand-title">
               LETHAL GRID <span className="badge-cyan">OVERCLOCK</span>
             </h1>
-            <p className="brand-subtitle">Incremental 1-Turn Tactical Chain-Reaction Game</p>
           </div>
         </div>
 
-        <div className="mode-switcher" role="tablist" aria-label="Game Modes">
+        {/* NAVIGATION PILLS */}
+        <nav className="mode-switcher" aria-label="Primary Navigation">
           <button
             type="button"
-            role="tab"
-            aria-selected={gameMode === 'CAMPAIGN'}
-            className={`mode-tab ${gameMode === 'CAMPAIGN' ? 'active' : ''}`}
-            onClick={() => handleSwitchMode('CAMPAIGN')}
+            className={`mode-tab ${screen === 'MENU' ? 'active' : ''}`}
+            onClick={() => setScreen('MENU')}
           >
-            <Layers size={15} />
-            Incremental Campaign
+            <Home size={15} />
+            <span>Menu</span>
           </button>
+
           <button
             type="button"
-            role="tab"
-            aria-selected={gameMode === 'DAILY'}
-            className={`mode-tab ${gameMode === 'DAILY' ? 'active' : ''}`}
-            onClick={() => handleSwitchMode('DAILY')}
+            className={`mode-tab ${screen === 'TUTORIAL' ? 'active' : ''}`}
+            onClick={() => startTutorial(1)}
           >
-            <Award size={15} />
-            Daily Lethal ({getTodayDateSeed()})
-            {save.dailyClearedDate === getTodayDateSeed() && (
-              <CheckCircle2 size={14} className="text-emerald" />
+            <GraduationCap size={15} />
+            <span>Tutorial</span>
+          </button>
+
+          <button
+            type="button"
+            className={`mode-tab ${screen === 'PLAY' ? 'active' : ''}`}
+            onClick={() => startGameSession('CAMPAIGN', save.sector)}
+          >
+            <Play size={15} />
+            <span>Battle Arena</span>
+          </button>
+
+          <button
+            type="button"
+            className={`mode-tab ${screen === 'UPGRADES' ? 'active' : ''}`}
+            onClick={() => setScreen('UPGRADES')}
+          >
+            <ShoppingBag size={15} />
+            <span>Upgrade Lab</span>
+            {affordableUpgradesCount > 0 && (
+              <span className="nav-badge-count">{affordableUpgradesCount}</span>
             )}
           </button>
-        </div>
+        </nav>
 
+        {/* SHARD WALLET & DEV TOOLS */}
         <div className="top-actions">
+          <div className="wallet-pill" title="Your Overclock Shards">
+            <Sparkles size={15} className="text-cyan" />
+            <strong>{save.shards.toLocaleString()}</strong>
+            <span>SHARDS</span>
+          </div>
+
           <button
             type="button"
             className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
@@ -555,7 +677,7 @@ export default function App() {
             title="Inspect Google Analytics 4 Events & AdSense Revenue"
           >
             <Activity size={15} className="text-emerald" />
-            <span>GA4 & Ad Revenue</span>
+            <span className="hide-mobile">Ad Revenue</span>
             <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
           </button>
 
@@ -564,23 +686,13 @@ export default function App() {
             className="btn-icon"
             onClick={() => setMuted((m) => !m)}
             aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
-            title={muted ? 'Unmute SFX' : 'Mute SFX'}
           >
             {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
           </button>
         </div>
       </header>
 
-      {/* NON-INTRUSIVE TOP LEADERBOARD AD SLOT (ADSENSE COMPLIANT) */}
-      <div className="top-ad-container">
-        <AdBannerSlot
-          slotId={import.meta.env.VITE_ADSENSE_TOP_SLOT || '1111111111'}
-          label="Top Header Banner (728x90 Responsive)"
-          format="horizontal"
-        />
-      </div>
-
-      {/* OPTIONAL COLLAPSIBLE GA4 & AD REVENUE OWNER INSPECTOR */}
+      {/* COLLAPSIBLE GA4 & AD REVENUE OWNER INSPECTOR */}
       {showRevenueDashboard && (
         <section className="owner-telemetry-panel" aria-label="Analytics and Ad Revenue Dashboard">
           <div className="telemetry-header">
@@ -589,8 +701,8 @@ export default function App() {
                 <Activity size={18} className="text-emerald" /> Live Google Analytics 4 & AdSense Inspector
               </h2>
               <p>
-                This panel shows you every GA4 event and Ad impression firing in real time. Configure{' '}
-                <code>.env</code> to send live data to your Google accounts.
+                Real-time GA4 events and Ad impressions. Configure <code>.env</code> to send live data to
+                Google.
               </p>
             </div>
             <div className="telemetry-badges">
@@ -619,180 +731,207 @@ export default function App() {
         </section>
       )}
 
-      {/* MAIN 3-COLUMN WORKSPACE: TACTICAL ARENA + INCREMENTAL UPGRADE SHOP */}
-      <main className="game-workspace">
-        {/* LEFT COLUMN: RESOURCES, ABILITY LOADOUT & REWARDED AD BOOSTS */}
-        <section className="panel panel-loadout" aria-label="Tactical Abilities and Resources">
-          {/* CURRENCY HUD */}
-          <div className="resource-hud">
-            <div className="resource-card primary-shard">
-              <span className="resource-label">OVERCLOCK SHARDS</span>
-              <div className="resource-value">
-                <Sparkles size={20} className="text-cyan" />
-                <span>{save.shards.toLocaleString()}</span>
-              </div>
-              <span className="resource-sub">
-                Multiplier: x
-                {(
-                  (1 + (save.upgrades.shard_mult || 0) * 0.35) *
-                  (1 + (save.overclockCores || 0) * 0.5) *
-                  (adBoostSeconds > 0 ? 2 : 1)
-                ).toFixed(2)}
-                {save.upgrades.auto_drone > 0 &&
-                  ` • Auto-Drone: +${save.upgrades.auto_drone * 4}/pulse`}
-              </span>
+      {/* =====================================================================
+          SCREEN 1: HERO START MENU (Clean, inviting, zero info overload!)
+          ===================================================================== */}
+      {screen === 'MENU' && (
+        <main className="menu-screen">
+          <div className="menu-hero-card">
+            <div className="menu-mascot-showcase">
+              <CreatureSprite type={NODE_TYPES.STANDARD} />
+              <CreatureSprite type={NODE_TYPES.BOMB} />
+              <CreatureSprite type={NODE_TYPES.BOSS} />
+              <CreatureSprite type={NODE_TYPES.CONDUIT} />
+              <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
             </div>
 
-            <div className="resource-mini-row">
-              <div className="resource-mini">
-                <span>GRID SCALE</span>
-                <strong>
-                  {activeGridSize}×{activeGridSize}
-                </strong>
-              </div>
-              <div className="resource-mini">
-                <span>LETHAL CLEARS</span>
-                <strong>{save.lethalClears}</strong>
-              </div>
-              <div className="resource-mini">
-                <span>PRESTIGE CORES</span>
-                <strong className="text-violet">{save.overclockCores || 0}</strong>
-              </div>
-            </div>
-          </div>
+            <span className="menu-eyebrow">ONE-TURN TACTICAL CHAIN-REACTION GAME</span>
+            <h2 className="menu-headline">Can You Wipe the Grid in One Turn?</h2>
+            <p className="menu-subheadline">
+              Detonate volatile <strong>Pyro-Ticks</strong>, chain lightning through{' '}
+              <strong>Volt-Wisps</strong>, and expand your battlefield from a cozy{' '}
+              <strong>3×3 grid</strong> to a chaotic <strong>8×8 mega-sector</strong>!
+            </p>
 
-          {/* 4 TACTICAL ABILITIES */}
-          <div className="section-heading">
-            <h2>1. SELECT TACTICAL ABILITY [1–4]</h2>
-            <span>Click a tile on the grid to fire</span>
-          </div>
-
-          <div className="ability-list">
-            {ABILITIES.map((ab, idx) => {
-              const IconComponent = ABILITY_ICONS[ab.icon] || Crosshair;
-              const lvl = gameMode === 'DAILY' ? 3 : save.abilityLevels[ab.id] || 1;
-              const stats = ab.getStats(lvl);
-              const upgCost = getAbilityUpgradeCost(idx, lvl);
-              const canAfford = save.shards >= upgCost && gameMode === 'CAMPAIGN';
-              const isSelected = selectedAbilityId === ab.id;
-
-              return (
-                <div
-                  key={ab.id}
-                  className={`ability-card color-${ab.color} ${isSelected ? 'selected' : ''}`}
-                  onClick={() => setSelectedAbilityId(ab.id)}
+            <div className="menu-cta-stack">
+              {!save.tutorialCompleted ? (
+                <button
+                  type="button"
+                  className="btn-hero-primary pulse-glow"
+                  onClick={() => startTutorial(1)}
                 >
-                  <div className="ability-card-main">
-                    <div className={`ability-icon bg-${ab.color}`}>
-                      <IconComponent size={18} />
-                      <span className="hotkey-badge">{ab.hotkey}</span>
-                    </div>
-                    <div className="ability-info">
-                      <div className="ability-title-row">
-                        <strong>{ab.name}</strong>
-                        <span className="ability-lvl">Lv.{lvl}</span>
-                      </div>
-                      <p className="ability-tier">{stats.tierLabel}</p>
-                      <p className="ability-desc">
-                        <strong className="text-white">{stats.damage} DMG</strong> • {ab.baseDesc}
-                      </p>
-                    </div>
+                  <GraduationCap size={22} />
+                  <div>
+                    <strong>Play 60-Second Interactive Tutorial</strong>
+                    <span>Recommended for first-time Commanders (+50 Free Shards!)</span>
                   </div>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-hero-primary"
+                  onClick={() => startGameSession('CAMPAIGN', save.sector)}
+                >
+                  <Play size={22} />
+                  <div>
+                    <strong>Continue Campaign (Sector {save.sector})</strong>
+                    <span>
+                      Current Grid: {campaignGridSize}×{campaignGridSize} • {save.shards.toLocaleString()}{' '}
+                      Shards Ready
+                    </span>
+                  </div>
+                </button>
+              )}
 
-                  {gameMode === 'CAMPAIGN' && (
+              <div className="menu-secondary-grid">
+                {!save.tutorialCompleted ? (
+                  <button
+                    type="button"
+                    className="btn-menu-card"
+                    onClick={() => startGameSession('CAMPAIGN', save.sector)}
+                  >
+                    <Play size={18} className="text-cyan" />
+                    <div>
+                      <strong>Skip to Campaign</strong>
+                      <span>Sector {save.sector} ({campaignGridSize}×{campaignGridSize} Grid)</span>
+                    </div>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-menu-card"
+                    onClick={() => startTutorial(1)}
+                  >
+                    <GraduationCap size={18} className="text-cyan" />
+                    <div>
+                      <strong>Replay Tutorial</strong>
+                      <span>Practice chain-reaction combos</span>
+                    </div>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="btn-menu-card"
+                  onClick={() => startGameSession('DAILY', 5)}
+                >
+                  <Award size={18} className="text-amber" />
+                  <div>
+                    <strong>Daily Seed Challenge</strong>
+                    <span>Shared Global Board #{getTodayDateSeed()}</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn-menu-card"
+                  onClick={() => setScreen('UPGRADES')}
+                >
+                  <ShoppingBag size={18} className="text-emerald" />
+                  <div>
+                    <strong>Upgrade Lab</strong>
+                    <span>
+                      {affordableUpgradesCount > 0
+                        ? `${affordableUpgradesCount} Upgrades Available!`
+                        : 'Scale Grid & Evolve Weapons'}
+                    </span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* CREATURE BESTIARY PREVIEW */}
+            <div className="bestiary-strip">
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.STANDARD} />
+                <div>
+                  <strong className="text-cyan">Cyber-Mite</strong>
+                  <span>Drops Shards on kill</span>
+                </div>
+              </div>
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.BOMB} />
+                <div>
+                  <strong className="text-rose">Pyro-Tick</strong>
+                  <span>Explodes 3×3 on death!</span>
+                </div>
+              </div>
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.CONDUIT} />
+                <div>
+                  <strong className="text-amber">Volt-Wisp</strong>
+                  <span>Fires Row/Col laser on death!</span>
+                </div>
+              </div>
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
+                <div>
+                  <strong className="text-emerald">Crystal-Sprite</strong>
+                  <span>+50% Turn Damage on death!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <AdBannerSlot
+            slotId={import.meta.env.VITE_ADSENSE_TOP_SLOT || '1111111111'}
+            label="Main Menu Bottom Banner (728x90)"
+            format="horizontal"
+          />
+        </main>
+      )}
+
+      {/* =====================================================================
+          SCREEN 2: FOCUSED BATTLE ARENA & INTERACTIVE TUTORIAL
+          ===================================================================== */}
+      {(screen === 'PLAY' || screen === 'TUTORIAL') && (
+        <main className="arena-focused-stage">
+          {/* COMMANDER NOVA DIALOGUE & MISSION HEADER */}
+          <div className="commander-dialogue-bar">
+            <CommanderAvatar mood={isBoardCleared ? 'excited' : 'happy'} />
+            <div className="commander-speech-box">
+              <div className="commander-name-row">
+                <strong>
+                  {screen === 'TUTORIAL'
+                    ? `COMMANDER NOVA • ${activeTutorialLesson?.title}`
+                    : gameMode === 'DAILY'
+                    ? `DAILY LETHAL CHALLENGE (#${getTodayDateSeed()})`
+                    : `COMMANDER NOVA • SECTOR ${save.sector} (${activeGridSize}×${activeGridSize} GRID)`}
+                </strong>
+
+                {screen === 'PLAY' && gameMode === 'CAMPAIGN' && (
+                  <div className="sector-stepper">
                     <button
                       type="button"
-                      className={`btn-upgrade-inline ${canAfford ? 'affordable' : ''}`}
-                      disabled={!canAfford}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUpgradeAbility(ab.id, idx);
+                      disabled={save.sector <= 1}
+                      onClick={() => {
+                        const prevSec = Math.max(1, save.sector - 1);
+                        setSave((s) => ({ ...s, sector: prevSec }));
+                        startGameSession('CAMPAIGN', prevSec);
                       }}
                     >
-                      <span>Evolve</span>
-                      <strong>{upgCost.toLocaleString()} ⚡</strong>
+                      ◀ Prev Sector
                     </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* HIGH-ECPM REWARDED VIDEO AD TRIGGERS */}
-          <div className="rewarded-boost-box">
-            <div className="rewarded-box-title">
-              <Gift size={16} className="text-amber" />
-              <span>OPTIONAL OVERCLOCK AD BOOSTS</span>
-            </div>
-            <div className="rewarded-buttons">
-              <button
-                type="button"
-                className="btn-reward"
-                onClick={() => triggerRewardedAd('DOUBLE_SHARDS')}
-              >
-                <span>
-                  {adBoostSeconds > 0
-                    ? `🔥 2x Shards Active (${adBoostSeconds}s)`
-                    : '📺 Watch Ad: 2x Shards (3m)'}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="btn-reward"
-                onClick={() => triggerRewardedAd('EXTRA_CHARGE')}
-              >
-                <span>📺 Watch Ad: +1 Charge & Shards</span>
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* CENTER COLUMN: INTERACTIVE TACTICAL GRID BOARD */}
-        <section className="panel panel-arena" aria-label="Tactical Chain-Reaction Grid">
-          <div className="arena-header">
-            <div className="sector-controls">
-              {gameMode === 'CAMPAIGN' ? (
-                <>
-                  <button
-                    type="button"
-                    className="btn-sector-nav"
-                    disabled={save.sector <= 1}
-                    onClick={() => {
-                      const prevSec = Math.max(1, save.sector - 1);
-                      setSave((s) => ({ ...s, sector: prevSec }));
-                      startNewBoard('CAMPAIGN', prevSec);
-                    }}
-                  >
-                    ◀
-                  </button>
-                  <div className="sector-badge">
-                    <span className="sector-eyebrow">
-                      {save.sector % 5 === 0 ? '⚠️ BOSS SECTOR' : 'ACTIVE SECTOR'}
-                    </span>
-                    <strong>SECTOR {save.sector}</strong>
+                    <button
+                      type="button"
+                      disabled={save.sector >= save.maxSectorReached}
+                      onClick={() => {
+                        const nextSec = save.sector + 1;
+                        setSave((s) => ({ ...s, sector: nextSec }));
+                        startGameSession('CAMPAIGN', nextSec);
+                      }}
+                    >
+                      Next Sector ▶
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-sector-nav"
-                    disabled={save.sector >= save.maxSectorReached}
-                    onClick={() => {
-                      const nextSec = save.sector + 1;
-                      setSave((s) => ({ ...s, sector: nextSec }));
-                      startNewBoard('CAMPAIGN', nextSec);
-                    }}
-                  >
-                    ▶
-                  </button>
-                </>
-              ) : (
-                <div className="sector-badge daily-badge">
-                  <span className="sector-eyebrow">GLOBAL SHARED SEED</span>
-                  <strong>DAILY LETHAL #{getTodayDateSeed()}</strong>
-                </div>
-              )}
+                )}
+              </div>
+              <p>{commanderMessage}</p>
             </div>
+          </div>
 
-            {/* 1-TURN ACTION CHARGES PIPS */}
+          {/* STATUS STRIP: CHARGES LEFT + QUICK ACTIONS */}
+          <div className="battle-hud-bar">
             <div className="charges-display">
               <span className="charges-label">1-TURN CHARGES:</span>
               <div className="charge-pips">
@@ -805,29 +944,49 @@ export default function App() {
               </div>
               {turnAmplifierBonus > 1 && (
                 <span className="amp-pill">
-                  +{Math.round((turnAmplifierBonus - 1) * 100)}% PRISM AMP
+                  +{Math.round((turnAmplifierBonus - 1) * 100)}% CRYSTAL BOOST
                 </span>
               )}
             </div>
 
             <div className="arena-actions">
+              {screen === 'PLAY' && (
+                <button
+                  type="button"
+                  className="btn-reward-chip"
+                  onClick={() => triggerRewardedAd('DOUBLE_SHARDS')}
+                >
+                  <Gift size={14} />
+                  <span>
+                    {adBoostSeconds > 0 ? `2x Shards (${adBoostSeconds}s)` : '2x Shards Boost'}
+                  </span>
+                </button>
+              )}
+
               <button
                 type="button"
                 className="btn-secondary btn-sm"
-                onClick={() => startNewBoard(gameMode, save.sector)}
+                onClick={() =>
+                  screen === 'TUTORIAL'
+                    ? startTutorial(tutorialStep)
+                    : startGameSession(gameMode, save.sector)
+                }
               >
                 <RotateCcw size={14} />
-                <span>{isBoardCleared ? 'Next Wave' : 'Reset Wave'}</span>
+                <span>{screen === 'TUTORIAL' ? 'Retry Lesson' : 'New Wave'}</span>
               </button>
-              <button type="button" className="btn-secondary btn-sm" onClick={handleShareScore}>
-                <Share2 size={14} />
-                <span>{shareCopied ? 'Copied Emoji Grid!' : 'Share'}</span>
-              </button>
+
+              {screen === 'PLAY' && (
+                <button type="button" className="btn-secondary btn-sm" onClick={handleShareScore}>
+                  <Share2 size={14} />
+                  <span>{shareCopied ? 'Copied!' : 'Share'}</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* THE DYNAMIC SCALING TACTICAL GRID (3x3 up to 8x8) */}
-          <div className="grid-stage">
+          {/* THE INTERACTIVE CREATURE GRID */}
+          <div className={`grid-stage ${screenShake ? 'board-shake' : ''}`}>
             <div
               className="tactical-grid"
               style={{
@@ -841,6 +1000,16 @@ export default function App() {
                 const meta = NODE_META[cell.type] || NODE_META.STANDARD;
                 const hpPercent = cell.maxHp > 0 ? Math.max(0, (cell.hp / cell.maxHp) * 100) : 0;
 
+                const isTutorialTarget =
+                  screen === 'TUTORIAL' &&
+                  !isDead &&
+                  activeTutorialLesson?.highlightCell.row === cell.row &&
+                  activeTutorialLesson?.highlightCell.col === cell.col;
+
+                const cellPopup = floatingPopups.find(
+                  (p) => p.row === cell.row && p.col === cell.col
+                );
+
                 return (
                   <button
                     key={cell.id}
@@ -850,6 +1019,7 @@ export default function App() {
                       'grid-tile',
                       isDead ? 'tile-dead' : `tile-alive color-${meta.color}`,
                       isTargeted ? 'tile-targeted' : '',
+                      isTutorialTarget ? 'tile-tutorial-beacon' : '',
                       cell.justHit ? 'tile-hit-flash' : '',
                       cell.destroyedByChain ? 'tile-chain-wrecked' : '',
                     ]
@@ -858,32 +1028,26 @@ export default function App() {
                     onMouseEnter={() => setHoverCell({ row: cell.row, col: cell.col })}
                     onFocus={() => setHoverCell({ row: cell.row, col: cell.col })}
                     onClick={() => handleCellClick(cell.row, cell.col)}
-                    aria-label={`Row ${cell.row + 1} Col ${cell.col + 1}: ${
-                      isDead ? 'Cleared' : `${meta.label} ${cell.hp} HP`
-                    }`}
                   >
+                    {cellPopup && <span className="floating-dmg-popup">{cellPopup.text}</span>}
+
+                    {isTutorialTarget && (
+                      <span className="tutorial-click-tag">👇 CLICK HERE!</span>
+                    )}
+
                     {!isDead ? (
                       <>
                         <div className="tile-top-row">
-                          <span className="tile-type-tag">
-                            {cell.type === NODE_TYPES.CONDUIT
-                              ? cell.conduitAxis === 'ROW'
-                                ? '↔ ARC'
-                                : '↕ ARC'
-                              : cell.type === NODE_TYPES.BOMB
-                              ? '💣 BMB'
-                              : cell.type === NODE_TYPES.AMPLIFIER
-                              ? '💎 AMP'
-                              : cell.type === NODE_TYPES.BOSS
-                              ? '👑 BOSS'
-                              : '⚙️ DRN'}
-                          </span>
-                          {cell.vulnerable > 1 && (
-                            <span className="vuln-tag">{cell.vulnerable}x</span>
-                          )}
+                          <span className="tile-type-tag">{meta.short}</span>
+                          <span className="tile-hp-pill">{cell.hp} HP</span>
                         </div>
 
-                        <div className="tile-hp-number">{cell.hp}</div>
+                        <CreatureSprite
+                          type={cell.type}
+                          conduitAxis={cell.conduitAxis}
+                          isTargeted={isTargeted}
+                          isLowHp={hpPercent <= 40}
+                        />
 
                         <div className="tile-hp-bar-bg">
                           <div
@@ -893,234 +1057,366 @@ export default function App() {
                         </div>
                       </>
                     ) : (
-                      <span className="tile-cleared-mark">
-                        {cell.destroyedByChain ? '💥' : '✓'}
-                      </span>
+                      <div className="tile-wreckage">
+                        {cell.destroyedByChain ? (
+                          <span className="explosion-burst">💥</span>
+                        ) : (
+                          <span className="tile-cleared-mark">·</span>
+                        )}
+                      </div>
                     )}
                   </button>
                 );
               })}
             </div>
 
-            {/* OVERLAY BANNER WHEN WAVE IS CLEARED OR OUT OF CHARGES */}
+            {/* CLEAR / NEXT WAVE BANNER */}
             {(isBoardCleared || chargesLeft === 0) && (
               <div className={`turn-result-banner ${isBoardCleared ? 'win' : 'retry'}`}>
                 <div>
                   <strong>
                     {isBoardCleared
-                      ? '⚡ LETHAL OVERCLOCK CLEAR! 100% SECTOR WIPED!'
-                      : `Turn Complete • ${remainingAliveNodes} Nodes Remaining`}
+                      ? '⚡ 100% LETHAL OVERCLOCK CLEAR!'
+                      : `Out of Charges • ${remainingAliveNodes} Creatures Survived`}
                   </strong>
                   <p>
-                    {isBoardCleared
-                      ? `You earned +${lastTurnStats?.shardsEarned || 0} Shards (with 1.75x Lethal Clear Bonus!)`
-                      : 'Tip: Target Volatile Mines (💣) and Arc Pylons (↔/↕) first to trigger recursive chain reactions!'}
+                    {screen === 'TUTORIAL'
+                      ? isBoardCleared
+                        ? 'You triggered a full chain reaction!'
+                        : 'Click Retry Lesson and hit the highlighted creature!'
+                      : isBoardCleared
+                      ? `Earned +${lastTurnStats?.shardsEarned || 0} Shards (1.75x Lethal Bonus!)`
+                      : 'Tip: Visit the Upgrade Lab to boost your damage or expand your charges!'}
                   </p>
                 </div>
+
                 <div className="banner-buttons">
-                  {!isBoardCleared && (
-                    <button
-                      type="button"
-                      className="btn-reward-inline"
-                      onClick={() => triggerRewardedAd('EXTRA_CHARGE')}
-                    >
-                      📺 +1 Charge (Watch Ad)
-                    </button>
+                  {screen === 'TUTORIAL' ? (
+                    isBoardCleared ? (
+                      tutorialStep < 3 ? (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() => startTutorial(tutorialStep + 1)}
+                        >
+                          <FastForward size={16} />
+                          <span>Next Tutorial Lesson ({tutorialStep + 1}/3)</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() => startGameSession('CAMPAIGN', save.sector)}
+                        >
+                          <Play size={16} />
+                          <span>Start Real Campaign!</span>
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => startTutorial(tutorialStep)}
+                      >
+                        <RotateCcw size={16} />
+                        <span>Retry Lesson</span>
+                      </button>
+                    )
+                  ) : (
+                    <>
+                      {!isBoardCleared && (
+                        <button
+                          type="button"
+                          className="btn-reward-inline"
+                          onClick={() => triggerRewardedAd('EXTRA_CHARGE')}
+                        >
+                          📺 +1 Charge (Ad)
+                        </button>
+                      )}
+                      {affordableUpgradesCount > 0 && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setScreen('UPGRADES')}
+                        >
+                          <ShoppingBag size={15} />
+                          <span>Upgrade Lab ({affordableUpgradesCount})</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => startGameSession(gameMode, save.sector)}
+                      >
+                        <FastForward size={16} />
+                        <span>
+                          {isBoardCleared ? `Launch Sector ${save.sector}` : 'Spawn Fresh Wave'}
+                        </span>
+                      </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => startNewBoard(gameMode, save.sector)}
-                  >
-                    <FastForward size={16} />
-                    <span>
-                      {isBoardCleared
-                        ? gameMode === 'CAMPAIGN'
-                          ? `Launch Sector ${save.sector}`
-                          : 'Replay Daily Board'
-                        : 'Spawn Fresh Wave'}
-                    </span>
-                  </button>
                 </div>
               </div>
             )}
           </div>
 
-          {/* NODE LEGEND & REAL-TIME CHAIN REACTION LOG */}
-          <div className="arena-footer">
-            <div className="node-legend">
-              <span>
-                <strong className="text-rose">💣 BMB:</strong> 3×3 Blast on Death
-              </span>
-              <span>
-                <strong className="text-amber">↔/↕ ARC:</strong> Row/Col Laser on Death
-              </span>
-              <span>
-                <strong className="text-emerald">💎 AMP:</strong> +50% Turn Damage on Death
-              </span>
-              <span>
-                <strong className="text-violet">👑 BOSS:</strong> 5×5 Mega-Blast + 5× Shards
-              </span>
-            </div>
-
-            <div className="combat-log-box" aria-live="polite">
-              {combatLog.slice(0, 3).map((entry) => (
-                <div key={entry.id} className={`log-line log-${entry.type}`}>
-                  {entry.text}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* RIGHT COLUMN: INCREMENTAL GRID EXPANSION & UPGRADE TREE + SIDEBAR AD */}
-        <section className="panel panel-upgrades" aria-label="Incremental Upgrades and Scaling">
-          <div className="section-heading">
-            <h2>
-              <TrendingUp size={16} className="text-emerald" /> 2. INCREMENTAL MATRIX UPGRADES
-            </h2>
-            <span>Scale your Grid Size, Charges & Automation</span>
-          </div>
-
-          <div className="upgrade-list">
-            {UPGRADE_CATALOG.map((upg) => {
-              const lvl = save.upgrades[upg.id] || 0;
-              const isMax = lvl >= upg.maxLevel;
-              const cost = getUpgradeCost(upg, lvl);
-              const canAfford = !isMax && save.shards >= cost;
+          {/* COMPACT BOTTOM WEAPON DOCK (4 Weapons side-by-side) */}
+          <div className="weapon-dock" role="radiogroup" aria-label="Select Tactical Weapon">
+            {ABILITIES.map((ab) => {
+              const IconComponent = ABILITY_ICONS[ab.icon] || Crosshair;
+              const lvl =
+                screen === 'TUTORIAL'
+                  ? 2
+                  : gameMode === 'DAILY'
+                  ? 3
+                  : save.abilityLevels[ab.id] || 1;
+              const stats = ab.getStats(lvl);
+              const isSelected = selectedAbilityId === ab.id;
 
               return (
-                <div key={upg.id} className={`upgrade-item ${canAfford ? 'can-buy' : ''}`}>
-                  <div className="upgrade-meta">
-                    <div className="upgrade-title-line">
-                      <strong>{upg.name}</strong>
-                      <span className="upgrade-level-pill">
-                        Lv.{lvl}/{upg.maxLevel}
-                      </span>
-                    </div>
-                    <p className="upgrade-effect">{upg.getEffectText(lvl)}</p>
+                <button
+                  key={ab.id}
+                  type="button"
+                  className={`weapon-dock-btn color-${ab.color} ${isSelected ? 'selected' : ''}`}
+                  onClick={() => setSelectedAbilityId(ab.id)}
+                >
+                  <div className={`ability-icon bg-${ab.color}`}>
+                    <IconComponent size={18} />
+                    <span className="hotkey-badge">{ab.hotkey}</span>
                   </div>
-
-                  <button
-                    type="button"
-                    className={`btn-buy-upgrade ${canAfford ? 'affordable' : ''}`}
-                    disabled={!canAfford || isMax}
-                    onClick={() => handleBuyUpgrade(upg)}
-                  >
-                    {isMax ? 'MAXED' : `${cost.toLocaleString()} ⚡`}
-                  </button>
-                </div>
+                  <div className="weapon-dock-text">
+                    <div className="weapon-dock-top">
+                      <strong>{ab.name}</strong>
+                      <span className="weapon-dmg-badge">{stats.damage} DMG</span>
+                    </div>
+                    <span>{ab.baseDesc}</span>
+                  </div>
+                </button>
               );
             })}
           </div>
+        </main>
+      )}
 
-          {/* PRESTIGE OVERCLOCK REBOOT CARD */}
-          <div className="prestige-card">
-            <div className="prestige-info">
-              <strong>
-                <Cpu size={15} className="text-violet" /> Prestige: Overclock Reboot
-              </strong>
+      {/* =====================================================================
+          SCREEN 3: SEPARATE UPGRADE LAB SCREEN (No clutter during battle!)
+          ===================================================================== */}
+      {screen === 'UPGRADES' && (
+        <main className="upgrade-lab-screen">
+          <div className="upgrade-lab-header">
+            <div>
+              <h2>
+                <TrendingUp size={22} className="text-emerald" /> OVERCLOCK UPGRADE LAB
+              </h2>
               <p>
-                Requires Sector 10 (Current: Sector {save.sector}). Reboots sector progress in exchange
-                for permanent <strong>+50% Shard & Damage Overclock Cores</strong>!
+                Spend your Overclock Shards to expand the grid size (3×3 → 8×8), add extra 1-Turn
+                Charges, and evolve your 4 weapons!
               </p>
             </div>
             <button
               type="button"
-              className="btn-prestige"
-              disabled={save.sector < 10}
-              onClick={handlePrestigeReboot}
+              className="btn-primary"
+              onClick={() => startGameSession('CAMPAIGN', save.sector)}
             >
-              {save.sector < 10 ? (
-                <>
-                  <Lock size={13} /> Unlock at Sector 10
-                </>
-              ) : (
-                `Reboot for +${Math.max(1, Math.floor((save.sector - 5) / 4))} Cores`
-              )}
+              <Play size={16} />
+              <span>Return to Battle (Sector {save.sector})</span>
             </button>
           </div>
 
-          {/* SIDEBAR RECTANGLE AD SLOT */}
+          <div className="upgrade-lab-columns">
+            {/* LEFT: GRID & MATRIX UPGRADES */}
+            <section className="panel">
+              <div className="section-heading">
+                <h2>1. BATTLEFIELD & SYNERGY UPGRADES</h2>
+                <span>Expand your tactical grid and chain-reaction damage</span>
+              </div>
+
+              <div className="upgrade-list">
+                {UPGRADE_CATALOG.map((upg) => {
+                  const lvl = save.upgrades[upg.id] || 0;
+                  const isMax = lvl >= upg.maxLevel;
+                  const cost = getUpgradeCost(upg, lvl);
+                  const canAfford = !isMax && save.shards >= cost;
+
+                  return (
+                    <div key={upg.id} className={`upgrade-item ${canAfford ? 'can-buy' : ''}`}>
+                      <div className="upgrade-meta">
+                        <div className="upgrade-title-line">
+                          <strong>{upg.name}</strong>
+                          <span className="upgrade-level-pill">
+                            Lv.{lvl}/{upg.maxLevel}
+                          </span>
+                        </div>
+                        <p className="upgrade-effect">{upg.getEffectText(lvl)}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`btn-buy-upgrade ${canAfford ? 'affordable' : ''}`}
+                        disabled={!canAfford || isMax}
+                        onClick={() => handleBuyUpgrade(upg)}
+                      >
+                        {isMax ? 'MAXED' : `${cost.toLocaleString()} ⚡`}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* RIGHT: WEAPON EVOLUTIONS & PRESTIGE */}
+            <section className="panel">
+              <div className="section-heading">
+                <h2>2. EVOLVE TACTICAL WEAPONS</h2>
+                <span>Boost direct strike damage & unlock wider blast patterns</span>
+              </div>
+
+              <div className="ability-list">
+                {ABILITIES.map((ab, idx) => {
+                  const IconComponent = ABILITY_ICONS[ab.icon] || Crosshair;
+                  const lvl = save.abilityLevels[ab.id] || 1;
+                  const stats = ab.getStats(lvl);
+                  const upgCost = getAbilityUpgradeCost(idx, lvl);
+                  const canAfford = save.shards >= upgCost;
+
+                  return (
+                    <div key={ab.id} className={`ability-card color-${ab.color}`}>
+                      <div className="ability-card-main">
+                        <div className={`ability-icon bg-${ab.color}`}>
+                          <IconComponent size={18} />
+                        </div>
+                        <div className="ability-info">
+                          <div className="ability-title-row">
+                            <strong>{ab.name}</strong>
+                            <span className="ability-lvl">Lv.{lvl}</span>
+                          </div>
+                          <p className="ability-tier">{stats.tierLabel}</p>
+                          <p className="ability-desc">
+                            <strong className="text-white">{stats.damage} DMG</strong> • {ab.baseDesc}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`btn-buy-upgrade ${canAfford ? 'affordable' : ''}`}
+                        disabled={!canAfford}
+                        onClick={() => handleUpgradeAbility(ab.id, idx)}
+                      >
+                        Evolve ({upgCost.toLocaleString()} ⚡)
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="prestige-card">
+                <div className="prestige-info">
+                  <strong>
+                    <Cpu size={15} className="text-violet" /> Prestige: Overclock Reboot
+                  </strong>
+                  <p>
+                    Requires Sector 10 (Current: Sector {save.sector}). Reboots sector progress for
+                    permanent <strong>+50% Shard & Damage Overclock Cores</strong>!
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-prestige"
+                  disabled={save.sector < 10}
+                  onClick={handlePrestigeReboot}
+                >
+                  {save.sector < 10 ? (
+                    <>
+                      <Lock size={13} /> Unlock at Sector 10
+                    </>
+                  ) : (
+                    `Reboot for +${Math.max(1, Math.floor((save.sector - 5) / 4))} Cores`
+                  )}
+                </button>
+              </div>
+            </section>
+          </div>
+
           <AdBannerSlot
             slotId={import.meta.env.VITE_ADSENSE_SIDEBAR_SLOT || '2222222222'}
-            label="Sidebar Ad Slot (300x250)"
-            format="rectangle"
+            label="Upgrade Lab Banner Slot"
+            format="horizontal"
           />
+        </main>
+      )}
+
+      {/* CLEAN FOOTER BAR (Keeps AdSense SEO Guide & Privacy Policy accessible without cluttering gameplay) */}
+      <footer className="clean-footer">
+        <button
+          type="button"
+          className="btn-link"
+          onClick={() => setShowGuideDrawer((v) => !v)}
+        >
+          <BookOpen size={14} /> {showGuideDrawer ? 'Hide Game Guide' : 'How to Play & Strategy Guide'}
+        </button>
+        <span>•</span>
+        <button
+          type="button"
+          className="btn-link"
+          onClick={() => setShowPrivacyModal(true)}
+        >
+          <Shield size={14} /> Privacy Policy & AdSense Disclosure
+        </button>
+        <span>•</span>
+        <button
+          type="button"
+          className="btn-link"
+          onClick={() => {
+            if (window.confirm('Reset all local save progress?')) {
+              localStorage.removeItem(STORAGE_KEY);
+              window.location.reload();
+            }
+          }}
+        >
+          Reset Save Data
+        </button>
+      </footer>
+
+      {showGuideDrawer && (
+        <section className="seo-guide-section" aria-label="Game Strategy Guide and Documentation">
+          <div className="seo-grid">
+            <article className="seo-card">
+              <h3>
+                <BookOpen size={18} className="text-cyan" /> How to Play Lethal Grid: Overclock
+              </h3>
+              <p>
+                <strong>Lethal Grid: Overclock</strong> blends tactical one-turn puzzle mechanics
+                (&ldquo;Find Lethal&rdquo;) with incremental progression. Wipe 100% of the cyber
+                creatures on the grid in a single turn using your available Charges!
+              </p>
+              <ul>
+                <li>
+                  <strong>Pyro-Ticks (Red):</strong> Explode in a 3×3 area when destroyed.
+                </li>
+                <li>
+                  <strong>Volt-Wisps (Yellow):</strong> Shoot a lightning beam across their row or
+                  column when destroyed.
+                </li>
+                <li>
+                  <strong>Crystal-Sprites (Green):</strong> Boost all subsequent damage this turn by
+                  +50% when shattered.
+                </li>
+              </ul>
+            </article>
+            <article className="seo-card">
+              <h3>
+                <HelpCircle size={18} className="text-amber" /> Incremental Scaling & Daily Seeds
+              </h3>
+              <p>
+                Visit the <strong>Upgrade Lab</strong> anytime to expand your battlefield from a 3×3
+                grid up to an 8×8 mega-sector, unlock an Autonomous Pulse Drone, and evolve your 4
+                weapons.
+              </p>
+            </article>
+          </div>
         </section>
-      </main>
-
-      {/* BELOW-THE-FOLD SEO GUIDE & ADSENSE APPROVAL CONTENT */}
-      <section className="seo-guide-section" aria-label="Game Strategy Guide and Documentation">
-        <div className="seo-grid">
-          <article className="seo-card">
-            <h3>
-              <BookOpen size={18} className="text-cyan" /> How to Play Lethal Grid: Overclock
-            </h3>
-            <p>
-              <strong>Lethal Grid: Overclock</strong> blends tactical one-turn puzzle mechanics
-              (&ldquo;Find Lethal&rdquo;) with exponential incremental progression. Each Sector spawns
-              a cybernetic grid of armored nodes. Your objective is to wipe 100% of the board in a
-              single turn using your available Ability Charges.
-            </p>
-            <ul>
-              <li>
-                <strong>Trigger Chain Reactions:</strong> Destroying a <em>Volatile Mine (BMB)</em>{' '}
-                detonates a 3×3 blast around it, while destroying an <em>Arc Pylon (ARC)</em> fires a
-                high-voltage beam across its entire row or column.
-              </li>
-              <li>
-                <strong>Shatter Prism Catalysts First:</strong> Hitting a green{' '}
-                <em>Prism Catalyst (AMP)</em> permanently boosts all subsequent ability and chain
-                damage during that turn by +50%.
-              </li>
-              <li>
-                <strong>Scale Your Battlefield:</strong> Spend Overclock Shards to expand your tactical
-                arena from a compact <strong>3×3 grid</strong> all the way to a massive{' '}
-                <strong>8×8 mega-grid</strong> with dozens of simultaneous chain reactions!
-              </li>
-            </ul>
-          </article>
-
-          <article className="seo-card">
-            <h3>
-              <HelpCircle size={18} className="text-amber" /> Daily Seed Challenge & Idle Automation
-            </h3>
-            <p>
-              Every 24 hours at 00:00 UTC, the <strong>Daily Lethal Challenge</strong> generates a
-              standardized 5×5 tactical puzzle using a deterministic mathematical date seed. Every
-              player worldwide faces the exact same board layout and ability tiers—allowing you to
-              share your emoji battle report with friends on Discord, Reddit, or X.
-            </p>
-            <p>
-              Prefer idle incremental progression? Unlock the <strong>Autonomous Pulse Drone</strong>{' '}
-              in the Upgrade Matrix to automatically harvest Overclock Shards every 2.5 seconds while
-              you plan your next Boss Sector breakthrough.
-            </p>
-            <div className="seo-footer-links">
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() => setShowPrivacyModal(true)}
-              >
-                <Shield size={14} /> Privacy Policy, Cookies & AdSense Disclosure
-              </button>
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() => {
-                  if (window.confirm('Reset all local save progress?')) {
-                    localStorage.removeItem(STORAGE_KEY);
-                    window.location.reload();
-                  }
-                }}
-              >
-                Reset Local Save Data
-              </button>
-            </div>
-          </article>
-        </div>
-      </section>
+      )}
 
       {/* REWARDED VIDEO AD MODAL */}
       <RewardedAdModal
@@ -1130,36 +1426,23 @@ export default function App() {
         onRewardClaimed={rewardedModalConfig.onClaim}
       />
 
-      {/* PRIVACY POLICY & COOKIE DISCLOSURE MODAL (REQUIRED FOR GOOGLE ADSENSE APPROVAL) */}
+      {/* PRIVACY POLICY & COOKIE DISCLOSURE MODAL */}
       {showPrivacyModal && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal-card privacy-modal-card">
             <h3>Privacy Policy & Google AdSense / Analytics Disclosure</h3>
             <p>
               <strong>1. Local Browser Storage:</strong> Lethal Grid: Overclock stores your game
-              progress (Overclock Shards, Sector level, and Upgrades) locally in your browser&apos;s{' '}
-              <code>localStorage</code>. No personal account registration is required.
+              progress locally in your browser&apos;s <code>localStorage</code>.
             </p>
             <p>
               <strong>2. Google Analytics (GA4):</strong> We use Google Analytics to measure anonymous
-              gameplay metrics such as waves cleared, session duration, and upgrade popularity so we
-              can balance and improve the game.
+              gameplay metrics such as waves cleared and upgrade popularity.
             </p>
             <p>
               <strong>3. Google AdSense & Cookies:</strong> Third-party vendors, including Google, use
               cookies to serve ads based on a user&apos;s prior visits to this website or other
-              websites. Google&apos;s use of advertising cookies enables it and its partners to serve
-              ads to users based on their visit to this site and/or other sites on the Internet. Users
-              may opt out of personalized advertising by visiting{' '}
-              <a
-                href="https://www.google.com/settings/ads"
-                target="_blank"
-                rel="noreferrer"
-                className="text-cyan"
-              >
-                Google Ads Settings
-              </a>
-              .
+              websites.
             </p>
             <div className="modal-actions">
               <button
