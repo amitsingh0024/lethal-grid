@@ -265,7 +265,8 @@ export default function App() {
     if (droneLevel <= 0) return;
 
     const timer = setInterval(() => {
-      if (screen === 'PLAY') {
+      // The Daily board is shared by everyone, so campaign archers stay off it
+      if (screen === 'PLAY' && gameMode !== 'DAILY') {
         const aliveCells = board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
         if (aliveCells.length > 0) {
           const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
