@@ -2369,3 +2369,15 @@ body {
   }
 }
 
+.weapon-dock-btn.weapon-locked {
+  opacity: 0.62;
+  filter: grayscale(0.45);
+  border-style: dashed;
+}
+
+.weapon-dock-btn.weapon-locked:hover {
+  opacity: 0.9;
+  filter: grayscale(0.15);
+}
+
+

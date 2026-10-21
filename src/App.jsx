@@ -35,6 +35,7 @@ import {
   getAbilityPreviewIndices,
   executeAbilityAndResolveChains,
   getUpgradeCost,
+  getUpgradeRequiredSector,
   getAbilityUpgradeCost,
   getTodayDateSeed,
 } from './game/engine';
@@ -49,7 +50,7 @@ import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 import { DungeonStageBanner } from './components/DungeonStageBanner';
 
-const STORAGE_KEY = 'siege_of_emberkeep_save_v1';
+const STORAGE_KEY = 'siege_of_emberkeep_save_v2';
 
 function WeaponIllustration({ id }) {
   return <WeaponPixelIcon id={id} size={36} />;
@@ -121,8 +122,8 @@ function playSound(type, muted) {
 
 const DEFAULT_SAVE = {
   tutorialCompleted: false,
-  shards: 30, // Gold Crowns
-  totalShardsEarned: 30,
+  shards: 0, // Start at 0 Gold Crowns so players earn every upgrade
+  totalShardsEarned: 0,
   sector: 1,
   maxSectorReached: 1,
   lethalClears: 0,
@@ -130,16 +131,19 @@ const DEFAULT_SAVE = {
   upgrades: {
     grid_size: 0,
     max_charges: 0,
+    lucky_spark: 0,
+    contagion: 0,
     chain_amp: 0,
     shard_mult: 0,
     volatile_spawn: 0,
     auto_drone: 0,
   },
+  // Start with only Heavy Ballista unlocked (Lv.1); other 3 weapons unlock in Royal Forge!
   abilityLevels: {
     rail_beam: 1,
-    nova_bomb: 1,
-    arc_chain: 1,
-    overclock_pulse: 1,
+    nova_bomb: 0,
+    arc_chain: 0,
+    overclock_pulse: 0,
   },
   dailyClearedDate: null,
   estSessionRevenueUsd: 0.004,
@@ -208,6 +212,12 @@ export default function App() {
   const [telemetryFeed, setTelemetryFeed] = useState([]);
   const [shareCopied, setShareCopied] = useState(false);
 
+  const isWeaponUnlocked = (abilityId) => {
+    if (screen === 'TUTORIAL') return abilityId === 'rail_beam';
+    if (gameMode === 'DAILY') return true;
+    return (save.abilityLevels[abilityId] || 0) >= 1;
+  };
+
   useEffect(() => {
     initAnalyticsAndAds();
     const unsub = subscribeToTelemetry((entries) => {
@@ -228,13 +238,14 @@ export default function App() {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === '1') setSelectedAbilityId('rail_beam');
-      if (e.key === '2') setSelectedAbilityId('nova_bomb');
-      if (e.key === '3') setSelectedAbilityId('arc_chain');
-      if (e.key === '4') setSelectedAbilityId('overclock_pulse');
+      if (e.key === '2' && isWeaponUnlocked('nova_bomb')) setSelectedAbilityId('nova_bomb');
+      if (e.key === '3' && isWeaponUnlocked('arc_chain')) setSelectedAbilityId('arc_chain');
+      if (e.key === '4' && isWeaponUnlocked('overclock_pulse'))
+        setSelectedAbilityId('overclock_pulse');
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [save.abilityLevels, screen, gameMode]);
 
   useEffect(() => {
     if (adBoostSeconds <= 0) return;
@@ -244,24 +255,95 @@ export default function App() {
     return () => clearInterval(t);
   }, [adBoostSeconds]);
 
-  // Passive Battlement Archers Gold Loop
+  // PHYSICAL BATTLEMENT ARCHERS LOOP: Physically shoots living enemies on the board every 2.2s!
   useEffect(() => {
     const droneLevel = save.upgrades.auto_drone || 0;
     if (droneLevel <= 0) return;
 
     const timer = setInterval(() => {
-      const passiveIncome = Math.ceil(
-        droneLevel * 4 * (1 + (save.upgrades.shard_mult || 0) * 0.35) * (adBoostSeconds > 0 ? 2 : 1)
+      if (screen === 'PLAY') {
+        const aliveCells = board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
+        if (aliveCells.length > 0) {
+          const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
+          const prestigeMult = 1 + (save.overclockCores || 0) * 0.5;
+          const adMult = (adBoostSeconds > 0 ? 2 : 1) * prestigeMult;
+
+          const result = executeAbilityAndResolveChains({
+            cells: board,
+            gridSize: activeGridSize,
+            targetRow: target.row,
+            targetCol: target.col,
+            abilityId: 'rail_beam',
+            abilityLevel: droneLevel,
+            chainAmpLevel: save.upgrades.chain_amp || 0,
+            shardMultLevel: save.upgrades.shard_mult || 0,
+            luckySparkLevel: save.upgrades.lucky_spark || 0,
+            contagionLevel: save.upgrades.contagion || 0,
+            adBoostMultiplier: adMult,
+            sector: save.sector,
+            turnAmplifierBonus,
+            isTutorial: false,
+            isAutoArcherShot: true,
+          });
+
+          if (result.vfxAnimations?.length > 0) {
+            setVfxQueue((prev) => [...prev.slice(-10), ...result.vfxAnimations]);
+          }
+          setBoard(result.nextCells);
+          setTurnAmplifierBonus(result.nextTurnAmplifierBonus);
+
+          if (result.stats.shardsEarned > 0 || result.stats.isBoardClear) {
+            setSave((prev) => ({
+              ...prev,
+              shards: prev.shards + result.stats.shardsEarned,
+              totalShardsEarned: prev.totalShardsEarned + result.stats.shardsEarned,
+              sector:
+                gameMode === 'CAMPAIGN' && result.stats.isBoardClear
+                  ? prev.sector + 1
+                  : prev.sector,
+              maxSectorReached: Math.max(
+                prev.maxSectorReached,
+                gameMode === 'CAMPAIGN' && result.stats.isBoardClear
+                  ? prev.sector + 1
+                  : prev.sector
+              ),
+              lethalClears: result.stats.isBoardClear
+                ? prev.lethalClears + 1
+                : prev.lethalClears,
+            }));
+          }
+          return;
+        }
+      }
+
+      // Fallback passive trickle when on MENU / UPGRADES screen
+      const passiveIncome = Math.max(
+        1,
+        Math.floor(droneLevel * (1 + (save.upgrades.shard_mult || 0) * 0.2) * (adBoostSeconds > 0 ? 2 : 1))
       );
       setSave((prev) => ({
         ...prev,
         shards: prev.shards + passiveIncome,
         totalShardsEarned: prev.totalShardsEarned + passiveIncome,
       }));
-    }, 2500);
+    }, 2200);
 
     return () => clearInterval(timer);
-  }, [save.upgrades.auto_drone, save.upgrades.shard_mult, adBoostSeconds]);
+  }, [
+    save.upgrades.auto_drone,
+    save.upgrades.shard_mult,
+    save.upgrades.chain_amp,
+    save.upgrades.lucky_spark,
+    save.upgrades.contagion,
+    save.sector,
+    save.overclockCores,
+    adBoostSeconds,
+    screen,
+    board,
+    activeGridSize,
+    turnAmplifierBonus,
+    gameMode,
+  ]);
 
   const startTutorial = (step = 1) => {
     setScreen('TUTORIAL');
@@ -279,6 +361,9 @@ export default function App() {
   const startGameSession = (targetMode = 'CAMPAIGN', targetSector = save.sector, customGridSize = null) => {
     setScreen('PLAY');
     setGameMode(targetMode);
+    if (targetMode === 'CAMPAIGN' && !isWeaponUnlocked(selectedAbilityId)) {
+      setSelectedAbilityId('rail_beam');
+    }
     const isDaily = targetMode === 'DAILY';
     const gSize = isDaily ? 5 : customGridSize || Math.min(8, 3 + (save.upgrades.grid_size || 0));
     const maxChg = isDaily ? 3 : 2 + (save.upgrades.max_charges || 0);
@@ -295,10 +380,11 @@ export default function App() {
     setChargesLeft(maxChg);
     setTurnAmplifierBonus(1);
     setLastTurnStats(null);
+    const luckPct = 8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8);
     setCommanderMessage(
       isDaily
         ? `Royal Daily Decree #${getTodayDateSeed()}: Every Commander in the realm faces this exact Siege formation today!`
-        : `Wave ${targetSector}: Aim for Powder-Keg Sappers and Storm-Rune Shamans to rout the whole courtyard in ONE turn!`
+        : `Wave ${targetSector}: Strike Powder-Kegs & Shamans! (${luckPct}% Lucky Instant-Ignition chance on high-HP foes!)`
     );
   };
 
@@ -309,7 +395,7 @@ export default function App() {
         ? 2
         : gameMode === 'DAILY'
         ? 3
-        : save.abilityLevels[selectedAbilityId] || 1,
+        : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
     targetRow: hoverCell.row,
     targetCol: hoverCell.col,
     gridSize: activeGridSize,
@@ -338,12 +424,16 @@ export default function App() {
           ? 2
           : gameMode === 'DAILY'
           ? 3
-          : save.abilityLevels[selectedAbilityId] || 1,
+          : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
       chainAmpLevel: screen === 'TUTORIAL' ? 3 : gameMode === 'DAILY' ? 4 : save.upgrades.chain_amp || 0,
       shardMultLevel: save.upgrades.shard_mult || 0,
+      luckySparkLevel: screen === 'TUTORIAL' ? 0 : gameMode === 'DAILY' ? 5 : save.upgrades.lucky_spark || 0,
+      contagionLevel: screen === 'TUTORIAL' ? 0 : gameMode === 'DAILY' ? 4 : save.upgrades.contagion || 0,
       adBoostMultiplier: adMult,
       sector: screen === 'TUTORIAL' ? 2 : gameMode === 'DAILY' ? 5 : save.sector,
       turnAmplifierBonus,
+      isTutorial: screen === 'TUTORIAL',
+      isAutoArcherShot: false,
     });
 
     // Enqueue 60fps Canvas weapon projectile & barrel explosion animations!
@@ -351,18 +441,25 @@ export default function App() {
       setVfxQueue((prev) => [...prev.slice(-10), ...result.vfxAnimations]);
     }
 
-    const nextCharges = chargesLeft - 1;
+    const nextCharges = Math.min(
+      maxTurnCharges,
+      chargesLeft - 1 + (result.stats.refundedCharge || 0)
+    );
     setBoard(result.nextCells);
     setChargesLeft(nextCharges);
     setTurnAmplifierBonus(result.nextTurnAmplifierBonus);
     setLastTurnStats(result.stats);
 
-    if (result.stats.chainDepth > 0 || result.stats.isBoardClear) {
+    if (
+      result.stats.chainDepth > 0 ||
+      result.stats.isBoardClear ||
+      result.stats.luckyProcsCount > 0
+    ) {
       setScreenShake(true);
       setTimeout(() => setScreenShake(false), 380);
     }
 
-    // Celebrate 100% Lethal Siege Clear with Golden Confetti!
+    // Celebrate 100% Lethal Siege Clear or Lucky Jackpot with Golden Confetti!
     if (result.stats.isBoardClear) {
       try {
         confetti({
@@ -377,6 +474,15 @@ export default function App() {
     }
 
     const popupId = `${Date.now()}-${Math.random()}`;
+    const luckyTag =
+      result.stats.refundedCharge > 0
+        ? '⚡ +1 FREE VOLLEY! '
+        : result.stats.luckyProcsCount > 0
+        ? `🎲 ${result.stats.luckyProcsCount}× LUCKY IGNITE! `
+        : result.stats.critHitsCount > 0
+        ? `⚡ ${result.stats.critHitsCount}× CRIT! `
+        : '';
+
     setFloatingPopups((prev) => [
       ...prev.slice(-4),
       {
@@ -384,17 +490,17 @@ export default function App() {
         row,
         col,
         text: result.stats.isBoardClear
-          ? `⚔️ SIEGE BROKEN! +${result.stats.shardsEarned} Gold`
-          : `-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}× Chain)`,
+          ? `${luckyTag}⚔️ SIEGE BROKEN! +${result.stats.shardsEarned} Gold`
+          : `${luckyTag}-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}× Chain)`,
       },
     ]);
     setTimeout(() => {
       setFloatingPopups((prev) => prev.filter((p) => p.id !== popupId));
-    }, 1150);
+    }, 1350);
 
     if (result.stats.isBoardClear) {
       playSound('clear', muted);
-    } else if (result.stats.chainDepth > 0) {
+    } else if (result.stats.chainDepth > 0 || result.stats.luckyProcsCount > 0) {
       playSound('chain', muted);
     } else {
       playSound('strike', muted);
@@ -407,14 +513,17 @@ export default function App() {
             `HUZZAH! Every raider routed in a single volley! Click "Next Training Trial" below!`
           );
         } else {
+          const rewardGold = save.tutorialCompleted ? 0 : 15;
           setCommanderMessage(
-            `🏆 Training Complete! You've mastered Powder-Kegs, Storm-Rune Shamans, and War-Banners (+50 Gold Crowns awarded)!`
+            `🏆 Training Complete! You've mastered Powder-Kegs, Storm-Rune Shamans, and War-Banners${
+              rewardGold > 0 ? ` (+${rewardGold} Gold Crowns awarded)` : ''
+            }!`
           );
           setSave((prev) => ({
             ...prev,
             tutorialCompleted: true,
-            shards: prev.shards + 50,
-            totalShardsEarned: prev.totalShardsEarned + 50,
+            shards: prev.shards + rewardGold,
+            totalShardsEarned: prev.totalShardsEarned + rewardGold,
           }));
         }
       } else {
@@ -425,9 +534,16 @@ export default function App() {
       return;
     }
 
+    const latestLuckyEvent = result.events?.find((e) => e.type === 'LUCKY_PROC');
     if (result.stats.isBoardClear) {
       setCommanderMessage(
-        `⚔️ TOTAL VICTORY! ${result.stats.chainDepth}× Chain Reaction routed the siege for +${result.stats.shardsEarned} Gold Crowns!`
+        latestLuckyEvent
+          ? `${latestLuckyEvent.text} ⚔️ TOTAL VICTORY (+${result.stats.shardsEarned} Gold)!`
+          : `⚔️ TOTAL VICTORY! ${result.stats.chainDepth}× Chain Reaction routed the siege for +${result.stats.shardsEarned} Gold Crowns!`
+      );
+    } else if (latestLuckyEvent) {
+      setCommanderMessage(
+        `${latestLuckyEvent.text} (${result.stats.remainingNodes} foes remain, ${nextCharges} volleys left!)`
       );
     } else if (nextCharges > 0) {
       setCommanderMessage(
@@ -469,6 +585,8 @@ export default function App() {
   const handleBuyUpgrade = (upgradeDef) => {
     const currentLvl = save.upgrades[upgradeDef.id] || 0;
     if (currentLvl >= upgradeDef.maxLevel) return;
+    const reqSector = getUpgradeRequiredSector(upgradeDef, currentLvl);
+    if (save.maxSectorReached < reqSector) return;
     const cost = getUpgradeCost(upgradeDef, currentLvl);
     if (save.shards < cost) return;
 
@@ -492,8 +610,11 @@ export default function App() {
   };
 
   const handleUpgradeAbility = (abilityId, idx) => {
-    const currentLvl = save.abilityLevels[abilityId] || 1;
-    const cost = getAbilityUpgradeCost(idx, currentLvl);
+    const ab = ABILITIES[idx];
+    const currentLvl = save.abilityLevels[abilityId] ?? (idx === 0 ? 1 : 0);
+    if (currentLvl === 0 && save.maxSectorReached < (ab.minSector || 1)) return;
+    const cost =
+      currentLvl === 0 ? ab.unlockCost : getAbilityUpgradeCost(idx, currentLvl);
     if (save.shards < cost) return;
 
     playSound('upgrade', muted);
@@ -521,7 +642,7 @@ export default function App() {
     setSave((prev) => ({
       ...DEFAULT_SAVE,
       tutorialCompleted: true,
-      shards: 50,
+      shards: 25,
       totalShardsEarned: prev.totalShardsEarned,
       maxSectorReached: prev.maxSectorReached,
       lethalClears: prev.lethalClears,
@@ -580,12 +701,12 @@ export default function App() {
     } else if (type === 'EXTRA_CHARGE') {
       setRewardedModalConfig({
         isOpen: true,
-        rewardTitle: '+1 Emergency Siege Volley + 50 Gold Crowns',
+        rewardTitle: '+1 Emergency Siege Volley + 15 Gold Crowns',
         onClaim: () => {
           setChargesLeft((c) => c + 1);
           setSave((prev) => ({
             ...prev,
-            shards: prev.shards + 50 + prev.sector * 15,
+            shards: prev.shards + 15 + prev.sector * 3,
             estSessionRevenueUsd: +(prev.estSessionRevenueUsd + 0.025).toFixed(3),
           }));
         },
@@ -600,10 +721,18 @@ export default function App() {
   const affordableUpgradesCount =
     UPGRADE_CATALOG.filter((u) => {
       const lvl = save.upgrades[u.id] || 0;
-      return lvl < u.maxLevel && save.shards >= getUpgradeCost(u, lvl);
+      const reqSector = getUpgradeRequiredSector(u, lvl);
+      return (
+        lvl < u.maxLevel &&
+        save.maxSectorReached >= reqSector &&
+        save.shards >= getUpgradeCost(u, lvl)
+      );
     }).length +
     ABILITIES.filter((ab, idx) => {
-      const lvl = save.abilityLevels[ab.id] || 1;
+      const lvl = save.abilityLevels[ab.id] ?? (idx === 0 ? 1 : 0);
+      if (lvl === 0) {
+        return save.maxSectorReached >= (ab.minSector || 1) && save.shards >= ab.unlockCost;
+      }
       return save.shards >= getAbilityUpgradeCost(idx, lvl);
     }).length;
 
@@ -829,7 +958,7 @@ export default function App() {
                 >
                   <span className="menu-sword-cursor">⚔️</span>
                   <span className="menu-btn-label">Play Tutorial</span>
-                  <span className="menu-btn-tag gold">+50 🪙</span>
+                  <span className="menu-btn-tag gold">+15 🪙</span>
                 </button>
               ) : (
                 <button
@@ -909,7 +1038,7 @@ export default function App() {
             selectedWeaponId={selectedAbilityId}
           />
 
-          {/* STATUS STRIP: VOLLEY CHARGES + ACTIONS */}
+          {/* STATUS STRIP: VOLLEY CHARGES + LUCK & RALLY BADGES + ACTIONS */}
           <div className="battle-hud-bar">
             <div className="charges-display">
               <span className="charges-label">SIEGE VOLLEYS LEFT:</span>
@@ -924,6 +1053,14 @@ export default function App() {
                   </span>
                 ))}
               </div>
+              {screen === 'PLAY' && (
+                <span
+                  className="amp-pill"
+                  title="Fortune's Spark: Any hit has a chance to instantly detonate high-HP Powder-Kegs/Shamans or deal 3× Crit Damage!"
+                >
+                  🎲 {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}% Luck Ignite
+                </span>
+              )}
               {turnAmplifierBonus > 1 && (
                 <span className="amp-pill">
                   +{Math.round((turnAmplifierBonus - 1) * 100)}% RALLY DAMAGE
@@ -1072,8 +1209,8 @@ export default function App() {
                         ? 'Glorious chain reaction, Commander!'
                         : 'Click Reset Trial and strike the highlighted target!'
                       : isBoardCleared
-                      ? `Looted +${lastTurnStats?.shardsEarned || 0} Gold Crowns (with 1.75× Total Victory Bonus!)`
-                      : 'Tip: Visit the Royal Forge to sharpen your weapons or add extra Siege Volleys!'}
+                      ? `Looted +${lastTurnStats?.shardsEarned || 0} Gold Crowns (includes +25% Clear Bounty!)`
+                      : 'Tip: Even on high-HP waves, hitting Powder-Kegs can proc a Lucky Instant-Ignition!'}
                   </p>
                 </div>
 
@@ -1149,13 +1286,14 @@ export default function App() {
 
           {/* TACTILE WOODEN & IRON WEAPON DOCK */}
           <div className="weapon-dock" role="radiogroup" aria-label="Select Siege Weapon">
-            {ABILITIES.map((ab) => {
+            {ABILITIES.map((ab, idx) => {
+              const unlocked = isWeaponUnlocked(ab.id);
               const lvl =
                 screen === 'TUTORIAL'
                   ? 2
                   : gameMode === 'DAILY'
                   ? 3
-                  : save.abilityLevels[ab.id] || 1;
+                  : Math.max(1, save.abilityLevels[ab.id] || 1);
               const stats = ab.getStats(lvl);
               const isSelected = selectedAbilityId === ab.id;
               const isFiring = firingWeaponId === ab.id;
@@ -1168,22 +1306,41 @@ export default function App() {
                     'weapon-dock-btn',
                     `color-${ab.color}`,
                     isSelected ? 'selected' : '',
+                    !unlocked ? 'weapon-locked' : '',
                     isFiring ? 'weapon-firing-recoil' : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onClick={() => setSelectedAbilityId(ab.id)}
+                  onClick={() => {
+                    if (!unlocked) {
+                      if (screen === 'PLAY') setScreen('UPGRADES');
+                      return;
+                    }
+                    setSelectedAbilityId(ab.id);
+                  }}
                 >
                   <div className={`ability-icon bg-${ab.color}`}>
                     <WeaponIllustration id={ab.id} />
-                    <span className="hotkey-badge">{ab.hotkey}</span>
+                    <span className="hotkey-badge">{unlocked ? ab.hotkey : '🔒'}</span>
                   </div>
                   <div className="weapon-dock-text">
                     <div className="weapon-dock-top">
                       <strong>{ab.name}</strong>
-                      <span className="weapon-dmg-badge">{stats.damage} DMG</span>
+                      {unlocked ? (
+                        <span className="weapon-dmg-badge">{stats.damage} DMG</span>
+                      ) : (
+                        <span className="weapon-dmg-badge">
+                          Wave {ab.minSector} • {ab.unlockCost} 🪙
+                        </span>
+                      )}
                     </div>
-                    <span>{ab.baseDesc}</span>
+                    <span>
+                      {unlocked
+                        ? ab.baseDesc
+                        : idx > 0 && screen === 'TUTORIAL'
+                        ? 'Unlocks after Training Yard'
+                        : `Locked — Click to unlock in the Royal Forge!`}
+                    </span>
                   </div>
                 </button>
               );
@@ -1203,8 +1360,8 @@ export default function App() {
                 <TrendingUp size={22} className="text-amber" /> THE ROYAL BLACKSMITH FORGE
               </h2>
               <p>
-                Spend your Gold Crowns to expand the castle courtyard (3×3 → 8×8), add extra Siege
-                Volleys, and temper your 4 weapons!
+                Invest your hard-won Gold Crowns into Luck & Contagion synergies, expand the
+                courtyard (3×3 → 8×8), and unlock new Siege Weapons!
               </p>
             </div>
             <button
@@ -1220,16 +1377,18 @@ export default function App() {
           <div className="upgrade-lab-columns">
             <section className="panel">
               <div className="section-heading">
-                <h2>I. FORTIFICATIONS & BLACK POWDER</h2>
-                <span>Expand your courtyard size and chain explosion damage</span>
+                <h2>I. FORTIFICATIONS, LUCK & SNOWBALL SYNERGIES</h2>
+                <span>Expand your courtyard, boost Lucky Instant-Ignitions & hire Auto-Archers</span>
               </div>
 
               <div className="upgrade-list">
                 {UPGRADE_CATALOG.map((upg) => {
                   const lvl = save.upgrades[upg.id] || 0;
                   const isMax = lvl >= upg.maxLevel;
+                  const reqSector = getUpgradeRequiredSector(upg, lvl);
+                  const sectorLocked = !isMax && save.maxSectorReached < reqSector;
                   const cost = getUpgradeCost(upg, lvl);
-                  const canAfford = !isMax && save.shards >= cost;
+                  const canAfford = !isMax && !sectorLocked && save.shards >= cost;
 
                   return (
                     <div key={upg.id} className={`upgrade-item ${canAfford ? 'can-buy' : ''}`}>
@@ -1246,10 +1405,14 @@ export default function App() {
                       <button
                         type="button"
                         className={`btn-buy-upgrade ${canAfford ? 'affordable' : ''}`}
-                        disabled={!canAfford || isMax}
+                        disabled={!canAfford || isMax || sectorLocked}
                         onClick={() => handleBuyUpgrade(upg)}
                       >
-                        {isMax ? 'MAXED' : `${cost.toLocaleString()} 🪙`}
+                        {isMax
+                          ? 'MAXED'
+                          : sectorLocked
+                          ? `🔒 Wave ${reqSector} (${cost.toLocaleString()} 🪙)`
+                          : `${cost.toLocaleString()} 🪙`}
                       </button>
                     </div>
                   );
@@ -1259,16 +1422,21 @@ export default function App() {
 
             <section className="panel">
               <div className="section-heading">
-                <h2>II. TEMPER SIEGE WEAPONS</h2>
-                <span>Increase direct strike damage & unlock wider blast patterns</span>
+                <h2>II. UNLOCK & TEMPER SIEGE WEAPONS</h2>
+                <span>Reach higher waves & spend Gold Crowns to unlock and temper all 4 weapons</span>
               </div>
 
               <div className="ability-list">
                 {ABILITIES.map((ab, idx) => {
-                  const lvl = save.abilityLevels[ab.id] || 1;
-                  const stats = ab.getStats(lvl);
-                  const upgCost = getAbilityUpgradeCost(idx, lvl);
-                  const canAfford = save.shards >= upgCost;
+                  const lvl = save.abilityLevels[ab.id] ?? (idx === 0 ? 1 : 0);
+                  const isUnlocked = lvl >= 1;
+                  const stats = ab.getStats(Math.max(1, lvl));
+                  const reqSector = ab.minSector || 1;
+                  const sectorLocked = !isUnlocked && save.maxSectorReached < reqSector;
+                  const upgCost = isUnlocked
+                    ? getAbilityUpgradeCost(idx, lvl)
+                    : ab.unlockCost;
+                  const canAfford = !sectorLocked && save.shards >= upgCost;
 
                   return (
                     <div key={ab.id} className={`ability-card color-${ab.color}`}>
@@ -1279,9 +1447,13 @@ export default function App() {
                         <div className="ability-info">
                           <div className="ability-title-row">
                             <strong>{ab.name}</strong>
-                            <span className="ability-lvl">Lv.{lvl}</span>
+                            <span className="ability-lvl">
+                              {isUnlocked ? `Lv.${lvl}` : `🔒 Wave ${reqSector}`}
+                            </span>
                           </div>
-                          <p className="ability-tier">{stats.tierLabel}</p>
+                          <p className="ability-tier">
+                            {isUnlocked ? stats.tierLabel : 'Locked Royal Blueprint'}
+                          </p>
                           <p className="ability-desc">
                             <strong className="text-white">{stats.damage} DMG</strong> • {ab.baseDesc}
                           </p>
@@ -1294,7 +1466,11 @@ export default function App() {
                         disabled={!canAfford}
                         onClick={() => handleUpgradeAbility(ab.id, idx)}
                       >
-                        Forge ({upgCost.toLocaleString()} 🪙)
+                        {sectorLocked
+                          ? `🔒 Reach Wave ${reqSector}`
+                          : isUnlocked
+                          ? `Temper (${upgCost.toLocaleString()} 🪙)`
+                          : `Unlock (${upgCost.toLocaleString()} 🪙)`}
                       </button>
                     </div>
                   );

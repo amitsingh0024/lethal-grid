@@ -1,16 +1,14 @@
 /**
- * SIEGE OF EMBERKEEP — Medieval Tactical Chain-Reaction Engine
+ * SIEGE OF EMBERKEEP — Medieval Tactical Chain-Reaction & Snowball Incremental Engine
  *
  * Implements:
  * - Mulberry32 deterministic PRNG for 100% client-side Daily Siege seeds
- * - Dynamic Courtyard Scaling (3x3 -> 4x4 -> 5x5 -> 6x6 -> 7x7 -> 8x8)
- * - 5 Medieval Unit Types with recursive chain-reaction physics:
- *   1. STANDARD ( Goblin Footpad ) — Standard shield raider, drops Gold Crowns
- *   2. BOMB ( Powder-Keg Sapper ) — Carries a black-powder barrel that explodes 3x3 on death!
- *   3. CONDUIT ( Storm-Rune Shaman ) — Discharges a lightning bolt along its row/col on death!
- *   4. AMPLIFIER ( War-Banner Herald ) — Slaying him rallies your siege weapons for +50% turn damage!
- *   5. BOSS ( Ironclad Siege Ogre ) — Armored warlord, drops 5x Gold & triggers a 5x5 shockwave!
- * - 4 Upgradable Medieval Siege Weapons with trajectory metadata for the 60FPS Canvas VFX Engine
+ * - Dynamic Courtyard Scaling (3x3 -> 4x4 -> 5x5 -> 6x6 -> 7x7 -> 8x8) with Wave + Gold Milestones
+ * - Progressive Weapon Unlocks (Start with Ballista; unlock Wildfire Flask, Thunder-Hammer & Greatsword)
+ * - Luck / "One-Hit Miracle" Jackpot System:
+ *   - Lucky Fuse Ignition: Any hit (even 1 DMG vs 500 HP) can spark a Powder-Keg or Shaman fuse for an instant detonation!
+ *   - Critical Cascades (3x Damage) + % Max-HP Chain Shred so chain reactions scale against high-HP waves
+ *   - Goblin Barrel Contagion (Standard Goblins can explode on death) & Momentum Volley Refunds
  */
 
 export const NODE_TYPES = {
@@ -33,13 +31,13 @@ export const NODE_META = {
     label: 'Powder-Keg Sapper',
     short: 'KEG',
     color: 'rose',
-    desc: 'Carries an unstable black-powder barrel! Explodes in a 3×3 fireball when slain!',
+    desc: 'Carries an unstable black-powder barrel! Explodes in a 3×3 fireball when slain or Lucky-Ignited!',
   },
   CONDUIT: {
     label: 'Storm-Rune Shaman',
     short: 'SHAMAN',
     color: 'amber',
-    desc: 'Unleashes a crackling Runic Lightning bolt across its entire Row or Column when slain!',
+    desc: 'Unleashes a crackling Runic Lightning bolt across its entire Row or Column when slain or Lucky-Ignited!',
   },
   AMPLIFIER: {
     label: 'War-Banner Herald',
@@ -51,7 +49,7 @@ export const NODE_META = {
     label: 'Ironclad Siege Ogre',
     short: 'OGRE',
     color: 'violet',
-    desc: 'Towering iron-plated warlord. Drops 5× Gold Crowns and shatters surrounding tiles on death!',
+    desc: 'Towering iron-plated warlord. Drops 5× Gold Crowns and triggers a 5×5 shockwave on death!',
   },
 };
 
@@ -62,15 +60,17 @@ export const ABILITIES = [
     hotkey: '1',
     icon: 'Crosshair',
     color: 'amber',
+    unlockCost: 0,
+    minSector: 1,
     baseDesc: 'Fires iron-tipped bolts across the entire Row & Column (+ shape).',
     getStats: (level) => {
-      const dmg = Math.floor(2 + level * 1.8);
-      const radius = level >= 5 ? 1 : 0;
+      const dmg = Math.floor(1 + level * 1.4);
+      const radius = level >= 6 ? 1 : 0;
       return {
         damage: dmg,
         radius,
         tierLabel:
-          level >= 5
+          level >= 6
             ? 'Tier III: Dragon-Piercer Bolts + 3×3 Shrapnel'
             : level >= 3
             ? 'Tier II: Tempered Iron Bolts'
@@ -84,15 +84,17 @@ export const ABILITIES = [
     hotkey: '2',
     icon: 'Flame',
     color: 'rose',
+    unlockCost: 180,
+    minSector: 3,
     baseDesc: 'Hurls a volatile glass potion that shatters into a 3×3 wildfire blast.',
     getStats: (level) => {
-      const dmg = Math.floor(3 + level * 2.2);
-      const range = level >= 6 ? 2 : 1;
+      const dmg = Math.floor(2 + level * 1.7);
+      const range = level >= 7 ? 2 : 1;
       return {
         damage: dmg,
         range,
         tierLabel:
-          level >= 6
+          level >= 7
             ? 'Tier III: 5×5 Dragonfire Cauldron'
             : level >= 3
             ? 'Tier II: Volatile Pitch Flask (3×3)'
@@ -106,14 +108,16 @@ export const ABILITIES = [
     hotkey: '3',
     icon: 'Zap',
     color: 'cyan',
+    unlockCost: 850,
+    minSector: 7,
     baseDesc: 'Hurls a runic warhammer that ricochets to the highest-HP enemies.',
     getStats: (level) => {
-      const dmg = Math.floor(2 + level * 1.6);
-      const bounces = 3 + Math.floor(level * 1.2);
+      const dmg = Math.floor(2 + level * 1.5);
+      const bounces = 3 + Math.floor(level * 1.1);
       return {
         damage: dmg,
         bounces,
-        tierLabel: `Tier ${level >= 5 ? 'III' : level >= 3 ? 'II' : 'I'}: Ricochets to ${bounces} Foes`,
+        tierLabel: `Tier ${level >= 6 ? 'III' : level >= 3 ? 'II' : 'I'}: Ricochets to ${bounces} Foes`,
       };
     },
   },
@@ -123,14 +127,16 @@ export const ABILITIES = [
     hotkey: '4',
     icon: 'Sparkles',
     color: 'violet',
+    unlockCost: 3600,
+    minSector: 12,
     baseDesc: 'Cleaves diagonals (X-slash) and sunders enemy armor (2× damage taken).',
     getStats: (level) => {
-      const dmg = Math.floor(2 + level * 1.7);
+      const dmg = Math.floor(2 + level * 1.6);
       return {
         damage: dmg,
-        weakenMultiplier: level >= 4 ? 2.5 : 2,
+        weakenMultiplier: level >= 5 ? 2.5 : 2,
         tierLabel:
-          level >= 4
+          level >= 5
             ? 'Tier II: Royal Whirlwind Cleave (2.5× Sunder)'
             : 'Tier I: Diagonal Steel Cleave (2× Sunder)',
       };
@@ -138,20 +144,28 @@ export const ABILITIES = [
   },
 ];
 
+const GRID_EXPANSION_COSTS = [120, 650, 3200, 16000, 85000];
+const GRID_EXPANSION_SECTORS = [3, 7, 12, 18, 25];
+
+const EXTRA_CHARGE_COSTS = [160, 900, 4800, 24000, 120000];
+const EXTRA_CHARGE_SECTORS = [4, 9, 15, 22, 30];
+
 export const UPGRADE_CATALOG = [
   {
     id: 'grid_size',
     name: 'Expand Castle Courtyard',
     category: 'BF_EXPANSION',
     maxLevel: 5,
-    baseCost: 25,
-    costScale: 3.4,
+    baseCost: 120,
+    costScale: 4.8,
+    customCosts: GRID_EXPANSION_COSTS,
+    requiredSectors: GRID_EXPANSION_SECTORS,
     getEffectText: (lvl) => {
       const size = 3 + lvl;
       const next = Math.min(8, size + 1);
       return lvl >= 5
         ? `MAX: ${size}×${size} Grand Citadel Courtyard`
-        : `${size}×${size} → ${next}×${next} Stone Courtyard (+More Enemies & Chain Combos!)`;
+        : `${size}×${size} → ${next}×${next} Stone Courtyard (+More Raiders & Bigger Chains!)`;
     },
   },
   {
@@ -159,51 +173,73 @@ export const UPGRADE_CATALOG = [
     name: 'Extra Siege Volley',
     category: 'BF_EXPANSION',
     maxLevel: 5,
-    baseCost: 40,
-    costScale: 3.2,
+    baseCost: 160,
+    costScale: 5.0,
+    customCosts: EXTRA_CHARGE_COSTS,
+    requiredSectors: EXTRA_CHARGE_SECTORS,
     getEffectText: (lvl) => `${2 + lvl} → ${3 + lvl} Weapon Attacks per 1-Turn Siege Wave`,
+  },
+  {
+    id: 'lucky_spark',
+    name: "Fortune's Spark (Luck & Crit)",
+    category: 'LUCK_SNOWBALL',
+    maxLevel: 25,
+    baseCost: 28,
+    costScale: 1.55,
+    getEffectText: (lvl) =>
+      `${8 + Math.round(lvl * 1.8)}% → ${8 + Math.round((lvl + 1) * 1.8)}% Lucky Instant-Detonate on High-HP Kegs/Shamans + ${8 + Math.round((lvl + 1) * 1.5)}% 3× Crit Chance!`,
+  },
+  {
+    id: 'contagion',
+    name: 'Goblin Barrel Contagion',
+    category: 'LUCK_SNOWBALL',
+    maxLevel: 20,
+    baseCost: 45,
+    costScale: 1.65,
+    getEffectText: (lvl) =>
+      `${lvl * 4}% → ${(lvl + 1) * 4}% chance slain Goblins explode 3×3 + ${12 + (lvl + 1) * 3}% chance 5-Kills refund +1 Volley!`,
   },
   {
     id: 'chain_amp',
     name: 'Refined Black Powder',
     category: 'SYNERGY',
-    maxLevel: 25,
-    baseCost: 15,
-    costScale: 1.65,
+    maxLevel: 40,
+    baseCost: 20,
+    costScale: 1.48,
     getEffectText: (lvl) =>
-      `+${lvl * 25}% → +${(lvl + 1) * 25}% Powder-Keg & Shaman Chain Explosion Damage`,
+      `+${lvl * 20}% → +${(lvl + 1) * 20}% Chain Blast DMG & melts ${18 + (lvl + 1) * 1.5}% of target Max HP!`,
   },
   {
     id: 'shard_mult',
     name: 'Royal Tax & Plunder Charter',
     category: 'SYNERGY',
-    maxLevel: 30,
-    baseCost: 18,
-    costScale: 1.6,
+    maxLevel: 50,
+    baseCost: 24,
+    costScale: 1.52,
     getEffectText: (lvl) =>
-      `×${(1 + lvl * 0.35).toFixed(2)} → ×${(1 + (lvl + 1) * 0.35).toFixed(2)} Gold Crowns Looted`,
+      `×${(1 + lvl * 0.2).toFixed(2)} → ×${(1 + (lvl + 1) * 0.2).toFixed(2)} Gold Crowns Looted`,
   },
   {
     id: 'volatile_spawn',
     name: 'Saboteur Ambush Traps',
     category: 'SYNERGY',
-    maxLevel: 8,
-    baseCost: 30,
-    costScale: 2.1,
+    maxLevel: 15,
+    baseCost: 55,
+    costScale: 1.75,
     getEffectText: (lvl) =>
-      `+${lvl * 5}% → +${(lvl + 1) * 5}% extra Powder-Kegs, Shamans & Banners on every wave`,
+      `+${lvl * 3}% → +${(lvl + 1) * 3}% extra Powder-Kegs, Shamans & Banners on every wave`,
   },
   {
     id: 'auto_drone',
     name: 'Battlement Archer Garrison',
     category: 'AUTOMATION',
-    maxLevel: 15,
-    baseCost: 35,
-    costScale: 1.85,
+    maxLevel: 25,
+    baseCost: 65,
+    costScale: 1.72,
     getEffectText: (lvl) =>
       lvl === 0
-        ? 'Hire Castle Archers (Passively loots Gold Crowns every 2.5s!)'
-        : `Archers loot +${lvl * 4} Passive Gold Crowns every 2.5 seconds`,
+        ? 'Hire Castle Archers that physically shoot random enemies on the board every 2.2s!'
+        : `Archers shoot ${1 + Math.floor((lvl + 1) / 5)} arrows every 2.2s (${2 + lvl * 2} DMG + can trigger Lucky Ignitions!)`,
   },
 ];
 
@@ -232,12 +268,22 @@ export function getTodayDateSeed() {
 }
 
 export function getUpgradeCost(upgradeDef, currentLevel) {
+  if (upgradeDef.customCosts && upgradeDef.customCosts[currentLevel] !== undefined) {
+    return upgradeDef.customCosts[currentLevel];
+  }
   return Math.floor(upgradeDef.baseCost * Math.pow(upgradeDef.costScale, currentLevel));
 }
 
+export function getUpgradeRequiredSector(upgradeDef, currentLevel) {
+  if (upgradeDef.requiredSectors && upgradeDef.requiredSectors[currentLevel] !== undefined) {
+    return upgradeDef.requiredSectors[currentLevel];
+  }
+  return 1;
+}
+
 export function getAbilityUpgradeCost(abilityIndex, currentLevel) {
-  const base = 12 + abilityIndex * 8;
-  return Math.floor(base * Math.pow(1.62, currentLevel - 1));
+  const base = 25 + abilityIndex * 35;
+  return Math.floor(base * Math.pow(1.72, currentLevel - 1));
 }
 
 export const TUTORIAL_LESSONS = [
@@ -323,11 +369,16 @@ export function generateBoard({
   const totalCells = gridSize * gridSize;
   const cells = [];
 
+  // Steep enemy HP scaling on higher waves so flat attack alone struggles,
+  // making Chain Synergies, % Max-HP Shred, and Lucky Fuse Ignitions thrilling!
   const baseHp = isDaily
-    ? 4
-    : Math.max(2, Math.floor(2 + (sector - 1) * 1.45 + Math.pow(sector, 1.15) * 0.4));
+    ? 6
+    : Math.max(
+        3,
+        Math.floor(2 + (sector - 1) * 2.1 + Math.pow(sector, 1.38) * 0.65)
+      );
 
-  const specialChanceBonus = volatileBonusLevel * 0.04;
+  const specialChanceBonus = volatileBonusLevel * 0.025;
 
   const guaranteedBombIdx = Math.floor(rng() * totalCells);
   let guaranteedConduitIdx = Math.floor(rng() * totalCells);
@@ -348,28 +399,28 @@ export function generateBoard({
 
     if (i === bossIdx) {
       type = NODE_TYPES.BOSS;
-      maxHp = Math.floor(baseHp * 2.4);
+      maxHp = Math.floor(baseHp * 2.8);
     } else if (i === guaranteedBombIdx) {
       type = NODE_TYPES.BOMB;
-      maxHp = Math.max(1, Math.floor(baseHp * 0.75));
+      maxHp = Math.max(2, Math.floor(baseHp * 0.8));
     } else if (i === guaranteedConduitIdx) {
       type = NODE_TYPES.CONDUIT;
-      maxHp = Math.max(1, Math.floor(baseHp * 0.8));
+      maxHp = Math.max(2, Math.floor(baseHp * 0.85));
     } else if (roll < 0.14 && totalCells > 6) {
       type = NODE_TYPES.EMPTY;
       maxHp = 0;
-    } else if (roll < 0.34 + specialChanceBonus) {
+    } else if (roll < 0.31 + specialChanceBonus) {
       type = NODE_TYPES.BOMB;
-      maxHp = Math.max(1, Math.floor(baseHp * (0.7 + rng() * 0.25)));
-    } else if (roll < 0.50 + specialChanceBonus) {
+      maxHp = Math.max(2, Math.floor(baseHp * (0.75 + rng() * 0.25)));
+    } else if (roll < 0.46 + specialChanceBonus) {
       type = NODE_TYPES.CONDUIT;
-      maxHp = Math.max(1, Math.floor(baseHp * (0.75 + rng() * 0.25)));
-    } else if (roll < 0.60 + specialChanceBonus * 0.8) {
+      maxHp = Math.max(2, Math.floor(baseHp * (0.8 + rng() * 0.25)));
+    } else if (roll < 0.55 + specialChanceBonus * 0.8) {
       type = NODE_TYPES.AMPLIFIER;
-      maxHp = Math.max(1, Math.floor(baseHp * 0.65));
+      maxHp = Math.max(2, Math.floor(baseHp * 0.7));
     } else {
       type = NODE_TYPES.STANDARD;
-      maxHp = Math.max(1, Math.floor(baseHp * (0.85 + rng() * 0.35)));
+      maxHp = Math.max(2, Math.floor(baseHp * (0.9 + rng() * 0.35)));
     }
 
     cells.push({
@@ -383,6 +434,8 @@ export function generateBoard({
       conduitAxis: rng() > 0.5 ? 'ROW' : 'COL',
       justHit: false,
       destroyedByChain: false,
+      luckyIgnited: false,
+      critHit: false,
     });
   }
 
@@ -461,16 +514,22 @@ export function executeAbilityAndResolveChains({
   targetCol,
   abilityId,
   abilityLevel,
-  chainAmpLevel,
-  shardMultLevel,
+  chainAmpLevel = 0,
+  shardMultLevel = 0,
+  luckySparkLevel = 0,
+  contagionLevel = 0,
   adBoostMultiplier = 1,
   sector = 1,
   turnAmplifierBonus = 1,
+  isTutorial = false,
+  isAutoArcherShot = false,
 }) {
   const nextCells = cells.map((c) => ({
     ...c,
     justHit: false,
     destroyedByChain: false,
+    luckyIgnited: false,
+    critHit: false,
   }));
 
   const events = [];
@@ -478,19 +537,29 @@ export function executeAbilityAndResolveChains({
   let totalDamageDealt = 0;
   let nodesDestroyed = 0;
   let chainDepth = 0;
+  let luckyProcsCount = 0;
+  let critHitsCount = 0;
   let dynamicAmp = turnAmplifierBonus;
 
   const chainExplosionQueue = [];
   const triggeredIndices = new Set();
 
+  // Flat chain damage + % of target's Max HP so chain explosions stay lethal on high-HP waves!
   const baseChainDamage = Math.max(
     2,
-    Math.floor((2 + sector * 1.35) * (1 + chainAmpLevel * 0.25))
+    Math.floor((2 + sector * 0.95) * (1 + chainAmpLevel * 0.2))
   );
+  const maxHpShredRatio = isTutorial ? 1.0 : 0.18 + chainAmpLevel * 0.015;
+
+  // Luck & Crit Probabilities (disabled during Tutorial so tutorial is 100% deterministic)
+  const critChance = isTutorial ? 0 : 0.08 + luckySparkLevel * 0.015;
+  const luckyFuseIgniteChance = isTutorial ? 0 : 0.08 + luckySparkLevel * 0.018;
+  const luckyExecuteChance = isTutorial ? 0 : 0.04 + luckySparkLevel * 0.01;
+  const contagionExplodeChance = isTutorial ? 0 : contagionLevel * 0.04;
 
   // Enqueue Primary Weapon Animation for the 60FPS Canvas VFX Layer
   const bounceTargets = [];
-  if (abilityId === 'arc_chain') {
+  if (!isAutoArcherShot && abilityId === 'arc_chain') {
     const { bounces } = ABILITIES[2].getStats(abilityLevel);
     const primaryIdx = targetRow * gridSize + targetCol;
     cells
@@ -503,19 +572,77 @@ export function executeAbilityAndResolveChains({
 
   vfxAnimations.push({
     id: `vfx-primary-${Date.now()}-${Math.random()}`,
-    type: abilityId,
+    type: isAutoArcherShot ? 'rail_beam' : abilityId,
     row: targetRow,
     col: targetCol,
     bounceTargets,
     delayMs: 0,
-    duration: abilityId === 'nova_bomb' ? 560 : 440,
+    duration: abilityId === 'nova_bomb' ? 560 : 420,
   });
 
   function applyDamageToCell(idx, rawDamage, sourceLabel, isChainReaction = false) {
     const cell = nextCells[idx];
     if (!cell || cell.type === NODE_TYPES.EMPTY || cell.hp <= 0) return;
 
-    const effectiveDamage = Math.max(1, Math.ceil(rawDamage * dynamicAmp * (cell.vulnerable || 1)));
+    // 1. Roll for Critical Strike (3x Damage!)
+    const isCrit = !isTutorial && Math.random() < critChance;
+    const critMult = isCrit ? 3.0 : 1.0;
+    if (isCrit) {
+      cell.critHit = true;
+      critHitsCount += 1;
+    }
+
+    // 2. Add % Max-HP Shred on Chain Reactions so explosions can topple high-HP waves!
+    const hpShredBonus = isChainReaction ? Math.ceil(cell.maxHp * maxHpShredRatio) : 0;
+
+    let effectiveDamage = Math.max(
+      1,
+      Math.ceil((rawDamage * critMult + hpShredBonus) * dynamicAmp * (cell.vulnerable || 1))
+    );
+
+    // 3. Roll for "LUCKY FUSE IGNITION / INSTANT EXECUTE" if the hit wouldn't normally kill the unit!
+    let triggeredLuckyProc = false;
+    if (!isTutorial && cell.hp > effectiveDamage) {
+      const isVolatileUnit =
+        cell.type === NODE_TYPES.BOMB ||
+        cell.type === NODE_TYPES.CONDUIT ||
+        cell.type === NODE_TYPES.AMPLIFIER;
+
+      if (isVolatileUnit && Math.random() < luckyFuseIgniteChance) {
+        effectiveDamage = cell.hp;
+        triggeredLuckyProc = true;
+        cell.luckyIgnited = true;
+        luckyProcsCount += 1;
+        events.push({
+          type: 'LUCKY_PROC',
+          text: `🎲 LUCKY IGNITION! Spark hit the ${NODE_META[cell.type].label} fuse at (${
+            cell.row + 1
+          },${cell.col + 1}) and instantly detonated all ${cell.hp} HP!`,
+        });
+      } else if (cell.type === NODE_TYPES.STANDARD && Math.random() < luckyExecuteChance) {
+        effectiveDamage = cell.hp;
+        triggeredLuckyProc = true;
+        cell.luckyIgnited = true;
+        luckyProcsCount += 1;
+        events.push({
+          type: 'LUCKY_PROC',
+          text: `🎲 LUCKY HEADSHOT! Instant lethal strike on Goblin Footpad at (${
+            cell.row + 1
+          },${cell.col + 1})!`,
+        });
+      } else if (cell.type === NODE_TYPES.BOSS && Math.random() < luckyExecuteChance) {
+        const bossCrush = Math.ceil(cell.maxHp * 0.55);
+        effectiveDamage = Math.max(effectiveDamage, bossCrush);
+        triggeredLuckyProc = true;
+        cell.luckyIgnited = true;
+        luckyProcsCount += 1;
+        events.push({
+          type: 'LUCKY_PROC',
+          text: `🎲 LUCKY CRUSHING BLOW! Shattered Ogre armor for ${bossCrush} DMG!`,
+        });
+      }
+    }
+
     const actualDamage = Math.min(cell.hp, effectiveDamage);
     cell.hp -= actualDamage;
     cell.justHit = true;
@@ -524,7 +651,7 @@ export function executeAbilityAndResolveChains({
     if (cell.hp <= 0) {
       cell.hp = 0;
       nodesDestroyed += 1;
-      if (isChainReaction) {
+      if (isChainReaction || triggeredLuckyProc) {
         cell.destroyedByChain = true;
       }
 
@@ -552,37 +679,64 @@ export function executeAbilityAndResolveChains({
             conduitAxis: cell.conduitAxis,
             sourceLabel,
           });
+        } else if (
+          cell.type === NODE_TYPES.STANDARD &&
+          contagionExplodeChance > 0 &&
+          Math.random() < contagionExplodeChance
+        ) {
+          // GOBLIN BARREL CONTAGION SYNERGY: Slain standard Goblin explodes like a Powder-Keg!
+          luckyProcsCount += 1;
+          events.push({
+            type: 'LUCKY_PROC',
+            text: `💥 CONTAGION! Slain Goblin at (${cell.row + 1},${
+              cell.col + 1
+            }) dropped a hidden Powder-Keg and exploded!`,
+          });
+          chainExplosionQueue.push({
+            idx,
+            row: cell.row,
+            col: cell.col,
+            type: NODE_TYPES.BOMB,
+            conduitAxis: 'ROW',
+            sourceLabel: 'Goblin Contagion',
+          });
         }
       }
     }
   }
 
-  // 1. Apply Primary Weapon Strike
-  const targetIndices = getAbilityPreviewIndices({
-    abilityId,
-    abilityLevel,
-    targetRow,
-    targetCol,
-    gridSize,
-    cells: nextCells,
-  });
+  // 1. Apply Primary Weapon Strike (or Single-Tile Battlement Archer Arrow)
+  if (isAutoArcherShot) {
+    const archerIdx = targetRow * gridSize + targetCol;
+    const archerDmg = Math.max(2, 2 + abilityLevel * 2);
+    applyDamageToCell(archerIdx, archerDmg, 'Battlement Archer', false);
+  } else {
+    const targetIndices = getAbilityPreviewIndices({
+      abilityId,
+      abilityLevel,
+      targetRow,
+      targetCol,
+      gridSize,
+      cells: nextCells,
+    });
 
-  const abilityObj = ABILITIES.find((a) => a.id === abilityId) || ABILITIES[0];
-  const abilityStats = abilityObj.getStats(abilityLevel);
+    const abilityObj = ABILITIES.find((a) => a.id === abilityId) || ABILITIES[0];
+    const abilityStats = abilityObj.getStats(abilityLevel);
 
-  targetIndices.forEach((idx) => {
-    const cell = nextCells[idx];
-    if (!cell || cell.type === NODE_TYPES.EMPTY) return;
+    targetIndices.forEach((idx) => {
+      const cell = nextCells[idx];
+      if (!cell || cell.type === NODE_TYPES.EMPTY) return;
 
-    if (abilityId === 'overclock_pulse' && cell.hp > 0) {
-      cell.vulnerable = Math.max(cell.vulnerable || 1, abilityStats.weakenMultiplier);
-    }
+      if (abilityId === 'overclock_pulse' && cell.hp > 0) {
+        cell.vulnerable = Math.max(cell.vulnerable || 1, abilityStats.weakenMultiplier);
+      }
 
-    applyDamageToCell(idx, abilityStats.damage, abilityObj.name, false);
-  });
+      applyDamageToCell(idx, abilityStats.damage, abilityObj.name, false);
+    });
+  }
 
-  // 2. Resolve Recursive Chain Reactions (Powder-Kegs, Storm-Rune Shamans, Ogre Boss)
-  while (chainExplosionQueue.length > 0) {
+  // 2. Resolve Recursive Chain Reactions (Powder-Kegs, Storm-Rune Shamans, Ogre Boss, Contagion)
+  while (chainExplosionQueue.length > 0 && chainDepth < 25) {
     chainDepth += 1;
     const currentWave = [...chainExplosionQueue];
     chainExplosionQueue.length = 0;
@@ -597,7 +751,7 @@ export function executeAbilityAndResolveChains({
           type: 'BARREL_EXPLOSION',
           row,
           col,
-          delayMs: chainDepth * 160,
+          delayMs: Math.min(chainDepth * 140, 900),
           duration: 460,
           impactAt: 0.1,
         });
@@ -606,7 +760,7 @@ export function executeAbilityAndResolveChains({
           type: 'EXPLOSION',
           text: `${type === NODE_TYPES.BOSS ? 'Siege Ogre' : 'Powder-Keg'} detonated at (${
             row + 1
-          },${col + 1}) for ${Math.ceil(baseChainDamage * dynamicAmp)} Blast DMG!`,
+          },${col + 1})!`,
         });
 
         for (let dr = -radius; dr <= radius; dr++) {
@@ -631,7 +785,7 @@ export function executeAbilityAndResolveChains({
           row,
           col,
           axis: conduitAxis,
-          delayMs: chainDepth * 160,
+          delayMs: Math.min(chainDepth * 140, 900),
           duration: 420,
           impactAt: 0.1,
         });
@@ -654,19 +808,36 @@ export function executeAbilityAndResolveChains({
   const remainingNodes = nextCells.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0).length;
   const isBoardClear = remainingNodes === 0;
 
-  const baseShardPerKill = 2 + Math.floor(sector * 0.9);
-  const comboMultiplier = 1 + chainDepth * 0.25;
-  const upgradeMultiplier = 1 + shardMultLevel * 0.35;
-  const lethalClearBonus = isBoardClear ? 1.75 : 1;
+  // Momentum Volley Refund Roll: If player kills >= 5 enemies in a single shot!
+  let refundedCharge = 0;
+  if (!isTutorial && !isAutoArcherShot && !isBoardClear && nodesDestroyed >= 5) {
+    const refundChance = 0.12 + contagionLevel * 0.03;
+    if (Math.random() < refundChance) {
+      refundedCharge = 1;
+      luckyProcsCount += 1;
+      events.push({
+        type: 'LUCKY_PROC',
+        text: `⚡ MOMENTUM REFUND! Routing ${nodesDestroyed} foes in one volley granted +1 FREE Siege Volley!`,
+      });
+    }
+  }
+
+  // REBALANCED GRIND ECONOMY: Controlled Gold Drops so upgrades require genuine progression!
+  const baseGoldPerKill = 1 + Math.floor((sector - 1) * 0.35);
+  const cappedChainBonus = 1 + Math.min(0.8, chainDepth * 0.08);
+  const taxCharterMult = 1 + shardMultLevel * 0.2;
+  const clearBonusMult = isBoardClear ? 1.25 : 1.0;
+  const flatClearBounty = isBoardClear ? 2 + Math.floor(sector * 0.5) : 0;
 
   const rawShards =
-    (nodesDestroyed * baseShardPerKill + Math.floor(totalDamageDealt * 0.25)) *
-    comboMultiplier *
-    upgradeMultiplier *
-    lethalClearBonus *
+    (nodesDestroyed * baseGoldPerKill + flatClearBounty) *
+    cappedChainBonus *
+    taxCharterMult *
+    clearBonusMult *
     adBoostMultiplier;
 
-  const shardsEarned = Math.max(nodesDestroyed > 0 ? 1 : 0, Math.floor(rawShards));
+  const shardsEarned =
+    nodesDestroyed > 0 || isBoardClear ? Math.max(1, Math.floor(rawShards)) : 0;
 
   return {
     nextCells,
@@ -680,6 +851,9 @@ export function executeAbilityAndResolveChains({
       totalDamageDealt,
       isBoardClear,
       remainingNodes,
+      luckyProcsCount,
+      critHitsCount,
+      refundedCharge,
     },
   };
 }
