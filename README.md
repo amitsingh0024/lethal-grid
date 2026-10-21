@@ -41,11 +41,16 @@ Chains trigger other enemies, so one hit can clear the whole board.
 - **Saboteur Ambush Traps:** more kegs, shamans and banners on every wave.
 - **Battlement Archer Garrison:** archers auto-shoot enemies every 2.2 seconds.
 
+### Winning and losing a wave
+A wave is won when every raider is down, and lost when the volleys run out first. Only a win moves you to the next wave. Archers help only while you still have volleys left.
+
+Retrying the same wave pays less gold each time: 100%, then 50%, 25%, 12.5%, and never below 10%. The count starts on the first shot (yours or an archer's), survives a page reload, and resets when the wave is won. Leaving for the Royal Forge mid-wave resumes the same board.
+
 ### Daily challenge
-Every day at `00:00 UTC` everyone gets the same board. The seed is the date (`YYYY-MM-DD`) fed into a deterministic Mulberry32 generator, so no server is needed. Results can be shared as an emoji grid.
+Every day at `00:00 UTC` everyone gets the same board. The seed is the date (`YYYY-MM-DD`) fed into a deterministic Mulberry32 generator, so no server is needed. Crits and lucky procs use a seed from the same date. Gold is paid only for the first win each day, and replays are practice. Results can be shared as an emoji grid.
 
 ### Saves
-Progress is stored in the browser's `localStorage` under one key. Changes to the save format need a version field and a migration, or existing progress is lost.
+Progress is stored in the browser's `localStorage` under one key. Each field is checked and clamped on load, and a save that fails to parse is copied to `<key>_corrupt_backup` before a fresh save replaces it. Changes to the save format need a version field and a migration, or existing progress is lost.
 
 ---
 

@@ -973,7 +973,9 @@ button:disabled {
   background: #78350f;
   border: 1px solid #f59e0b;
   color: #fef3c7;
-  flex-shrink: 0;
+  /* Locked weapons show "Wave N • cost" here, which must wrap on 320px phones */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .weapon-dock-text > span {

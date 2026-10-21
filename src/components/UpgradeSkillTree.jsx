@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Lock,
   TrendingUp,
@@ -188,11 +188,19 @@ export function UpgradeSkillTree({
 
   const clampZoom = (z) => Math.min(1.45, Math.max(0.5, +z.toFixed(2)));
 
-  const handleWheel = (e) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.08 : -0.08;
-    setZoom((z) => clampZoom(z + delta));
-  };
+  // React attaches wheel listeners as passive, so preventDefault only works on a native listener
+  const viewportRef = useRef(null);
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return undefined;
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.08 : -0.08;
+      setZoom((z) => clampZoom(z + delta));
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
+  }, []);
 
   const handlePointerDown = (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -363,8 +371,8 @@ export function UpgradeSkillTree({
       title: 'Royal Ascension (Prestige)',
       subtitle: 'Permanent Kingdom Prestige',
       description:
-        'Reset your current wave and gold upgrades in exchange for permanent Royal Crests (+50% Gold & Damage per Crest)!',
-      statLine: `Current Bonus: +${(save.overclockCores || 0) * 50}% Global Gold & DMG • Ascend Now: +${coresToGain} Crests`,
+        'Reset your current wave and gold upgrades in exchange for permanent Royal Crests (+50% Gold Crowns per Crest)!',
+      statLine: `Current Bonus: +${(save.overclockCores || 0) * 50}% Global Gold • Ascend Now: +${coresToGain} Crests`,
       currentLvl,
       maxLvl: 99,
       isMax: false,
@@ -435,7 +443,7 @@ export function UpgradeSkillTree({
       {/* FULL-WIDTH PANNABLE & ZOOMABLE SKILL TREE VIEWPORT */}
       <div
         className={`skill-tree-viewport ${isDragging ? 'is-dragging' : ''}`}
-        onWheel={handleWheel}
+        ref={viewportRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
