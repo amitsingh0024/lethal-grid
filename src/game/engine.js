@@ -281,6 +281,13 @@ export function getUpgradeRequiredSector(upgradeDef, currentLevel) {
   return 1;
 }
 
+// Replaying the same wave pays less each time so early waves can't be farmed:
+// attempt 1 = 100%, then 50%, 25%, 12.5%, and never below 10%.
+export function getRetryGoldMultiplier(attempt) {
+  if (!Number.isFinite(attempt) || attempt <= 1) return 1;
+  return Math.max(0.1, Math.pow(0.5, attempt - 1));
+}
+
 export function getAbilityUpgradeCost(abilityIndex, currentLevel) {
   const base = 25 + abilityIndex * 35;
   return Math.floor(base * Math.pow(1.72, currentLevel - 1));
@@ -523,6 +530,8 @@ export function executeAbilityAndResolveChains({
   turnAmplifierBonus = 1,
   isTutorial = false,
   isAutoArcherShot = false,
+  // Daily boards pass a seeded generator so crits and lucky procs match for every player
+  rng = Math.random,
 }) {
   const nextCells = cells.map((c) => ({
     ...c,
@@ -585,7 +594,7 @@ export function executeAbilityAndResolveChains({
     if (!cell || cell.type === NODE_TYPES.EMPTY || cell.hp <= 0) return;
 
     // 1. Roll for Critical Strike (3x Damage!)
-    const isCrit = !isTutorial && Math.random() < critChance;
+    const isCrit = !isTutorial && rng() < critChance;
     const critMult = isCrit ? 3.0 : 1.0;
     if (isCrit) {
       cell.critHit = true;
@@ -608,7 +617,7 @@ export function executeAbilityAndResolveChains({
         cell.type === NODE_TYPES.CONDUIT ||
         cell.type === NODE_TYPES.AMPLIFIER;
 
-      if (isVolatileUnit && Math.random() < luckyFuseIgniteChance) {
+      if (isVolatileUnit && rng() < luckyFuseIgniteChance) {
         effectiveDamage = cell.hp;
         triggeredLuckyProc = true;
         cell.luckyIgnited = true;
@@ -619,7 +628,7 @@ export function executeAbilityAndResolveChains({
             cell.row + 1
           },${cell.col + 1}) and instantly detonated all ${cell.hp} HP!`,
         });
-      } else if (cell.type === NODE_TYPES.STANDARD && Math.random() < luckyExecuteChance) {
+      } else if (cell.type === NODE_TYPES.STANDARD && rng() < luckyExecuteChance) {
         effectiveDamage = cell.hp;
         triggeredLuckyProc = true;
         cell.luckyIgnited = true;
@@ -630,7 +639,7 @@ export function executeAbilityAndResolveChains({
             cell.row + 1
           },${cell.col + 1})!`,
         });
-      } else if (cell.type === NODE_TYPES.BOSS && Math.random() < luckyExecuteChance) {
+      } else if (cell.type === NODE_TYPES.BOSS && rng() < luckyExecuteChance) {
         const bossCrush = Math.ceil(cell.maxHp * 0.55);
         effectiveDamage = Math.max(effectiveDamage, bossCrush);
         triggeredLuckyProc = true;
@@ -682,7 +691,7 @@ export function executeAbilityAndResolveChains({
         } else if (
           cell.type === NODE_TYPES.STANDARD &&
           contagionExplodeChance > 0 &&
-          Math.random() < contagionExplodeChance
+          rng() < contagionExplodeChance
         ) {
           // GOBLIN BARREL CONTAGION SYNERGY: Slain standard Goblin explodes like a Powder-Keg!
           luckyProcsCount += 1;
@@ -812,7 +821,7 @@ export function executeAbilityAndResolveChains({
   let refundedCharge = 0;
   if (!isTutorial && !isAutoArcherShot && !isBoardClear && nodesDestroyed >= 5) {
     const refundChance = 0.12 + contagionLevel * 0.03;
-    if (Math.random() < refundChance) {
+    if (rng() < refundChance) {
       refundedCharge = 1;
       luckyProcsCount += 1;
       events.push({

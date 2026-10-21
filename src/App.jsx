@@ -37,7 +37,9 @@ import {
   getUpgradeCost,
   getUpgradeRequiredSector,
   getAbilityUpgradeCost,
+  getRetryGoldMultiplier,
   getTodayDateSeed,
+  createSeededRandom,
 } from './game/engine';
 import {
   initAnalyticsAndAds,
@@ -53,6 +55,8 @@ import { DungeonStageBanner } from './components/DungeonStageBanner';
 import { UpgradeSkillTree, SKILL_TREE_NODES } from './components/UpgradeSkillTree';
 
 const STORAGE_KEY = 'siege_of_emberkeep_save_v2';
+// A save that fails to parse is copied here instead of being silently overwritten
+const CORRUPT_BACKUP_KEY = `${STORAGE_KEY}_corrupt_backup`;
 
 function WeaponIllustration({ id }) {
   return <WeaponPixelIcon id={id} size={36} />;
@@ -148,25 +152,94 @@ const DEFAULT_SAVE = {
     overclock_pulse: 0,
   },
   dailyClearedDate: null,
+  // Attempts made on the current campaign wave; each retry pays less gold
+  waveAttempts: { sector: 0, count: 0 },
   estSessionRevenueUsd: 0.004,
 };
 
+const toFiniteNumber = (value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) => {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+};
+
+const toWhole = (value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) =>
+  Math.floor(toFiniteNumber(value, fallback, min, max));
+
+// localStorage is player-editable, so coerce every field back into a valid range
+function sanitizeSave(parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const rawUpgrades = parsed.upgrades && typeof parsed.upgrades === 'object' ? parsed.upgrades : {};
+  const rawAbilities =
+    parsed.abilityLevels && typeof parsed.abilityLevels === 'object' ? parsed.abilityLevels : {};
+
+  const upgrades = {};
+  Object.keys(DEFAULT_SAVE.upgrades).forEach((id) => {
+    const def = UPGRADE_CATALOG.find((u) => u.id === id);
+    upgrades[id] = toWhole(rawUpgrades[id], 0, 0, def ? def.maxLevel : 0);
+  });
+
+  const abilityLevels = {};
+  Object.keys(DEFAULT_SAVE.abilityLevels).forEach((id) => {
+    const minLvl = DEFAULT_SAVE.abilityLevels[id];
+    abilityLevels[id] = toWhole(rawAbilities[id], minLvl, minLvl, 15);
+  });
+
+  const sector = toWhole(parsed.sector, 1, 1, 100000);
+  const rawAttempts = parsed.waveAttempts && typeof parsed.waveAttempts === 'object' ? parsed.waveAttempts : {};
+
+  return {
+    tutorialCompleted: parsed.tutorialCompleted === true,
+    shards: toWhole(parsed.shards, 0),
+    totalShardsEarned: toWhole(parsed.totalShardsEarned, 0),
+    sector,
+    maxSectorReached: Math.max(sector, toWhole(parsed.maxSectorReached, 1, 1, 100000)),
+    lethalClears: toWhole(parsed.lethalClears, 0),
+    overclockCores: toWhole(parsed.overclockCores, 0, 0, 1000),
+    upgrades,
+    abilityLevels,
+    dailyClearedDate:
+      typeof parsed.dailyClearedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.dailyClearedDate)
+        ? parsed.dailyClearedDate
+        : null,
+    waveAttempts: {
+      sector: toWhole(rawAttempts.sector, 0, 0, 100000),
+      count: toWhole(rawAttempts.count, 0, 0, 1000),
+    },
+    estSessionRevenueUsd: toFiniteNumber(parsed.estSessionRevenueUsd, DEFAULT_SAVE.estSessionRevenueUsd),
+  };
+}
+
+function backupCorruptSave(raw) {
+  try {
+    localStorage.setItem(CORRUPT_BACKUP_KEY, raw);
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+// Gold multiplier the next attempt at this wave will earn
+function getNextAttemptGoldMult(waveAttempts, sector) {
+  const attempt = waveAttempts && waveAttempts.sector === sector ? waveAttempts.count + 1 : 1;
+  return getRetryGoldMultiplier(attempt);
+}
+
 export default function App() {
   const [save, setSave] = useState(() => {
+    let raw = null;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return DEFAULT_SAVE;
-      const parsed = JSON.parse(raw);
-      return {
-        ...DEFAULT_SAVE,
-        ...parsed,
-        upgrades: { ...DEFAULT_SAVE.upgrades, ...(parsed.upgrades || {}) },
-        abilityLevels: { ...DEFAULT_SAVE.abilityLevels, ...(parsed.abilityLevels || {}) },
-      };
+      const sanitized = sanitizeSave(JSON.parse(raw));
+      if (sanitized) return sanitized;
     } catch {
-      return DEFAULT_SAVE;
+      // Fall through to the backup below
     }
+    if (raw) backupCorruptSave(raw);
+    return DEFAULT_SAVE;
   });
+  const saveRef = useRef(save);
+  saveRef.current = save;
 
   // Top-level screen state: 'MENU' | 'TUTORIAL' | 'PLAY' | 'UPGRADES'
   const [screen, setScreen] = useState('MENU');
@@ -201,6 +274,41 @@ export default function App() {
       volatileBonusLevel: save.upgrades.volatile_spawn,
     })
   );
+
+  // 'IN_PROGRESS' until the board is cleared (VICTORY) or the volleys run out (DEFEAT)
+  const [waveOutcome, setWaveOutcome] = useState('IN_PROGRESS');
+  const [boardGoldMult, setBoardGoldMult] = useState(1);
+  const [adVolleyUsed, setAdVolleyUsed] = useState(false);
+
+  // Live battle state read and written synchronously, so clicks landing in the same frame
+  // and archer ticks never resolve against a stale board or volley count
+  const battleRef = useRef(null);
+  if (!battleRef.current) {
+    battleRef.current = {
+      board,
+      chargesLeft: maxTurnCharges,
+      outcome: 'IN_PROGRESS',
+      amp: 1,
+      mode: 'CAMPAIGN',
+      sector: save.sector,
+      attemptCounted: false,
+      goldMult: 1,
+      rng: Math.random,
+      dailyPending: 0,
+      adVolleyUsed: false,
+      lockUntil: 0,
+    };
+  }
+
+  const syncBattle = (patch) => {
+    Object.assign(battleRef.current, patch);
+    if ('board' in patch) setBoard(patch.board);
+    if ('chargesLeft' in patch) setChargesLeft(patch.chargesLeft);
+    if ('outcome' in patch) setWaveOutcome(patch.outcome);
+    if ('amp' in patch) setTurnAmplifierBonus(patch.amp);
+    if ('goldMult' in patch) setBoardGoldMult(patch.goldMult);
+    if ('adVolleyUsed' in patch) setAdVolleyUsed(patch.adVolleyUsed);
+  };
 
   const [commanderMessage, setCommanderMessage] = useState(
     'Choose a Siege Weapon below and strike a raider in the stone courtyard!'
@@ -262,112 +370,173 @@ export default function App() {
     return () => clearInterval(t);
   }, [adBoostSeconds]);
 
+  // Latest render values for the archer timer, so it doesn't restart on every board or second tick
+  const archerContextRef = useRef({});
+  archerContextRef.current = { screen, adBoostSeconds, activeGridSize };
+
+  // The first shot (player or archer) on a campaign board commits an attempt at that wave
+  const registerCampaignAttempt = () => {
+    const live = battleRef.current;
+    if (live.mode !== 'CAMPAIGN') return 1;
+    if (live.attemptCounted) return live.goldMult;
+
+    const prevAttempts = saveRef.current.waveAttempts;
+    const attempt = prevAttempts && prevAttempts.sector === live.sector ? prevAttempts.count + 1 : 1;
+    const goldMult = getRetryGoldMultiplier(attempt);
+    live.attemptCounted = true;
+    syncBattle({ goldMult });
+
+    const waveAttempts = { sector: live.sector, count: attempt };
+    saveRef.current = { ...saveRef.current, waveAttempts };
+    setSave((prev) => ({ ...prev, waveAttempts }));
+    return goldMult;
+  };
+
+  // Banks the gold for a resolved shot and advances the wave exactly once on VICTORY
+  const settleShot = (result, outcome, goldMult) => {
+    const live = battleRef.current;
+    const isVictory = outcome === 'VICTORY';
+    let earned = 0;
+
+    if (live.mode === 'CAMPAIGN') {
+      earned = Math.floor(result.stats.shardsEarned * goldMult);
+    } else if (live.mode === 'DAILY') {
+      // Daily gold is held until the decree is won, and only the first win each day pays
+      live.dailyPending += result.stats.shardsEarned;
+      if (isVictory && saveRef.current.dailyClearedDate !== getTodayDateSeed()) {
+        earned = live.dailyPending;
+      }
+    }
+
+    if (live.mode === 'TUTORIAL') return earned;
+
+    const todaySeed = getTodayDateSeed();
+    const clearedSector = live.sector;
+    setSave((prev) => {
+      const advance = live.mode === 'CAMPAIGN' && isVictory && prev.sector === clearedSector;
+      const nextSector = advance ? clearedSector + 1 : prev.sector;
+      return {
+        ...prev,
+        shards: prev.shards + earned,
+        totalShardsEarned: prev.totalShardsEarned + earned,
+        sector: nextSector,
+        maxSectorReached: Math.max(prev.maxSectorReached, nextSector),
+        lethalClears: isVictory ? prev.lethalClears + 1 : prev.lethalClears,
+        waveAttempts: advance ? { sector: nextSector, count: 0 } : prev.waveAttempts,
+        dailyClearedDate: live.mode === 'DAILY' && isVictory ? todaySeed : prev.dailyClearedDate,
+      };
+    });
+
+    if (isVictory) {
+      trackEvent('lethal_board_clear', {
+        mode: live.mode,
+        sector: clearedSector,
+        grid_size: `${archerContextRef.current.activeGridSize}x${archerContextRef.current.activeGridSize}`,
+        chain_depth: result.stats.chainDepth,
+      });
+    }
+    return earned;
+  };
+
   // PHYSICAL BATTLEMENT ARCHERS LOOP: Physically shoots living enemies on the board every 2.2s!
+  // Archers only fight while the wave is live and the player still has volleys, so they can
+  // help win a wave but never finish one the player already lost.
+  const droneLevel = save.upgrades.auto_drone || 0;
   useEffect(() => {
-    const droneLevel = save.upgrades.auto_drone || 0;
     if (droneLevel <= 0) return;
 
     const timer = setInterval(() => {
-      // The Daily board is shared by everyone, so campaign archers stay off it
-      if (screen === 'PLAY' && gameMode !== 'DAILY') {
-        const aliveCells = board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
-        if (aliveCells.length > 0) {
-          const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
-          const prestigeMult = 1 + (save.overclockCores || 0) * 0.5;
-          const adMult = (adBoostSeconds > 0 ? 2 : 1) * prestigeMult;
+      const { screen: currentScreen, adBoostSeconds: boostLeft, activeGridSize: gridSize } =
+        archerContextRef.current;
+      const live = battleRef.current;
+      const currentSave = saveRef.current;
+      if (currentScreen !== 'PLAY' || live.mode !== 'CAMPAIGN') return;
+      if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) return;
 
-          const result = executeAbilityAndResolveChains({
-            cells: board,
-            gridSize: activeGridSize,
-            targetRow: target.row,
-            targetCol: target.col,
-            abilityId: 'rail_beam',
-            abilityLevel: droneLevel,
-            chainAmpLevel: save.upgrades.chain_amp || 0,
-            shardMultLevel: save.upgrades.shard_mult || 0,
-            luckySparkLevel: save.upgrades.lucky_spark || 0,
-            contagionLevel: save.upgrades.contagion || 0,
-            adBoostMultiplier: adMult,
-            sector: save.sector,
-            turnAmplifierBonus,
-            isTutorial: false,
-            isAutoArcherShot: true,
-          });
+      const aliveCells = live.board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
+      if (aliveCells.length === 0) return;
 
-          if (result.vfxAnimations?.length > 0) {
-            setVfxQueue((prev) => [...prev.slice(-10), ...result.vfxAnimations]);
-          }
-          setBoard(result.nextCells);
-          setTurnAmplifierBonus(result.nextTurnAmplifierBonus);
+      const goldMult = registerCampaignAttempt();
+      const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
+      const prestigeMult = 1 + (currentSave.overclockCores || 0) * 0.5;
+      const adMult = (boostLeft > 0 ? 2 : 1) * prestigeMult;
 
-          if (result.stats.shardsEarned > 0 || result.stats.isBoardClear) {
-            setSave((prev) => ({
-              ...prev,
-              shards: prev.shards + result.stats.shardsEarned,
-              totalShardsEarned: prev.totalShardsEarned + result.stats.shardsEarned,
-              sector:
-                gameMode === 'CAMPAIGN' && result.stats.isBoardClear
-                  ? prev.sector + 1
-                  : prev.sector,
-              maxSectorReached: Math.max(
-                prev.maxSectorReached,
-                gameMode === 'CAMPAIGN' && result.stats.isBoardClear
-                  ? prev.sector + 1
-                  : prev.sector
-              ),
-              lethalClears: result.stats.isBoardClear
-                ? prev.lethalClears + 1
-                : prev.lethalClears,
-            }));
-          }
-          return;
-        }
+      const result = executeAbilityAndResolveChains({
+        cells: live.board,
+        gridSize,
+        targetRow: target.row,
+        targetCol: target.col,
+        abilityId: 'rail_beam',
+        abilityLevel: droneLevel,
+        chainAmpLevel: currentSave.upgrades.chain_amp || 0,
+        shardMultLevel: currentSave.upgrades.shard_mult || 0,
+        luckySparkLevel: currentSave.upgrades.lucky_spark || 0,
+        contagionLevel: currentSave.upgrades.contagion || 0,
+        adBoostMultiplier: adMult,
+        sector: live.sector,
+        turnAmplifierBonus: live.amp,
+        isTutorial: false,
+        isAutoArcherShot: true,
+      });
+
+      if (result.vfxAnimations?.length > 0) {
+        setVfxQueue((prev) => [...prev.slice(-10), ...result.vfxAnimations]);
       }
+      const outcome = result.stats.isBoardClear ? 'VICTORY' : 'IN_PROGRESS';
+      syncBattle({ board: result.nextCells, amp: result.nextTurnAmplifierBonus, outcome });
+      const earned = settleShot(result, outcome, goldMult);
 
-      // Fallback passive trickle when on MENU / UPGRADES screen
-      const passiveIncome = Math.max(
-        1,
-        Math.floor(droneLevel * (1 + (save.upgrades.shard_mult || 0) * 0.2) * (adBoostSeconds > 0 ? 2 : 1))
-      );
-      setSave((prev) => ({
-        ...prev,
-        shards: prev.shards + passiveIncome,
-        totalShardsEarned: prev.totalShardsEarned + passiveIncome,
-      }));
+      if (outcome === 'VICTORY') {
+        setLastTurnStats({ ...result.stats, shardsEarned: earned });
+        setCommanderMessage(
+          `⚔️ TOTAL VICTORY! Your Battlement Archers felled the last raider for +${earned} Gold Crowns!`
+        );
+      }
     }, 2200);
 
     return () => clearInterval(timer);
-  }, [
-    save.upgrades.auto_drone,
-    save.upgrades.shard_mult,
-    save.upgrades.chain_amp,
-    save.upgrades.lucky_spark,
-    save.upgrades.contagion,
-    save.sector,
-    save.overclockCores,
-    adBoostSeconds,
-    screen,
-    board,
-    activeGridSize,
-    turnAmplifierBonus,
-    gameMode,
-  ]);
+  }, [droneLevel]);
 
   const startTutorial = (step = 1) => {
     setScreen('TUTORIAL');
     setTutorialStep(step);
     setSelectedAbilityId('rail_beam');
-    setBoard(generateTutorialBoard(step));
+    const tutorialBoard = generateTutorialBoard(step);
+    battleRef.current = {
+      board: tutorialBoard,
+      chargesLeft: 1,
+      outcome: 'IN_PROGRESS',
+      amp: 1,
+      mode: 'TUTORIAL',
+      sector: 2,
+      attemptCounted: false,
+      goldMult: 1,
+      rng: Math.random,
+      dailyPending: 0,
+      adVolleyUsed: false,
+      lockUntil: 0,
+    };
+    syncBattle({
+      board: tutorialBoard,
+      chargesLeft: 1,
+      outcome: 'IN_PROGRESS',
+      amp: 1,
+      goldMult: 1,
+      adVolleyUsed: false,
+    });
     setArmedCellId(null);
-    setChargesLeft(1);
-    setTurnAmplifierBonus(1);
     setLastTurnStats(null);
     const lesson = TUTORIAL_LESSONS[step - 1] || TUTORIAL_LESSONS[0];
     setCommanderMessage(lesson.commanderSpeech);
     trackEvent('tutorial_step_started', { step });
   };
 
-  const startGameSession = (targetMode = 'CAMPAIGN', targetSector = save.sector, customGridSize = null) => {
+  const startGameSession = (
+    targetMode = 'CAMPAIGN',
+    targetSector = save.sector,
+    customGridSize = null,
+    customMaxCharges = null
+  ) => {
     setScreen('PLAY');
     setGameMode(targetMode);
     if (targetMode === 'CAMPAIGN' && !isWeaponUnlocked(selectedAbilityId)) {
@@ -375,28 +544,73 @@ export default function App() {
     }
     const isDaily = targetMode === 'DAILY';
     const gSize = isDaily ? 5 : customGridSize || Math.min(8, 3 + (save.upgrades.grid_size || 0));
-    const maxChg = isDaily ? 3 : 2 + (save.upgrades.max_charges || 0);
+    const maxChg = isDaily ? 3 : customMaxCharges ?? 2 + (save.upgrades.max_charges || 0);
+    const todaySeed = getTodayDateSeed();
+    const boardSectorValue = isDaily ? 5 : targetSector;
 
     const nextCells = generateBoard({
       gridSize: gSize,
-      sector: isDaily ? 5 : targetSector,
+      sector: boardSectorValue,
       volatileBonusLevel: isDaily ? 3 : save.upgrades.volatile_spawn || 0,
-      seedString: isDaily ? `DAILY-SEED-${getTodayDateSeed()}` : null,
+      seedString: isDaily ? `DAILY-SEED-${todaySeed}` : null,
       isDaily,
     });
 
-    setBoard(nextCells);
+    const goldMult = isDaily ? 1 : getNextAttemptGoldMult(save.waveAttempts, targetSector);
+    battleRef.current = {
+      board: nextCells,
+      chargesLeft: maxChg,
+      outcome: 'IN_PROGRESS',
+      amp: 1,
+      mode: targetMode,
+      sector: boardSectorValue,
+      attemptCounted: false,
+      goldMult,
+      // Seeding crits and lucky procs makes the Daily play out the same for everyone
+      rng: isDaily ? createSeededRandom(`DAILY-RNG-${todaySeed}`) : Math.random,
+      dailyPending: 0,
+      adVolleyUsed: false,
+      lockUntil: 0,
+    };
+    syncBattle({
+      board: nextCells,
+      chargesLeft: maxChg,
+      outcome: 'IN_PROGRESS',
+      amp: 1,
+      goldMult,
+      adVolleyUsed: false,
+    });
     setArmedCellId(null);
-    setBoardSector(isDaily ? 5 : targetSector);
-    setChargesLeft(maxChg);
-    setTurnAmplifierBonus(1);
+    setBoardSector(boardSectorValue);
     setLastTurnStats(null);
     const luckPct = 8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8);
+    const dailyAlreadyWon = isDaily && save.dailyClearedDate === todaySeed;
     setCommanderMessage(
       isDaily
-        ? `Royal Daily Decree #${getTodayDateSeed()}: Every Commander in the realm faces this exact Siege formation today!`
+        ? dailyAlreadyWon
+          ? `Royal Daily Decree #${todaySeed}: You already won today's decree. This run is practice and pays no Gold.`
+          : `Royal Daily Decree #${todaySeed}: Every Commander in the realm faces this exact Siege formation today! Gold is paid on victory, once per day.`
+        : goldMult < 1
+        ? `Wave ${targetSector} retry: this attempt pays ${Math.round(goldMult * 100)}% Gold. Clear it to march on!`
         : `Wave ${targetSector}: Strike Powder-Kegs & Shamans! (${luckPct}% Lucky Instant-Ignition chance on high-HP foes!)`
     );
+  };
+
+  // Resume a live campaign wave (e.g. returning from the Forge) instead of rerolling it
+  const continueCampaign = () => {
+    const live = battleRef.current;
+    const canResume =
+      live.mode === 'CAMPAIGN' &&
+      live.outcome === 'IN_PROGRESS' &&
+      live.attemptCounted &&
+      live.sector === save.sector &&
+      live.board.length === campaignGridSize * campaignGridSize;
+    if (canResume) {
+      setScreen('PLAY');
+      setGameMode('CAMPAIGN');
+      return;
+    }
+    startGameSession('CAMPAIGN', save.sector);
   };
 
   const previewIndices = getAbilityPreviewIndices({
@@ -415,7 +629,9 @@ export default function App() {
 
   // Execute Weapon Strike + Trigger 60fps Canvas Weapon Animation
   const handleCellClick = (cell) => {
-    if (chargesLeft <= 0) return;
+    const live = battleRef.current;
+    if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) return;
+    if (performance.now() < live.lockUntil) return;
     const { row, col } = cell;
 
     if (lastPointerTypeRef.current === 'touch' && armedCellId !== cell.id) {
@@ -425,6 +641,10 @@ export default function App() {
     }
     setArmedCellId(null);
 
+    const isTutorial = live.mode === 'TUTORIAL';
+    const isDaily = live.mode === 'DAILY';
+    const goldMult = registerCampaignAttempt();
+
     // Trigger physical recoil/use animation on the weapon card in the dock
     setFiringWeaponId(selectedAbilityId);
     setTimeout(() => setFiringWeaponId(null), 420);
@@ -433,26 +653,26 @@ export default function App() {
     const adMult = (adBoostSeconds > 0 ? 2 : 1) * prestigeMult;
 
     const result = executeAbilityAndResolveChains({
-      cells: board,
+      cells: live.board,
       gridSize: activeGridSize,
       targetRow: row,
       targetCol: col,
       abilityId: selectedAbilityId,
-      abilityLevel:
-        screen === 'TUTORIAL'
-          ? 2
-          : gameMode === 'DAILY'
-          ? 3
-          : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
-      chainAmpLevel: screen === 'TUTORIAL' ? 3 : gameMode === 'DAILY' ? 4 : save.upgrades.chain_amp || 0,
+      abilityLevel: isTutorial
+        ? 2
+        : isDaily
+        ? 3
+        : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
+      chainAmpLevel: isTutorial ? 3 : isDaily ? 4 : save.upgrades.chain_amp || 0,
       shardMultLevel: save.upgrades.shard_mult || 0,
-      luckySparkLevel: screen === 'TUTORIAL' ? 0 : gameMode === 'DAILY' ? 5 : save.upgrades.lucky_spark || 0,
-      contagionLevel: screen === 'TUTORIAL' ? 0 : gameMode === 'DAILY' ? 4 : save.upgrades.contagion || 0,
-      adBoostMultiplier: adMult,
-      sector: screen === 'TUTORIAL' ? 2 : gameMode === 'DAILY' ? 5 : save.sector,
-      turnAmplifierBonus,
-      isTutorial: screen === 'TUTORIAL',
+      luckySparkLevel: isTutorial ? 0 : isDaily ? 5 : save.upgrades.lucky_spark || 0,
+      contagionLevel: isTutorial ? 0 : isDaily ? 4 : save.upgrades.contagion || 0,
+      adBoostMultiplier: isDaily ? 1 : adMult,
+      sector: live.sector,
+      turnAmplifierBonus: live.amp,
+      isTutorial,
       isAutoArcherShot: false,
+      rng: live.rng,
     });
 
     // Enqueue 60fps Canvas weapon projectile & barrel explosion animations!
@@ -462,12 +682,21 @@ export default function App() {
 
     const nextCharges = Math.min(
       maxTurnCharges,
-      chargesLeft - 1 + (result.stats.refundedCharge || 0)
+      live.chargesLeft - 1 + (result.stats.refundedCharge || 0)
     );
-    setBoard(result.nextCells);
-    setChargesLeft(nextCharges);
-    setTurnAmplifierBonus(result.nextTurnAmplifierBonus);
-    setLastTurnStats(result.stats);
+    const outcome = result.stats.isBoardClear
+      ? 'VICTORY'
+      : nextCharges <= 0
+      ? 'DEFEAT'
+      : 'IN_PROGRESS';
+    syncBattle({
+      board: result.nextCells,
+      chargesLeft: nextCharges,
+      amp: result.nextTurnAmplifierBonus,
+      outcome,
+    });
+    const earned = settleShot(result, outcome, goldMult);
+    setLastTurnStats({ ...result.stats, shardsEarned: earned });
 
     if (
       result.stats.chainDepth > 0 ||
@@ -509,7 +738,7 @@ export default function App() {
         row,
         col,
         text: result.stats.isBoardClear
-          ? `${luckyTag}⚔️ SIEGE BROKEN! +${result.stats.shardsEarned} Gold`
+          ? `${luckyTag}⚔️ SIEGE BROKEN! +${earned} Gold`
           : `${luckyTag}-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}× Chain)`,
       },
     ]);
@@ -525,7 +754,7 @@ export default function App() {
       playSound('strike', muted);
     }
 
-    if (screen === 'TUTORIAL') {
+    if (isTutorial) {
       if (result.stats.isBoardClear) {
         if (tutorialStep < 3) {
           setCommanderMessage(
@@ -538,12 +767,15 @@ export default function App() {
               rewardGold > 0 ? ` (+${rewardGold} Gold Crowns awarded)` : ''
             }!`
           );
-          setSave((prev) => ({
-            ...prev,
-            tutorialCompleted: true,
-            shards: prev.shards + rewardGold,
-            totalShardsEarned: prev.totalShardsEarned + rewardGold,
-          }));
+          setSave((prev) => {
+            const grant = prev.tutorialCompleted ? 0 : 15;
+            return {
+              ...prev,
+              tutorialCompleted: true,
+              shards: prev.shards + grant,
+              totalShardsEarned: prev.totalShardsEarned + grant,
+            };
+          });
         }
       } else {
         setCommanderMessage(
@@ -554,11 +786,15 @@ export default function App() {
     }
 
     const latestLuckyEvent = result.events?.find((e) => e.type === 'LUCKY_PROC');
+    const nextRetryPct = Math.round(
+      getNextAttemptGoldMult(saveRef.current.waveAttempts, live.sector) * 100
+    );
     if (result.stats.isBoardClear) {
+      const goldText = isDaily && earned === 0 ? 'practice run, no Gold' : `+${earned} Gold`;
       setCommanderMessage(
         latestLuckyEvent
-          ? `${latestLuckyEvent.text} ⚔️ TOTAL VICTORY (+${result.stats.shardsEarned} Gold)!`
-          : `⚔️ TOTAL VICTORY! ${result.stats.chainDepth}× Chain Reaction routed the siege for +${result.stats.shardsEarned} Gold Crowns!`
+          ? `${latestLuckyEvent.text} ⚔️ TOTAL VICTORY (${goldText})!`
+          : `⚔️ TOTAL VICTORY! ${result.stats.chainDepth}× Chain Reaction routed the siege (${goldText})!`
       );
     } else if (latestLuckyEvent) {
       setCommanderMessage(
@@ -568,36 +804,14 @@ export default function App() {
       setCommanderMessage(
         `Direct hit! ${result.stats.remainingNodes} raiders remain and you have ${nextCharges} attack left—finish them!`
       );
+    } else if (isDaily) {
+      setCommanderMessage(
+        `Volley spent! The Daily Decree holds. Retry it — Gold is paid only when you win.`
+      );
     } else {
       setCommanderMessage(
-        `Volley spent! You looted +${result.stats.shardsEarned} Gold Crowns. Call a fresh wave or visit the Royal Forge to upgrade!`
+        `Volley spent! Wave ${live.sector} holds (+${earned} Gold looted). A retry pays ${nextRetryPct}% Gold—upgrade in the Royal Forge and try again!`
       );
-    }
-
-    const todaySeed = getTodayDateSeed();
-    setSave((prev) => {
-      const isClear = result.stats.isBoardClear;
-      const nextSector =
-        gameMode === 'CAMPAIGN' && isClear ? prev.sector + 1 : prev.sector;
-      return {
-        ...prev,
-        shards: prev.shards + result.stats.shardsEarned,
-        totalShardsEarned: prev.totalShardsEarned + result.stats.shardsEarned,
-        sector: nextSector,
-        maxSectorReached: Math.max(prev.maxSectorReached, nextSector),
-        lethalClears: isClear ? prev.lethalClears + 1 : prev.lethalClears,
-        dailyClearedDate:
-          gameMode === 'DAILY' && isClear ? todaySeed : prev.dailyClearedDate,
-      };
-    });
-
-    if (result.stats.isBoardClear) {
-      trackEvent('lethal_board_clear', {
-        mode: gameMode,
-        sector: save.sector,
-        grid_size: `${activeGridSize}x${activeGridSize}`,
-        chain_depth: result.stats.chainDepth,
-      });
     }
   };
 
@@ -670,7 +884,8 @@ export default function App() {
       estSessionRevenueUsd: prev.estSessionRevenueUsd,
     }));
 
-    startGameSession('CAMPAIGN', 1, 3);
+    // Pass the reset grid and volley sizes; `save` here is still the pre-reset snapshot
+    startGameSession('CAMPAIGN', 1, 3, 2);
     trackEvent('prestige_overclock', { cores_gained: coresToGain });
   };
 
@@ -706,11 +921,13 @@ export default function App() {
 
   const triggerRewardedAd = (type) => {
     if (type === 'DOUBLE_SHARDS') {
+      // The charter doesn't stack; it can be claimed again once it runs out
+      if (adBoostSeconds > 0) return;
       setRewardedModalConfig({
         isOpen: true,
         rewardTitle: '2× Royal Gold Plunder Charter (3 Minutes)',
         onClaim: () => {
-          setAdBoostSeconds((s) => s + 180);
+          setAdBoostSeconds((s) => (s > 0 ? s : 180));
           setSave((prev) => ({
             ...prev,
             estSessionRevenueUsd: +(prev.estSessionRevenueUsd + 0.025).toFixed(3),
@@ -718,14 +935,23 @@ export default function App() {
         },
       });
     } else if (type === 'EXTRA_CHARGE') {
+      // One emergency volley per wave, only to revive a lost wave, and no Gold attached
+      if (battleRef.current.adVolleyUsed || battleRef.current.outcome !== 'DEFEAT') return;
       setRewardedModalConfig({
         isOpen: true,
-        rewardTitle: '+1 Emergency Siege Volley + 15 Gold Crowns',
+        rewardTitle: '+1 Emergency Siege Volley',
         onClaim: () => {
-          setChargesLeft((c) => c + 1);
+          const live = battleRef.current;
+          if (live.adVolleyUsed || live.outcome !== 'DEFEAT') return;
+          // Ignore the trailing click of a double-click on "Claim" landing on the board
+          live.lockUntil = performance.now() + 350;
+          syncBattle({
+            chargesLeft: Math.min(maxTurnCharges, live.chargesLeft + 1),
+            outcome: 'IN_PROGRESS',
+            adVolleyUsed: true,
+          });
           setSave((prev) => ({
             ...prev,
-            shards: prev.shards + 15 + prev.sector * 3,
             estSessionRevenueUsd: +(prev.estSessionRevenueUsd + 0.025).toFixed(3),
           }));
         },
@@ -735,6 +961,8 @@ export default function App() {
 
   const remainingAliveNodes = board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0).length;
   const isBoardCleared = remainingAliveNodes === 0;
+  const isWaveLive = waveOutcome === 'IN_PROGRESS' && chargesLeft > 0;
+  const nextRetryGoldPct = Math.round(getNextAttemptGoldMult(save.waveAttempts, boardSector) * 100);
   const monetizationConfig = getMonetizationConfig();
 
   const getSkillNodeLevel = (nodeId) => {
@@ -824,7 +1052,7 @@ export default function App() {
             <button
               type="button"
               className={`mode-tab ${screen === 'PLAY' ? 'active' : ''}`}
-              onClick={() => startGameSession('CAMPAIGN', save.sector)}
+              onClick={() => continueCampaign()}
             >
               <Play size={15} />
               <span>Defend Courtyard</span>
@@ -1008,7 +1236,7 @@ export default function App() {
                 <button
                   type="button"
                   className="indie-menu-btn primary"
-                  onClick={() => startGameSession('CAMPAIGN', save.sector)}
+                  onClick={() => continueCampaign()}
                 >
                   <span className="menu-sword-cursor">⚔️</span>
                   <span className="menu-btn-label">Continue Siege</span>
@@ -1044,7 +1272,7 @@ export default function App() {
                 <button
                   type="button"
                   className="indie-menu-btn"
-                  onClick={() => startGameSession('CAMPAIGN', save.sector)}
+                  onClick={() => continueCampaign()}
                 >
                   <span className="menu-sword-cursor">⚔️</span>
                   <span className="menu-btn-label">Skip to Siege Wave {save.sector}</span>
@@ -1105,6 +1333,14 @@ export default function App() {
                   🎲 {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}% Luck Ignite
                 </span>
               )}
+              {screen === 'PLAY' && gameMode === 'CAMPAIGN' && boardGoldMult < 1 && (
+                <span
+                  className="amp-pill"
+                  title="Each retry of the same wave pays less Gold. Clear the wave to reset it."
+                >
+                  ↻ Retry: {Math.round(boardGoldMult * 100)}% Gold
+                </span>
+              )}
               {turnAmplifierBonus > 1 && (
                 <span className="amp-pill">
                   +{Math.round((turnAmplifierBonus - 1) * 100)}% RALLY DAMAGE
@@ -1118,6 +1354,7 @@ export default function App() {
                   type="button"
                   className="btn-reward-chip"
                   onClick={() => triggerRewardedAd('DOUBLE_SHARDS')}
+                  disabled={adBoostSeconds > 0}
                 >
                   <Gift size={14} />
                   <span>
@@ -1136,7 +1373,9 @@ export default function App() {
                 }
               >
                 <RotateCcw size={14} />
-                <span>{screen === 'TUTORIAL' ? 'Reset Trial' : 'New Wave'}</span>
+                <span>
+                  {screen === 'TUTORIAL' ? 'Reset Trial' : gameMode === 'DAILY' ? 'Restart Decree' : 'Restart Wave'}
+                </span>
               </button>
 
               {screen === 'PLAY' && (
@@ -1175,7 +1414,7 @@ export default function App() {
                     activeTutorialLesson?.highlightCell.row === cell.row &&
                     activeTutorialLesson?.highlightCell.col === cell.col;
 
-                  const isArmed = armedCellId === cell.id && chargesLeft > 0;
+                  const isArmed = armedCellId === cell.id && isWaveLive;
 
                   const cellPopup = floatingPopups.find(
                     (p) => p.row === cell.row && p.col === cell.col
@@ -1185,7 +1424,7 @@ export default function App() {
                     <button
                       key={cell.id}
                       type="button"
-                      disabled={chargesLeft <= 0}
+                      disabled={!isWaveLive}
                       className={[
                         'grid-tile',
                         isDead ? 'tile-dead' : `tile-alive color-${meta.color}`,
@@ -1255,7 +1494,7 @@ export default function App() {
             </div>
 
             {/* WAVE VICTORY OR RETRY BANNER */}
-            {(isBoardCleared || chargesLeft === 0) && (
+            {!isWaveLive && (
               <div className={`turn-result-banner ${isBoardCleared ? 'win' : 'retry'}`}>
                 <div>
                   <strong>
@@ -1269,8 +1508,12 @@ export default function App() {
                         ? 'Glorious chain reaction, Commander!'
                         : 'Click Reset Trial and strike the highlighted target!'
                       : isBoardCleared
-                      ? `Looted +${lastTurnStats?.shardsEarned || 0} Gold Crowns (includes +25% Clear Bounty!)`
-                      : 'Tip: Even on high-HP waves, hitting Powder-Kegs can proc a Lucky Instant-Ignition!'}
+                      ? gameMode === 'DAILY' && !lastTurnStats?.shardsEarned
+                        ? "Today's decree is already won, so this run was practice (no Gold)."
+                        : `Looted +${lastTurnStats?.shardsEarned || 0} Gold Crowns (includes +25% Clear Bounty!)`
+                      : gameMode === 'DAILY'
+                      ? 'The decree holds. Gold is paid only when you win it, once per day.'
+                      : `Wave ${boardSector} holds. A retry pays ${nextRetryGoldPct}% Gold, so upgrade in the Royal Forge before trying again.`}
                   </p>
                 </div>
 
@@ -1293,7 +1536,7 @@ export default function App() {
                           onClick={() => startGameSession('CAMPAIGN', save.sector)}
                         >
                           <Play size={16} />
-                          <span>March to Wave 1!</span>
+                          <span>March to Wave {save.sector}!</span>
                         </button>
                       )
                     ) : (
@@ -1308,7 +1551,7 @@ export default function App() {
                     )
                   ) : (
                     <>
-                      {!isBoardCleared && (
+                      {!isBoardCleared && !adVolleyUsed && (
                         <button
                           type="button"
                           className="btn-reward-inline"
@@ -1334,7 +1577,13 @@ export default function App() {
                       >
                         <FastForward size={16} />
                         <span>
-                          {isBoardCleared ? `March to Wave ${save.sector}` : 'Call Next Wave'}
+                          {gameMode === 'DAILY'
+                            ? isBoardCleared
+                              ? 'Replay Decree (Practice)'
+                              : 'Retry Decree'
+                            : isBoardCleared
+                            ? `March to Wave ${save.sector}`
+                            : `Retry Wave ${boardSector} (${nextRetryGoldPct}% Gold)`}
                         </span>
                       </button>
                     </>
@@ -1419,7 +1668,7 @@ export default function App() {
             onBuyUpgrade={handleBuyUpgrade}
             onUpgradeAbility={handleUpgradeAbility}
             onPrestigeReboot={handlePrestigeReboot}
-            onReturnToBattle={() => startGameSession('CAMPAIGN', save.sector)}
+            onReturnToBattle={continueCampaign}
           />
 
         </main>
