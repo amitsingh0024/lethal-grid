@@ -836,13 +836,13 @@ button:disabled {
    ============================================================================ */
 .weapon-dock {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
 @media (max-width: 720px) {
   .weapon-dock {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -855,6 +855,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   text-align: left;
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
@@ -946,12 +947,16 @@ button:disabled {
 
 .weapon-dock-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 2px 6px;
+  min-width: 0;
 }
 
 .weapon-dock-top strong {
+  min-width: 0;
+  max-width: 100%;
   font-family: 'Cinzel', Georgia, serif;
   font-size: 0.78rem;
   color: #fef3c7;
@@ -1984,7 +1989,7 @@ button:disabled {
 body {
   background-image:
     linear-gradient(180deg, rgba(16, 11, 8, 0.72), rgba(14, 9, 6, 0.88)),
-    url('/assets/medieval_world_bg.jpg') !important;
+    url('./assets/medieval_world_bg.webp') !important;
   background-size: cover !important;
   background-position: center top !important;
   background-attachment: fixed !important;
@@ -1993,7 +1998,7 @@ body {
 .menu-hero-card {
   background:
     linear-gradient(180deg, rgba(22, 14, 9, 0.72), rgba(18, 12, 8, 0.92)),
-    url('/assets/dungeon_stage_bg.jpg') center/cover no-repeat !important;
+    url('./assets/dungeon_stage_bg.webp') center/cover no-repeat !important;
   border: 3px solid #d97706 !important;
   outline: 3px solid #1c1108 !important;
 }
@@ -2001,7 +2006,7 @@ body {
 .dungeon-stage-banner {
   background:
     linear-gradient(180deg, rgba(15, 10, 8, 0.18) 0%, rgba(15, 10, 8, 0.65) 100%),
-    url('/assets/dungeon_stage_bg.jpg') center 65% / cover no-repeat !important;
+    url('./assets/dungeon_stage_bg.webp') center 65% / cover no-repeat !important;
   border: 3px solid #b45309 !important;
   outline: 3px solid #140d08 !important;
   min-height: 168px;
@@ -2022,37 +2027,37 @@ body {
 }
 
 .tactical-grid.grid-size-3 {
-  background-image: url('/assets/board_3x3.jpg') !important;
+  background-image: url('./assets/board_3x3.webp') !important;
   padding: 9.2% !important;
   gap: 2.2% !important;
 }
 
 .tactical-grid.grid-size-4 {
-  background-image: url('/assets/board_4x4.jpg') !important;
+  background-image: url('./assets/board_4x4.webp') !important;
   padding: 12.2% !important;
   gap: 2.6% !important;
 }
 
 .tactical-grid.grid-size-5 {
-  background-image: url('/assets/board_5x5.jpg') !important;
+  background-image: url('./assets/board_5x5.webp') !important;
   padding: 11.5% !important;
   gap: 2.1% !important;
 }
 
 .tactical-grid.grid-size-6 {
-  background-image: url('/assets/board_6x6.jpg') !important;
+  background-image: url('./assets/board_6x6.webp') !important;
   padding: 11.8% !important;
   gap: 1.9% !important;
 }
 
 .tactical-grid.grid-size-7 {
-  background-image: url('/assets/board_7x7.jpg') !important;
+  background-image: url('./assets/board_7x7.webp') !important;
   padding: 11.6% !important;
   gap: 1.6% !important;
 }
 
 .tactical-grid.grid-size-8 {
-  background-image: url('/assets/board_8x8.jpg') !important;
+  background-image: url('./assets/board_8x8.webp') !important;
   padding: 11.5% !important;
   gap: 1.2% !important;
 }
