@@ -2090,3 +2090,282 @@ body {
   box-shadow: none !important;
   opacity: 0.85;
 }
+
+/* ============================================================================
+   MODERN INDIE GAME TITLE SCREEN (SLAY THE SPIRE / SEA OF STARS STYLE)
+   ============================================================================ */
+.indie-title-screen {
+  min-height: calc(100vh - 96px);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  padding: 12px 10px 28px;
+}
+
+/* Top Corner Micro-HUD Bar */
+.title-corner-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title-corner-left,
+.title-corner-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(20, 14, 9, 0.82);
+  border: 1px solid rgba(217, 119, 6, 0.5);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fde68a;
+}
+
+.chip-sep {
+  opacity: 0.45;
+}
+
+.title-utility-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(24, 17, 12, 0.82);
+  border: 1px solid rgba(146, 102, 62, 0.55);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #f3e5ab;
+  transition: all 0.15s ease;
+}
+
+.title-utility-btn:hover,
+.title-utility-btn.active {
+  border-color: #f59e0b;
+  background: rgba(45, 31, 20, 0.92);
+  transform: translateY(-1px);
+}
+
+.title-utility-btn.icon-only {
+  padding: 7px 9px;
+}
+
+/* Center Title Lockup & Focused Menu Stack */
+.title-center-stage {
+  margin: auto;
+  max-width: 540px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 28px 24px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(16, 11, 7, 0.78) 0%,
+    rgba(16, 11, 7, 0.48) 65%,
+    transparent 100%
+  );
+  border-radius: 28px;
+}
+
+.title-crest-diorama {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.diorama-pedestal {
+  width: 58px;
+  height: 58px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(24, 16, 11, 0.88);
+  border: 2px solid #785233;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+  transition: transform 0.2s ease;
+}
+
+.diorama-pedestal.featured {
+  width: 72px;
+  height: 72px;
+  border-color: #f59e0b;
+  background: radial-gradient(circle, rgba(180, 83, 9, 0.35), rgba(24, 16, 11, 0.92));
+  transform: translateY(-6px);
+}
+
+.title-eyebrow-ribbon {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #fbbf24;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
+  margin-bottom: 6px;
+}
+
+.title-main-logo {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: clamp(2.1rem, 5vw, 3.35rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.06;
+  background: linear-gradient(180deg, #fffbeb 0%, #fde68a 48%, #d97706 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 5px 14px rgba(0, 0, 0, 0.95));
+  margin-bottom: 10px;
+}
+
+.title-tagline {
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 1.14rem;
+  color: #f3e5ab;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
+  max-width: 420px;
+  margin-bottom: 26px;
+}
+
+/* Slay the Spire / Sea of Stars Vertical Menu Button Stack */
+.indie-menu-stack {
+  width: 100%;
+  max-width: 370px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.indie-menu-btn {
+  position: relative;
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(43, 30, 20, 0.92), rgba(26, 18, 12, 0.96));
+  border: 2px solid #785233;
+  border-bottom-width: 4px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition:
+    transform 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.14s ease,
+    background 0.14s ease;
+}
+
+.indie-menu-btn.primary {
+  background: linear-gradient(180deg, #b91c1c, #7f1d1d);
+  border-color: #f59e0b;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 10px 26px rgba(0, 0, 0, 0.75);
+}
+
+.menu-sword-cursor {
+  font-size: 0.95rem;
+  opacity: 0.35;
+  transform: translateX(-4px);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.indie-menu-btn.primary .menu-sword-cursor {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.indie-menu-btn:hover {
+  transform: translateX(5px);
+  border-color: #fbbf24;
+}
+
+.indie-menu-btn:hover .menu-sword-cursor {
+  opacity: 1;
+  transform: translateX(2px);
+}
+
+.menu-btn-label {
+  flex: 1;
+  text-align: left;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fef3c7;
+}
+
+.menu-btn-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(18, 12, 8, 0.65);
+  border: 1px solid rgba(217, 160, 91, 0.35);
+  color: #fde68a;
+}
+
+.menu-btn-tag.gold {
+  background: rgba(20, 12, 6, 0.75);
+  border-color: #fbbf24;
+  color: #fef08a;
+}
+
+.menu-btn-tag.ready {
+  background: #15803d;
+  border-color: #86efac;
+  color: #fff;
+}
+
+/* Bestiary Compendium Modal */
+.bestiary-modal-card {
+  max-width: 620px;
+  width: 100%;
+}
+
+.bestiary-modal-header {
+  margin-bottom: 14px;
+}
+
+.bestiary-modal-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fef3c7;
+  margin-bottom: 4px;
+}
+
+.bestiary-modal-header p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.bestiary-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 560px) {
+  .bestiary-modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

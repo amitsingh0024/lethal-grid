@@ -203,6 +203,7 @@ export default function App() {
   });
   const [showRevenueDashboard, setShowRevenueDashboard] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showBestiaryModal, setShowBestiaryModal] = useState(false);
   const [showGuideDrawer, setShowGuideDrawer] = useState(false);
   const [telemetryFeed, setTelemetryFeed] = useState([]);
   const [shareCopied, setShareCopied] = useState(false);
@@ -611,96 +612,106 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* MEDIEVAL WOODEN TAVERN & IRON HEADER BAR */}
-      <header className="top-nav">
-        <div
-          className="brand-group clickable"
-          onClick={() => setScreen('MENU')}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === 'Enter' && setScreen('MENU')}
-        >
-          <div className="brand-logo">
-            <Shield size={20} className="text-amber" />
-          </div>
-          <div>
-            <h1 className="brand-title">
-              SIEGE OF EMBERKEEP <span className="badge-cyan">ROYAL EDITION</span>
-            </h1>
-          </div>
-        </div>
-
-        {/* NAVIGATION PILLS */}
-        <nav className="mode-switcher" aria-label="Primary Navigation">
-          <button
-            type="button"
-            className={`mode-tab ${screen === 'MENU' ? 'active' : ''}`}
+      {/* IN-GAME HUD BAR (Hidden on the Title Screen for a clean, uncluttered landing view) */}
+      {screen !== 'MENU' && (
+        <header className="top-nav">
+          <div
+            className="brand-group clickable"
             onClick={() => setScreen('MENU')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setScreen('MENU')}
           >
-            <Home size={15} />
-            <span>Keep Gate</span>
-          </button>
-
-          <button
-            type="button"
-            className={`mode-tab ${screen === 'TUTORIAL' ? 'active' : ''}`}
-            onClick={() => startTutorial(1)}
-          >
-            <GraduationCap size={15} />
-            <span>Training Yard</span>
-          </button>
-
-          <button
-            type="button"
-            className={`mode-tab ${screen === 'PLAY' ? 'active' : ''}`}
-            onClick={() => startGameSession('CAMPAIGN', save.sector)}
-          >
-            <Play size={15} />
-            <span>Defend Courtyard</span>
-          </button>
-
-          <button
-            type="button"
-            className={`mode-tab ${screen === 'UPGRADES' ? 'active' : ''}`}
-            onClick={() => setScreen('UPGRADES')}
-          >
-            <ShoppingBag size={15} />
-            <span>Royal Forge</span>
-            {affordableUpgradesCount > 0 && (
-              <span className="nav-badge-count">{affordableUpgradesCount}</span>
-            )}
-          </button>
-        </nav>
-
-        {/* GOLD POUCH & TELEMETRY */}
-        <div className="top-actions">
-          <div className="wallet-pill" title="Your Royal Gold Crowns">
-            <span className="gold-coin-dot">🪙</span>
-            <strong>{save.shards.toLocaleString()}</strong>
-            <span>GOLD</span>
+            <div className="brand-logo">
+              <Shield size={20} className="text-amber" />
+            </div>
+            <div>
+              <h1 className="brand-title">
+                SIEGE OF EMBERKEEP <span className="badge-cyan">ROYAL EDITION</span>
+              </h1>
+            </div>
           </div>
 
-          <button
-            type="button"
-            className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
-            onClick={() => setShowRevenueDashboard((v) => !v)}
-            title="Inspect Google Analytics 4 Events & AdSense Revenue"
-          >
-            <Activity size={15} className="text-emerald" />
-            <span className="hide-mobile">Ad Ledger</span>
-            <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
-          </button>
+          {/* NAVIGATION PILLS */}
+          <nav className="mode-switcher" aria-label="Primary Navigation">
+            <button
+              type="button"
+              className="mode-tab"
+              onClick={() => setScreen('MENU')}
+            >
+              <Home size={15} />
+              <span>Title Screen</span>
+            </button>
 
-          <button
-            type="button"
-            className="btn-icon"
-            onClick={() => setMuted((m) => !m)}
-            aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
-          >
-            {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
-          </button>
-        </div>
-      </header>
+            <button
+              type="button"
+              className={`mode-tab ${screen === 'TUTORIAL' ? 'active' : ''}`}
+              onClick={() => startTutorial(1)}
+            >
+              <GraduationCap size={15} />
+              <span>Training Yard</span>
+            </button>
+
+            <button
+              type="button"
+              className={`mode-tab ${screen === 'PLAY' ? 'active' : ''}`}
+              onClick={() => startGameSession('CAMPAIGN', save.sector)}
+            >
+              <Play size={15} />
+              <span>Defend Courtyard</span>
+            </button>
+
+            <button
+              type="button"
+              className={`mode-tab ${screen === 'UPGRADES' ? 'active' : ''}`}
+              onClick={() => setScreen('UPGRADES')}
+            >
+              <ShoppingBag size={15} />
+              <span>Royal Forge</span>
+              {affordableUpgradesCount > 0 && (
+                <span className="nav-badge-count">{affordableUpgradesCount}</span>
+              )}
+            </button>
+          </nav>
+
+          {/* GOLD POUCH & TELEMETRY */}
+          <div className="top-actions">
+            <div className="wallet-pill" title="Your Royal Gold Crowns">
+              <span className="gold-coin-dot">🪙</span>
+              <strong>{save.shards.toLocaleString()}</strong>
+              <span>GOLD</span>
+            </div>
+
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => setShowBestiaryModal(true)}
+              title="Open Bestiary & Field Manual"
+            >
+              <BookOpen size={16} />
+            </button>
+
+            <button
+              type="button"
+              className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
+              onClick={() => setShowRevenueDashboard((v) => !v)}
+              title="Inspect Google Analytics 4 Events & AdSense Revenue"
+            >
+              <Activity size={15} className="text-emerald" />
+              <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => setMuted((m) => !m)}
+              aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
+            >
+              {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* COLLAPSIBLE GA4 & AD REVENUE OWNER INSPECTOR */}
       {showRevenueDashboard && (
@@ -742,153 +753,143 @@ export default function App() {
       )}
 
       {/* =====================================================================
-          SCREEN 1: MEDIEVAL CASTLE GATE MENU
+          SCREEN 1: MODERN INDIE TITLE SCREEN (SLAY THE SPIRE / SEA OF STARS STYLE)
           ===================================================================== */}
       {screen === 'MENU' && (
-        <main className="menu-screen">
-          <div className="menu-hero-card">
-            <div className="menu-mascot-showcase">
-              <CreatureSprite type={NODE_TYPES.STANDARD} />
-              <CreatureSprite type={NODE_TYPES.BOMB} />
-              <CreatureSprite type={NODE_TYPES.BOSS} />
-              <CreatureSprite type={NODE_TYPES.CONDUIT} />
-              <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
+        <main className="indie-title-screen">
+          {/* MINIMAL CORNER MICRO-HUD */}
+          <div className="title-corner-bar">
+            <div className="title-corner-left">
+              <div className="title-status-chip" title="Your Kingdom Save Progress">
+                <span>🪙 {save.shards.toLocaleString()} Gold</span>
+                <span className="chip-sep">•</span>
+                <span>Wave {save.sector} ({campaignGridSize}×{campaignGridSize})</span>
+              </div>
             </div>
 
-            <span className="menu-eyebrow">TACTICAL ONE-TURN MEDIEVAL SIEGE PUZZLE</span>
-            <h2 className="menu-headline">Break the Goblin Siege in a Single Volley!</h2>
-            <p className="menu-subheadline">
-              Loose piercing <strong>Ballista Bolts</strong>, hurl{' '}
-              <strong>Alchemist Wildfire Flasks</strong>, detonate reckless{' '}
-              <strong>Powder-Keg Sappers</strong>, and expand your stone courtyard from{' '}
-              <strong>3×3</strong> to a grand <strong>8×8 citadel</strong>!
+            <div className="title-corner-right">
+              <button
+                type="button"
+                className="title-utility-btn"
+                onClick={() => setShowBestiaryModal(true)}
+                title="View Raider Bestiary & Chain Rules"
+              >
+                <BookOpen size={15} />
+                <span>Bestiary</span>
+              </button>
+
+              <button
+                type="button"
+                className={`title-utility-btn ${showRevenueDashboard ? 'active' : ''}`}
+                onClick={() => setShowRevenueDashboard((v) => !v)}
+                title="GA4 & AdSense Revenue Ledger"
+              >
+                <Activity size={15} className="text-emerald" />
+                <span>${save.estSessionRevenueUsd.toFixed(3)}</span>
+              </button>
+
+              <button
+                type="button"
+                className="title-utility-btn icon-only"
+                onClick={() => setMuted((m) => !m)}
+                aria-label={muted ? 'Unmute Audio' : 'Mute Audio'}
+              >
+                {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* CENTER STAGE: HERALDIC CREST, TITLE LOCKUP & VERTICAL MENU STACK */}
+          <div className="title-center-stage">
+            <div className="title-crest-diorama">
+              <div className="diorama-pedestal">
+                <CreatureSprite type={NODE_TYPES.BOMB} />
+              </div>
+              <div className="diorama-pedestal featured">
+                <CreatureSprite type={NODE_TYPES.BOSS} />
+              </div>
+              <div className="diorama-pedestal">
+                <CreatureSprite type={NODE_TYPES.CONDUIT} />
+              </div>
+            </div>
+
+            <span className="title-eyebrow-ribbon">ONE-TURN CHAIN-REACTION SIEGE TACTICS</span>
+            <h1 className="title-main-logo">SIEGE OF EMBERKEEP</h1>
+            <p className="title-tagline">
+              Command the battlements. Detonate the Goblin horde in a single volley.
             </p>
 
-            <div className="menu-cta-stack">
+            {/* FOCUSED VERTICAL INDIE MENU STACK */}
+            <nav className="indie-menu-stack" aria-label="Main Menu">
               {!save.tutorialCompleted ? (
                 <button
                   type="button"
-                  className="btn-hero-primary"
+                  className="indie-menu-btn primary"
                   onClick={() => startTutorial(1)}
                 >
-                  <GraduationCap size={24} />
-                  <div>
-                    <strong>Enter the Training Yard (60s Tutorial)</strong>
-                    <span>Learn chain-reaction warfare with Sir Aldric (+50 Free Gold Crowns!)</span>
-                  </div>
+                  <span className="menu-sword-cursor">⚔️</span>
+                  <span className="menu-btn-label">Play Tutorial</span>
+                  <span className="menu-btn-tag gold">+50 🪙</span>
                 </button>
               ) : (
                 <button
                   type="button"
-                  className="btn-hero-primary"
+                  className="indie-menu-btn primary"
                   onClick={() => startGameSession('CAMPAIGN', save.sector)}
                 >
-                  <Play size={24} />
-                  <div>
-                    <strong>Defend the Keep (Wave {save.sector})</strong>
-                    <span>
-                      Courtyard: {campaignGridSize}×{campaignGridSize} • {save.shards.toLocaleString()}{' '}
-                      Gold Crowns in Treasury
-                    </span>
-                  </div>
+                  <span className="menu-sword-cursor">⚔️</span>
+                  <span className="menu-btn-label">Continue Siege</span>
+                  <span className="menu-btn-tag gold">Wave {save.sector}</span>
                 </button>
               )}
 
-              <div className="menu-secondary-grid">
-                {!save.tutorialCompleted ? (
-                  <button
-                    type="button"
-                    className="btn-menu-card"
-                    onClick={() => startGameSession('CAMPAIGN', save.sector)}
-                  >
-                    <Play size={18} className="text-amber" />
-                    <div>
-                      <strong>Skip to Siege Wave {save.sector}</strong>
-                      <span>{campaignGridSize}×{campaignGridSize} Stone Courtyard</span>
-                    </div>
-                  </button>
+              <button
+                type="button"
+                className="indie-menu-btn"
+                onClick={() => startGameSession('DAILY', 5)}
+              >
+                <span className="menu-sword-cursor">⚔️</span>
+                <span className="menu-btn-label">Daily Royal Decree</span>
+                <span className="menu-btn-tag">#{getTodayDateSeed().slice(5)}</span>
+              </button>
+
+              <button
+                type="button"
+                className="indie-menu-btn"
+                onClick={() => setScreen('UPGRADES')}
+              >
+                <span className="menu-sword-cursor">⚔️</span>
+                <span className="menu-btn-label">The Royal Forge</span>
+                {affordableUpgradesCount > 0 ? (
+                  <span className="menu-btn-tag ready">{affordableUpgradesCount} Ready!</span>
                 ) : (
-                  <button
-                    type="button"
-                    className="btn-menu-card"
-                    onClick={() => startTutorial(1)}
-                  >
-                    <GraduationCap size={18} className="text-amber" />
-                    <div>
-                      <strong>Replay Training Yard</strong>
-                      <span>Practice with Sir Aldric</span>
-                    </div>
-                  </button>
+                  <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize} Keep</span>
                 )}
+              </button>
 
+              {!save.tutorialCompleted ? (
                 <button
                   type="button"
-                  className="btn-menu-card"
-                  onClick={() => startGameSession('DAILY', 5)}
+                  className="indie-menu-btn"
+                  onClick={() => startGameSession('CAMPAIGN', save.sector)}
                 >
-                  <Award size={18} className="text-rose" />
-                  <div>
-                    <strong>Royal Daily Decree</strong>
-                    <span>Shared Global Siege #{getTodayDateSeed()}</span>
-                  </div>
+                  <span className="menu-sword-cursor">⚔️</span>
+                  <span className="menu-btn-label">Skip to Siege Wave {save.sector}</span>
+                  <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize}</span>
                 </button>
-
+              ) : (
                 <button
                   type="button"
-                  className="btn-menu-card"
-                  onClick={() => setScreen('UPGRADES')}
+                  className="indie-menu-btn"
+                  onClick={() => startTutorial(1)}
                 >
-                  <ShoppingBag size={18} className="text-emerald" />
-                  <div>
-                    <strong>The Royal Forge</strong>
-                    <span>
-                      {affordableUpgradesCount > 0
-                        ? `${affordableUpgradesCount} Upgrades Ready to Forge!`
-                        : 'Expand Courtyard & Weapons'}
-                    </span>
-                  </div>
+                  <span className="menu-sword-cursor">⚔️</span>
+                  <span className="menu-btn-label">Training Yard</span>
+                  <span className="menu-btn-tag">Practice</span>
                 </button>
-              </div>
-            </div>
-
-            {/* MEDIEVAL BESTIARY FIELD GUIDE */}
-            <div className="bestiary-strip">
-              <div className="bestiary-item">
-                <CreatureSprite type={NODE_TYPES.STANDARD} />
-                <div>
-                  <strong className="text-amber">Goblin Footpad</strong>
-                  <span>Drops Gold Crowns</span>
-                </div>
-              </div>
-              <div className="bestiary-item">
-                <CreatureSprite type={NODE_TYPES.BOMB} />
-                <div>
-                  <strong className="text-rose">Powder-Keg Sapper</strong>
-                  <span>3×3 Barrel Blast on death!</span>
-                </div>
-              </div>
-              <div className="bestiary-item">
-                <CreatureSprite type={NODE_TYPES.CONDUIT} />
-                <div>
-                  <strong className="text-cyan">Storm-Rune Shaman</strong>
-                  <span>Row/Col Lightning on death!</span>
-                </div>
-              </div>
-              <div className="bestiary-item">
-                <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
-                <div>
-                  <strong className="text-emerald">War-Banner Herald</strong>
-                  <span>+50% Turn Damage on death!</span>
-                </div>
-              </div>
-            </div>
+              )}
+            </nav>
           </div>
-
-          <AdBannerSlot
-            slotId={import.meta.env.VITE_ADSENSE_TOP_SLOT || '1111111111'}
-            label="Royal Proclamation Banner (728x90)"
-            format="horizontal"
-          />
         </main>
       )}
 
@@ -1415,6 +1416,75 @@ export default function App() {
         rewardTitle={rewardedModalConfig.rewardTitle}
         onRewardClaimed={rewardedModalConfig.onClaim}
       />
+
+      {showBestiaryModal && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowBestiaryModal(false)}
+        >
+          <div
+            className="modal-card bestiary-modal-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bestiary-modal-header">
+              <h3>
+                <BookOpen size={18} className="text-amber" /> Royal Bestiary & Chain-Reaction Guide
+              </h3>
+              <p>Strike volatile units first so their death blasts wipe out the entire courtyard!</p>
+            </div>
+
+            <div className="bestiary-modal-grid">
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.STANDARD} />
+                <div>
+                  <strong className="text-amber">Goblin Footpad</strong>
+                  <span>Standard raider. Drops Gold Crowns when slain.</span>
+                </div>
+              </div>
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.BOMB} />
+                <div>
+                  <strong className="text-rose">Powder-Keg Sapper</strong>
+                  <span>Explodes in a 3×3 fireball on death, chaining to nearby foes!</span>
+                </div>
+              </div>
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.CONDUIT} />
+                <div>
+                  <strong className="text-cyan">Storm-Rune Shaman</strong>
+                  <span>Fires a lightning beam across its Row or Column when slain!</span>
+                </div>
+              </div>
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
+                <div>
+                  <strong className="text-emerald">War-Banner Herald</strong>
+                  <span>Grants +50% bonus turn damage to all subsequent blasts when slain!</span>
+                </div>
+              </div>
+              <div className="bestiary-item">
+                <CreatureSprite type={NODE_TYPES.BOSS} />
+                <div>
+                  <strong className="text-violet">Ironclad Siege Ogre</strong>
+                  <span>Heavily armored warlord. Use chained explosions to bring him down!</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setShowBestiaryModal(false)}
+              >
+                Close Bestiary
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPrivacyModal && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
