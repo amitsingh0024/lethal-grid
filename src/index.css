@@ -984,13 +984,20 @@ button:disabled {
    ANIMATED MEDIEVAL CREATURES & TUTORIAL BEACON
    ============================================================================ */
 .creature-wrap {
+  position: relative;
   width: 66%;
   max-width: 62px;
   aspect-ratio: 1 / 1;
+  margin: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
+}
+
+.pixel-sprite-canvas {
+  display: block;
+  margin: auto;
 }
 
 .creature-svg {
@@ -2194,22 +2201,41 @@ body {
 }
 
 .diorama-pedestal {
-  width: 58px;
-  height: 58px;
+  position: relative;
+  width: 60px;
+  height: 60px;
   padding: 6px;
   border-radius: 14px;
   background: rgba(24, 16, 11, 0.88);
   border: 2px solid #785233;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: transform 0.2s ease;
 }
 
 .diorama-pedestal.featured {
-  width: 72px;
-  height: 72px;
+  width: 74px;
+  height: 74px;
   border-color: #f59e0b;
   background: radial-gradient(circle, rgba(180, 83, 9, 0.35), rgba(24, 16, 11, 0.92));
   transform: translateY(-6px);
+}
+
+.diorama-pedestal .creature-wrap {
+  width: 86%;
+  height: 86%;
+  max-width: none;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diorama-pedestal .conduit-dir-tag,
+.bestiary-item .conduit-dir-tag {
+  display: none;
 }
 
 .title-eyebrow-ribbon {
