@@ -180,6 +180,7 @@ export function UpgradeSkillTree({
   onReturnToBattle,
 }) {
   const [selectedNodeId, setSelectedNodeId] = useState('rail_beam');
+  const [hoveredNodeId, setHoveredNodeId] = useState(null);
   const [zoom, setZoom] = useState(0.85);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -279,13 +280,19 @@ export function UpgradeSkillTree({
         ? getAbilityUpgradeCost(node.abilityIndex, currentLvl)
         : ab.unlockCost;
       const stats = ab.getStats(Math.max(1, currentLvl));
+      const nextStats = !isMax ? ab.getStats(currentLvl + 1) : null;
       const canAfford =
         isParentMet && !isMax && !sectorLocked && save.shards >= cost;
 
       return {
         title: ab.name,
-        subtitle: isUnlocked ? stats.tierLabel : 'Weapon Blueprint (Locked)',
-        description: `${stats.damage} Direct DMG • ${ab.baseDesc}`,
+        subtitle: isUnlocked ? stats.tierLabel : 'Siege Weapon Blueprint',
+        description: `${ab.baseDesc}`,
+        statLine: isUnlocked
+          ? nextStats
+            ? `Direct Strike: ${stats.damage} DMG → ${nextStats.damage} DMG (${nextStats.tierLabel})`
+            : `Direct Strike: ${stats.damage} DMG (Max Tempered)`
+          : `Unlocks at ${stats.damage} Base Direct DMG (${stats.tierLabel})`,
         currentLvl,
         maxLvl,
         isMax,
@@ -328,7 +335,8 @@ export function UpgradeSkillTree({
             : node.branch === 'DEMOLITION'
             ? 'Black Powder & Contagion'
             : 'Royal Treasury & Garrison',
-        description: upg.getEffectText(currentLvl),
+        description: upg.desc,
+        statLine: upg.getEffectText(currentLvl),
         currentLvl,
         maxLvl,
         isMax,
@@ -353,9 +361,10 @@ export function UpgradeSkillTree({
     const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
     return {
       title: 'Royal Ascension (Prestige)',
-      subtitle: `Permanent +${(save.overclockCores || 0) * 50}% Global Gold & Damage`,
+      subtitle: 'Permanent Kingdom Prestige',
       description:
-        'Requires Wave 10. Reset your wave and gold upgrades in exchange for permanent Royal Crests (+50% Gold & Damage per Crest)!',
+        'Reset your current wave and gold upgrades in exchange for permanent Royal Crests (+50% Gold & Damage per Crest)!',
+      statLine: `Current Bonus: +${(save.overclockCores || 0) * 50}% Global Gold & DMG • Ascend Now: +${coresToGain} Crests`,
       currentLvl,
       maxLvl: 99,
       isMax: false,
@@ -374,9 +383,14 @@ export function UpgradeSkillTree({
     };
   };
 
+  const activeNodeId = hoveredNodeId || selectedNodeId;
   const selectedNode =
-    SKILL_TREE_NODES.find((n) => n.id === selectedNodeId) || SKILL_TREE_NODES[0];
+    SKILL_TREE_NODES.find((n) => n.id === activeNodeId) || SKILL_TREE_NODES[0];
   const selectedDetails = getNodeDetails(selectedNode);
+  const hoveredNode = hoveredNodeId
+    ? SKILL_TREE_NODES.find((n) => n.id === hoveredNodeId)
+    : null;
+  const hoveredDetails = hoveredNode ? getNodeDetails(hoveredNode) : null;
 
   const handlePurchaseNode = (node) => {
     const details = getNodeDetails(node);
@@ -525,6 +539,7 @@ export function UpgradeSkillTree({
           {SKILL_TREE_NODES.map((node) => {
             const details = getNodeDetails(node);
             const isSelected = selectedNodeId === node.id;
+            const isHovered = hoveredNodeId === node.id;
             const isRoot = !node.parentId;
 
             return (
@@ -537,6 +552,7 @@ export function UpgradeSkillTree({
                   `branch-${node.branch.toLowerCase()}`,
                   isRoot ? 'node-root' : '',
                   isSelected ? 'node-selected' : '',
+                  isHovered ? 'node-hovered' : '',
                   !details.isParentMet ? 'node-parent-locked' : '',
                   details.sectorLocked && details.isParentMet ? 'node-sector-locked' : '',
                   details.canAfford ? 'node-affordable' : '',
@@ -545,13 +561,21 @@ export function UpgradeSkillTree({
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                onMouseEnter={() => setHoveredNodeId(node.id)}
+                onMouseLeave={() =>
+                  setHoveredNodeId((prev) => (prev === node.id ? null : prev))
+                }
+                onFocus={() => setHoveredNodeId(node.id)}
+                onBlur={() =>
+                  setHoveredNodeId((prev) => (prev === node.id ? null : prev))
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   if (dragStartRef.current.moved) return;
-                  if (selectedNodeId === node.id && details.canAfford) {
+                  setSelectedNodeId(node.id);
+                  if (details.canAfford) {
                     handlePurchaseNode(node);
                   } else {
-                    setSelectedNodeId(node.id);
                     centerOnNode(node);
                   }
                 }}
@@ -594,6 +618,121 @@ export function UpgradeSkillTree({
               </button>
             );
           })}
+
+          {/* FLOATING HOVER TOOLTIP CARD IN WORLD SPACE */}
+          {hoveredNode && hoveredDetails && !isDragging && (
+            <div
+              className={[
+                'tree-node-hover-tooltip',
+                hoveredNode.y < 320 ? 'tooltip-below' : 'tooltip-above',
+                hoveredNode.x < 400
+                  ? 'tooltip-shift-right'
+                  : hoveredNode.x > 1400
+                  ? 'tooltip-shift-left'
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              style={{
+                left: `${hoveredNode.x}px`,
+                top: `${hoveredNode.y}px`,
+              }}
+            >
+              <div className="hover-tooltip-header">
+                <div className="hover-tooltip-icon">
+                  {hoveredNode.kind === 'ABILITY' ? (
+                    <WeaponPixelIcon id={hoveredNode.id} size={30} />
+                  ) : (
+                    <span>{hoveredNode.iconEmoji}</span>
+                  )}
+                </div>
+                <div className="hover-tooltip-title-col">
+                  <div className="hover-tooltip-title-row">
+                    <h4>{hoveredDetails.title}</h4>
+                    <span className="hover-tooltip-lvl-badge">
+                      {hoveredDetails.isMax
+                        ? 'MAX'
+                        : `Lv. ${hoveredDetails.currentLvl}/${hoveredDetails.maxLvl}`}
+                    </span>
+                  </div>
+                  <span className="hover-tooltip-subtitle">
+                    {hoveredDetails.subtitle}
+                  </span>
+                </div>
+              </div>
+
+              <div className="hover-tooltip-stat-box">
+                {hoveredDetails.statLine}
+              </div>
+
+              <p className="hover-tooltip-desc">{hoveredDetails.description}</p>
+
+              {/* PREREQUISITES & MILESTONE CHECKLIST */}
+              {(hoveredNode.parentId || hoveredDetails.reqSector > 1) && (
+                <div className="hover-tooltip-reqs">
+                  {hoveredNode.parentId && (
+                    <div
+                      className={`hover-req-row ${
+                        hoveredDetails.isParentMet ? 'req-met' : 'req-locked'
+                      }`}
+                    >
+                      <span>{hoveredDetails.isParentMet ? '✓' : '🔒'}</span>
+                      <span>
+                        Requires <strong>{hoveredDetails.parentName}</strong> Lv.
+                        {hoveredDetails.parentReqLevel}
+                      </span>
+                    </div>
+                  )}
+                  {hoveredDetails.reqSector > 1 && (
+                    <div
+                      className={`hover-req-row ${
+                        !hoveredDetails.sectorLocked ? 'req-met' : 'req-locked'
+                      }`}
+                    >
+                      <span>{!hoveredDetails.sectorLocked ? '✓' : '🔒'}</span>
+                      <span>
+                        Siege Wave {hoveredDetails.reqSector} Milestone (Best: Wave{' '}
+                        {save.maxSectorReached})
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* FOOTER: COST & CLICK-TO-FORGE HINT */}
+              <div className="hover-tooltip-footer">
+                {!hoveredDetails.isMax && hoveredDetails.cost > 0 ? (
+                  <span
+                    className={`hover-cost-tag ${
+                      save.shards >= hoveredDetails.cost ? 'cost-ok' : 'cost-short'
+                    }`}
+                  >
+                    🪙 {hoveredDetails.cost.toLocaleString()} Gold
+                  </span>
+                ) : (
+                  <span className="hover-cost-tag cost-ok">
+                    {hoveredDetails.isMax ? '✨ Fully Tempered' : '👑 Kingdom Prestige'}
+                  </span>
+                )}
+
+                <span
+                  className={`hover-action-hint ${
+                    hoveredDetails.canAfford ? 'hint-ready' : ''
+                  }`}
+                >
+                  {hoveredDetails.canAfford
+                    ? '⚡ Click Node to Forge!'
+                    : hoveredDetails.isMax
+                    ? 'MAX LEVEL'
+                    : !hoveredDetails.isParentMet
+                    ? 'Parent Node Locked'
+                    : hoveredDetails.sectorLocked
+                    ? `Reach Wave ${hoveredDetails.reqSector}`
+                    : `Need ${(hoveredDetails.cost - save.shards).toLocaleString()} more 🪙`}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -619,6 +758,7 @@ export function UpgradeSkillTree({
               </span>
             </div>
 
+            <p className="dock-stat-highlight">{selectedDetails.statLine}</p>
             <p className="dock-effect-desc">{selectedDetails.description}</p>
 
             {!selectedDetails.isParentMet && (

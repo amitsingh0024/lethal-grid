@@ -2792,9 +2792,15 @@ body {
   color: #fbbf24;
 }
 
+.dock-stat-highlight {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #fde68a;
+}
+
 .dock-effect-desc {
-  font-size: 0.9rem;
-  color: #f3e5ab;
+  font-size: 0.86rem;
+  color: #d6c3ad;
 }
 
 .inspector-req-warning {
@@ -2832,6 +2838,200 @@ body {
   filter: brightness(1.08);
 }
 
+/* ============================================================================
+   FLOATING HOVER TOOLTIP CARD ON SKILL TREE NODES (NODEBUSTER / POE STYLE)
+   ============================================================================ */
+.tree-node-hover-tooltip {
+  position: absolute;
+  width: 320px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(36, 24, 16, 0.98), rgba(18, 12, 8, 0.98));
+  border: 2px solid #f59e0b;
+  outline: 2px solid #120c07;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 18px 40px rgba(0, 0, 0, 0.92);
+  pointer-events: none;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  animation: tooltipPopIn 0.14s cubic-bezier(0.22, 1, 0.36, 1);
+}
 
+.tree-node-hover-tooltip.tooltip-above {
+  transform: translate(-50%, calc(-100% - 76px));
+}
 
+.tree-node-hover-tooltip.tooltip-below {
+  transform: translate(-50%, 84px);
+}
 
+.tree-node-hover-tooltip.tooltip-above.tooltip-shift-right {
+  transform: translate(-22%, calc(-100% - 76px));
+}
+
+.tree-node-hover-tooltip.tooltip-below.tooltip-shift-right {
+  transform: translate(-22%, 84px);
+}
+
+.tree-node-hover-tooltip.tooltip-above.tooltip-shift-left {
+  transform: translate(-78%, calc(-100% - 76px));
+}
+
+.tree-node-hover-tooltip.tooltip-below.tooltip-shift-left {
+  transform: translate(-78%, 84px);
+}
+
+@keyframes tooltipPopIn {
+  0% {
+    opacity: 0;
+    scale: 0.94;
+  }
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.hover-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.hover-tooltip-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: #140d08;
+  border: 2px solid #b45309;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.hover-tooltip-title-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.hover-tooltip-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hover-tooltip-title-row h4 {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #fef3c7;
+  margin: 0;
+}
+
+.hover-tooltip-lvl-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #2b1d12;
+  border: 1px solid #d97706;
+  color: #fde68a;
+  white-space: nowrap;
+}
+
+.hover-tooltip-subtitle {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-top: 2px;
+}
+
+.hover-tooltip-stat-box {
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(20, 13, 8, 0.9);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fef08a;
+  line-height: 1.35;
+}
+
+.hover-tooltip-desc {
+  font-size: 0.8rem;
+  line-height: 1.38;
+  color: #e7d8c5;
+  margin: 0;
+}
+
+.hover-tooltip-reqs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(146, 102, 62, 0.45);
+}
+
+.hover-req-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.hover-req-row.req-met {
+  color: #86efac;
+}
+
+.hover-req-row.req-locked {
+  color: #fca5a5;
+}
+
+.hover-tooltip-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(146, 102, 62, 0.45);
+}
+
+.hover-cost-tag {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #140d08;
+  border: 1px solid #785233;
+}
+
+.hover-cost-tag.cost-ok {
+  color: #fde68a;
+  border-color: #f59e0b;
+}
+
+.hover-cost-tag.cost-short {
+  color: #fca5a5;
+  border-color: #991b1b;
+}
+
+.hover-action-hint {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #d6c3ad;
+}
+
+.hover-action-hint.hint-ready {
+  color: #86efac;
+  background: rgba(21, 128, 61, 0.35);
+  border: 1px solid #4ade80;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
