@@ -44,8 +44,9 @@ import {
   trackEvent,
   subscribeToTelemetry,
   getMonetizationConfig,
+  SHOW_DEV_TOOLS,
 } from './services/analytics';
-import { AdBannerSlot, RewardedAdModal } from './components/AdUnit';
+import { RewardedAdModal } from './components/AdUnit';
 import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 import { DungeonStageBanner } from './components/DungeonStageBanner';
@@ -842,15 +843,17 @@ export default function App() {
               <BookOpen size={16} />
             </button>
 
-            <button
-              type="button"
-              className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
-              onClick={() => setShowRevenueDashboard((v) => !v)}
-              title="Inspect Google Analytics 4 Events & AdSense Revenue"
-            >
-              <Activity size={15} className="text-emerald" />
-              <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
-            </button>
+            {SHOW_DEV_TOOLS && (
+              <button
+                type="button"
+                className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
+                onClick={() => setShowRevenueDashboard((v) => !v)}
+                title="Inspect Google Analytics 4 Events & AdSense Revenue"
+              >
+                <Activity size={15} className="text-emerald" />
+                <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -865,7 +868,7 @@ export default function App() {
       )}
 
       {/* COLLAPSIBLE GA4 & AD REVENUE OWNER INSPECTOR */}
-      {showRevenueDashboard && (
+      {SHOW_DEV_TOOLS && showRevenueDashboard && (
         <section className="owner-telemetry-panel" aria-label="Analytics and Ad Revenue Dashboard">
           <div className="telemetry-header">
             <div>
@@ -929,15 +932,17 @@ export default function App() {
                 <span>Bestiary</span>
               </button>
 
-              <button
-                type="button"
-                className={`title-utility-btn ${showRevenueDashboard ? 'active' : ''}`}
-                onClick={() => setShowRevenueDashboard((v) => !v)}
-                title="GA4 & AdSense Revenue Ledger"
-              >
-                <Activity size={15} className="text-emerald" />
-                <span>${save.estSessionRevenueUsd.toFixed(3)}</span>
-              </button>
+              {SHOW_DEV_TOOLS && (
+                <button
+                  type="button"
+                  className={`title-utility-btn ${showRevenueDashboard ? 'active' : ''}`}
+                  onClick={() => setShowRevenueDashboard((v) => !v)}
+                  title="GA4 & AdSense Revenue Ledger"
+                >
+                  <Activity size={15} className="text-emerald" />
+                  <span>${save.estSessionRevenueUsd.toFixed(3)}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1384,11 +1389,6 @@ export default function App() {
             onReturnToBattle={() => startGameSession('CAMPAIGN', save.sector)}
           />
 
-          <AdBannerSlot
-            slotId={import.meta.env.VITE_ADSENSE_SIDEBAR_SLOT || '2222222222'}
-            label="Royal Forge Banner Slot"
-            format="horizontal"
-          />
         </main>
       )}
 
