@@ -1003,6 +1003,25 @@ button:disabled {
 .pixel-sprite-canvas {
   display: block;
   margin: auto;
+  overflow: hidden;
+}
+
+.pixel-sprite-sheet {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+/* Two frames side by side; the shared sprite clock in CreatureSprite.jsx flips data-sprite-frame */
+.pixel-sprite-sheet.animated {
+  width: 200%;
+}
+
+:root[data-sprite-frame='1'] .pixel-sprite-sheet.animated {
+  transform: translateX(-50%);
 }
 
 .creature-svg {
@@ -1016,6 +1035,11 @@ button:disabled {
   animation: creatureFloat 2.4s ease-in-out infinite;
 }
 
+/* Board tiles already bob through their two sprite frames; floating 64 of them costs every frame */
+.grid-tile .creature-idle {
+  animation: none;
+}
+
 .creature-panicked {
   animation: creatureShake 0.32s linear infinite;
 }
@@ -1023,10 +1047,10 @@ button:disabled {
 @keyframes creatureFloat {
   0%,
   100% {
-    transform: translateY(0px) scale(1);
+    transform: translateY(0px);
   }
   50% {
-    transform: translateY(-4px) scale(1.04);
+    transform: translateY(-4px);
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { NODE_TYPES } from '../game/engine';
 
 /**
@@ -345,62 +345,92 @@ const PIXEL_MATRICES = {
   ],
 };
 
-function drawMatrixToCanvas(ctx, matrix, scale = 4) {
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+const FRAME_PX = 64;
+const spriteSheetCache = new Map();
+
+function drawMatrix(ctx, matrix, offsetX, scale = 4) {
   for (let r = 0; r < matrix.length; r++) {
     const rowStr = matrix[r];
     for (let c = 0; c < rowStr.length; c++) {
-      const ch = rowStr[c];
-      const hex = PALETTE[ch];
+      const hex = PALETTE[rowStr[c]];
       if (hex) {
         ctx.fillStyle = hex;
-        ctx.fillRect(c * scale, r * scale, scale, scale);
+        ctx.fillRect(offsetX + c * scale, r * scale, scale, scale);
       }
     }
   }
 }
 
 /**
- * Crisp Nearest-Neighbor Pixel Sprite Component with 2-Frame Idle Bounce
+ * Rasterizes a sprite's frames side by side into one image, once per sprite for the whole session.
+ * Every tile showing that creature reuses the same image, so idle animation costs no JS or canvas work.
+ */
+function getSpriteSheet(frame0, frame1) {
+  const key = `${frame0}|${frame1 || ''}`;
+  const cached = spriteSheetCache.get(key);
+  if (cached) return cached;
+
+  const m0 = PIXEL_MATRICES[frame0] || PIXEL_MATRICES.GOBLIN_0;
+  const m1 = frame1 && frame1 !== frame0 ? PIXEL_MATRICES[frame1] || m0 : null;
+  const frames = m1 ? 2 : 1;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = FRAME_PX * frames;
+  canvas.height = FRAME_PX;
+  const ctx = canvas.getContext('2d');
+  drawMatrix(ctx, m0, 0);
+  if (m1) drawMatrix(ctx, m1, FRAME_PX);
+
+  const sheet = { url: canvas.toDataURL('image/png'), frames };
+  spriteSheetCache.set(key, sheet);
+  return sheet;
+}
+
+/**
+ * One shared clock flips every sprite between its two frames by toggling an attribute on <html>.
+ * A per-sprite CSS animation or timer is re-evaluated every frame for each of up to 64 tiles;
+ * this costs one style pass three times a second. It stays still for reduced-motion users.
+ */
+const SPRITE_FPS = 3;
+let spriteClockStarted = false;
+
+function ensureSpriteClock() {
+  if (spriteClockStarted || typeof window === 'undefined') return;
+  spriteClockStarted = true;
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const root = document.documentElement;
+  setInterval(() => {
+    if (document.hidden) return;
+    root.dataset.spriteFrame = root.dataset.spriteFrame === '1' ? '0' : '1';
+  }, 1000 / SPRITE_FPS);
+}
+
+/**
+ * Crisp Nearest-Neighbor Pixel Sprite with 2-Frame Idle Bounce
  */
 export function PixelSprite({
   frame0,
   frame1,
   size = 56,
-  fps = 2.5,
   className = '',
 }) {
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let frameIdx = 0;
-
-    const m0 = PIXEL_MATRICES[frame0] || PIXEL_MATRICES.GOBLIN_0;
-    const m1 = PIXEL_MATRICES[frame1 || frame0] || m0;
-
-    drawMatrixToCanvas(ctx, m0, 4);
-
-    if (!frame1 || frame0 === frame1) return;
-
-    const timer = setInterval(() => {
-      frameIdx = frameIdx === 0 ? 1 : 0;
-      drawMatrixToCanvas(ctx, frameIdx === 0 ? m0 : m1, 4);
-    }, 1000 / fps);
-
-    return () => clearInterval(timer);
-  }, [frame0, frame1, fps]);
+  const sheet = getSpriteSheet(frame0, frame1);
+  const animated = sheet.frames > 1;
+  if (animated) ensureSpriteClock();
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={64}
-      height={64}
-      style={{ width: size, height: size, imageRendering: 'pixelated' }}
+    <span
       className={`pixel-sprite-canvas ${className}`}
-    />
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    >
+      <img
+        src={sheet.url}
+        alt=""
+        draggable={false}
+        className={`pixel-sprite-sheet ${animated ? 'animated' : ''}`}
+      />
+    </span>
   );
 }
 
@@ -410,7 +440,7 @@ export function CreatureSprite({ type, conduitAxis = 'ROW', isTargeted = false }
   if (type === NODE_TYPES.BOMB) {
     return (
       <div className={`creature-wrap ${pulseClass}`}>
-        <PixelSprite frame0="BOMB_0" frame1="BOMB_1" fps={4} size="100%" />
+        <PixelSprite frame0="BOMB_0" frame1="BOMB_1" size="100%" />
       </div>
     );
   }
@@ -420,28 +450,28 @@ export function CreatureSprite({ type, conduitAxis = 'ROW', isTargeted = false }
         <span className={`conduit-dir-tag dir-${conduitAxis}`}>
           {conduitAxis === 'ROW' ? '↔' : '↕'}
         </span>
-        <PixelSprite frame0="CONDUIT_0" frame1="CONDUIT_1" fps={3.5} size="100%" />
+        <PixelSprite frame0="CONDUIT_0" frame1="CONDUIT_1" size="100%" />
       </div>
     );
   }
   if (type === NODE_TYPES.AMPLIFIER) {
     return (
       <div className={`creature-wrap ${pulseClass}`}>
-        <PixelSprite frame0="AMPLIFIER_0" frame1="AMPLIFIER_1" fps={3} size="100%" />
+        <PixelSprite frame0="AMPLIFIER_0" frame1="AMPLIFIER_1" size="100%" />
       </div>
     );
   }
   if (type === NODE_TYPES.BOSS) {
     return (
       <div className={`creature-wrap ${pulseClass}`}>
-        <PixelSprite frame0="BOSS_0" frame1="BOSS_1" fps={2.5} size="100%" />
+        <PixelSprite frame0="BOSS_0" frame1="BOSS_1" size="100%" />
       </div>
     );
   }
 
   return (
     <div className={`creature-wrap ${pulseClass}`}>
-      <PixelSprite frame0="GOBLIN_0" frame1="GOBLIN_1" fps={2.8} size="100%" />
+      <PixelSprite frame0="GOBLIN_0" frame1="GOBLIN_1" size="100%" />
     </div>
   );
 }
@@ -459,7 +489,7 @@ export function WeaponPixelIcon({ id, size = 40 }) {
 export function CommanderAvatar() {
   return (
     <div className="commander-avatar">
-      <PixelSprite frame0="HERO_IDLE_0" frame1="HERO_IDLE_1" fps={2.5} size={52} />
+      <PixelSprite frame0="HERO_IDLE_0" frame1="HERO_IDLE_1" size={52} />
     </div>
   );
 }
