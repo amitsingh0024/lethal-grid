@@ -305,6 +305,27 @@ export function getWaveBaseHp(sector, isDaily = false) {
   return Math.max(3, Math.floor(2 + (sector - 1) * 2.1 + Math.pow(sector, 1.38) * 0.65));
 }
 
+// Stars for a stage clear: one for the clear, one for a volley to spare, one for a single volley
+export function getClearStars({ volleysFired, volleysLeft }) {
+  return 1 + (volleysLeft > 0 ? 1 : 0) + (volleysFired <= 1 ? 1 : 0);
+}
+
+// A chapter chest opens at each star total; a chapter holds 15 stars
+export const CHAPTER_CHEST_STARS = [8, 15];
+
+export function getChapterStars(stageStars, chapter) {
+  let total = 0;
+  for (let i = 1; i <= STAGES_PER_CHAPTER; i++) {
+    total += stageStars[(chapter - 1) * STAGES_PER_CHAPTER + i] || 0;
+  }
+  return total;
+}
+
+// Chest gold scales with the chapter boss, so later chests stay worth opening
+export function getChapterChestGold(chapter, tier) {
+  return getGoldPerKill(chapter * STAGES_PER_CHAPTER) * 40 * tier;
+}
+
 // Gold for each raider slain: about a sixth of the wave's base HP, so harder stages pay more.
 // The Daily is priced as wave 5 (stage 1-5), the sector it is played at.
 export function getGoldPerKill(sector) {

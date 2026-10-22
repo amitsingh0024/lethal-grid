@@ -3779,3 +3779,39 @@ body {
     display: none;
   }
 }
+
+/* Stage stars and chapter chest progress */
+.star-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.star-lit {
+  color: #fbbf24;
+}
+
+.star-dim {
+  color: rgba(214, 195, 173, 0.3);
+}
+
+.turn-result-banner .star-row {
+  margin: 4px 0;
+}
+
+.stage-map-chapter-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-map-chapter-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
