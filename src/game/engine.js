@@ -928,3 +928,109 @@ export function executeAbilityAndResolveChains({
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Offline garrison: while the player is away, the Archer Garrison farms the
+// best cleared stage at one clear's worth of gold every OFFLINE_MINUTES_PER_CLEAR.
+// ---------------------------------------------------------------------------
+export const OFFLINE_MINUTES_PER_CLEAR = 10;
+export const OFFLINE_MIN_MINUTES = 1;
+
+// Hours of absence the garrison counts: 2 at base, longer with Garrison levels and the Crest tree
+export function getOfflineCapHours(garrisonLevel, crestOfflineLevel = 0) {
+  return Math.min(8, 2 + garrisonLevel * 0.25) + crestOfflineLevel * 2;
+}
+
+export function getOfflineRateMult(garrisonLevel) {
+  return 1 + garrisonLevel * 0.1;
+}
+
+// Rough gold for one full clear of a stage: about 14% of tiles are empty on boards above 3x3
+export function estimateClearGold({ sector, gridSize, shardMultLevel = 0 }) {
+  const cells = gridSize * gridSize;
+  const raiders = cells > 9 ? Math.round(cells * 0.86) : cells;
+  const bounty = 2 + Math.floor(sector * 0.5);
+  return (raiders * getGoldPerKill(sector) + bounty) * 1.25 * (1 + shardMultLevel * 0.2);
+}
+
+export function getOfflineReward({
+  elapsedMs,
+  sector,
+  gridSize,
+  shardMultLevel,
+  garrisonLevel,
+  crestOfflineLevel,
+  goldMult = 1,
+}) {
+  const capMinutes = getOfflineCapHours(garrisonLevel, crestOfflineLevel) * 60;
+  const minutes = Math.min(capMinutes, Math.max(0, elapsedMs) / 60000);
+  if (minutes < OFFLINE_MIN_MINUTES || sector < 1) return null;
+  const clears = minutes / OFFLINE_MINUTES_PER_CLEAR;
+  const gold = Math.floor(
+    estimateClearGold({ sector, gridSize, shardMultLevel }) *
+      clears *
+      getOfflineRateMult(garrisonLevel) *
+      goldMult
+  );
+  if (gold < 1) return null;
+  return { gold, minutes: Math.floor(minutes), capped: minutes >= capMinutes, sector };
+}
+
+// ---------------------------------------------------------------------------
+// Royal Crests: earned by resetting from wave 10 (the 2-5 boss) on, then spent
+// in a permanent tree. Unspent crests still add a little gold each.
+// ---------------------------------------------------------------------------
+export const PRESTIGE_MIN_SECTOR = 10;
+export const UNSPENT_CREST_GOLD_BONUS = 0.1;
+
+// Crests for a reset grow with the square root of gold earned since the last one,
+// so a longer run always pays more but doubling the crests takes 4x the gold
+export function getCrestsForReset(runGold) {
+  return Math.max(1, Math.floor(Math.sqrt(Math.max(0, runGold) / 400)));
+}
+
+export const CREST_TREE = [
+  {
+    id: 'crest_gold',
+    name: 'Royal Treasury',
+    costs: [1, 2, 3, 4, 5],
+    getEffectText: (lvl) => `+${lvl * 25}% Gold from raiders and the garrison`,
+  },
+  {
+    id: 'crest_start_gold',
+    name: 'War Chest',
+    costs: [1, 2, 3],
+    getEffectText: (lvl) => `Start each run with ${100 + lvl * 250} Gold`,
+  },
+  {
+    id: 'crest_courtyard',
+    name: 'Wider Walls',
+    costs: [2, 5],
+    getEffectText: (lvl) => `Start each run on a ${3 + lvl}×${3 + lvl} board`,
+  },
+  {
+    id: 'crest_volley',
+    name: 'Veteran Crew',
+    costs: [3, 7],
+    getEffectText: (lvl) => `Start each run with ${2 + lvl} shots per wave`,
+  },
+  {
+    id: 'crest_offline',
+    name: 'Night Watch',
+    costs: [2, 4],
+    getEffectText: (lvl) => `Garrison counts +${lvl * 2}h of time away`,
+  },
+];
+
+export function getCrestsSpent(crestUpgrades) {
+  return CREST_TREE.reduce((sum, node) => {
+    const lvl = crestUpgrades[node.id] || 0;
+    return sum + node.costs.slice(0, lvl).reduce((a, b) => a + b, 0);
+  }, 0);
+}
+
+// Gold multiplier from crests: the Treasury plus a small bonus per unspent crest
+export function getCrestGoldMult(totalCrests, crestUpgrades) {
+  const unspent = Math.max(0, totalCrests - getCrestsSpent(crestUpgrades));
+  return 1 + (crestUpgrades.crest_gold || 0) * 0.25 + unspent * UNSPENT_CREST_GOLD_BONUS;
+}

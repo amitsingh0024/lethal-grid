@@ -52,6 +52,8 @@ The core loop is replay and upgrade: play a stage, bank the gold, buy upgrades, 
 - **First clears pay triple.** Breaking a new stage multiplies that run's gold by `FIRST_CLEAR_GOLD_MULT` (3).
 - **Stars and chests.** A clear earns up to 3 stars: one for the clear, one for a volley to spare, one for clearing in a single volley. A chapter's stars open chests at 8 and 15 stars (`CHAPTER_CHEST_STARS`), paying gold scaled to the chapter boss. Stars and chests survive a prestige reset.
 - **Auto.** A cleared 3-star stage can be set to auto. It fires the shot that fells the most raiders, replays the stage after a short pause, and stops when the player leaves the board or taps Stop.
+- **Offline garrison.** When the game opens again, the garrison pays for time away: one clear of the best cleared stage every 10 minutes, for up to 2 hours (longer with Archer Garrison levels and the Night Watch crest). The player collects it, or can choose to watch an ad to double it.
+- **Royal Crests.** From wave 10 (the 2-5 boss) the player can Ascend: the run resets for `floor(sqrt(gold this run / 400))` crests (at least 1). Crests buy permanent upgrades in the Crest tree (`CREST_TREE`), and each unspent crest adds +10% gold.
 - **Prices carry the pacing.** Every Forge price is multiplied by `UPGRADE_PRICE_SCALE` (4). Raise it to lengthen the game, lower it to shorten it.
 
 Pacing was tuned with a bot that plays the real engine with greedy upgrade buying. Median runs to reach each wave, 30 trials:

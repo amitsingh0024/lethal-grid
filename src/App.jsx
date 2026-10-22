@@ -32,6 +32,7 @@ import {
   Castle,
   Star,
   Robot,
+  Crown,
 } from './components/PixelIcons';
 import {
   NODE_TYPES,
@@ -54,6 +55,12 @@ import {
   getClearStars,
   getChapterStars,
   getChapterChestGold,
+  getOfflineReward,
+  getCrestsForReset,
+  getCrestGoldMult,
+  getCrestsSpent,
+  CREST_TREE,
+  PRESTIGE_MIN_SECTOR,
   getTodayDateSeed,
   createSeededRandom,
 } from './game/engine';
@@ -66,6 +73,8 @@ import {
 } from './services/analytics';
 import { playSfx } from './services/sfx';
 import { StageMapModal } from './components/StageMapModal';
+import { OfflineRewardModal } from './components/OfflineRewardModal';
+import { CrestTreeModal } from './components/CrestTreeModal';
 import { shake, squash, popIn } from './services/juice';
 import { RewardedAdModal } from './components/AdUnit';
 import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
@@ -133,8 +142,50 @@ const DEFAULT_SAVE = {
   // both survive a prestige reset
   stageStars: {},
   chestsClaimed: {},
+  // Royal Crest tree levels (crest node id -> level), bought with overclockCores
+  crestUpgrades: {},
+  // totalShardsEarned at the last reset; crests for the next reset come from gold since then
+  runGoldStart: 0,
   estSessionRevenueUsd: 0.004,
 };
+
+// Last time the game was open, for the offline garrison; kept apart from the save so the
+// heartbeat that refreshes it doesn't re-render the game
+const LAST_SEEN_KEY = 'lethal_grid_last_seen';
+const LAST_SEEN_HEARTBEAT_MS = 30000;
+
+function readLastSeen() {
+  try {
+    const n = Number(localStorage.getItem(LAST_SEEN_KEY));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeLastSeen() {
+  try {
+    localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+// What the garrison farmed while the game was closed, or null
+function computeOfflineReward(save) {
+  const lastSeen = readLastSeen();
+  if (!lastSeen || !save.tutorialCompleted || save.sector <= 1) return null;
+  const garrisonLevel = save.upgrades.auto_drone || 0;
+  return getOfflineReward({
+    elapsedMs: Date.now() - lastSeen,
+    sector: save.sector - 1,
+    gridSize: Math.min(8, 3 + (save.upgrades.grid_size || 0)),
+    shardMultLevel: save.upgrades.shard_mult || 0,
+    garrisonLevel,
+    crestOfflineLevel: save.crestUpgrades.crest_offline || 0,
+    goldMult: getCrestGoldMult(save.overclockCores || 0, save.crestUpgrades),
+  });
+}
 
 const toFiniteNumber = (value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) => {
   const n = typeof value === 'number' ? value : Number(value);
@@ -238,12 +289,20 @@ function sanitizeSave(parsed) {
   });
 
   const sector = toWhole(parsed.sector, 1, 1, 100000);
+  const totalShardsEarned = toWhole(parsed.totalShardsEarned, 0);
+  const rawCrests =
+    parsed.crestUpgrades && typeof parsed.crestUpgrades === 'object' ? parsed.crestUpgrades : {};
+  const crestUpgrades = {};
+  CREST_TREE.forEach((node) => {
+    const lvl = toWhole(rawCrests[node.id], 0, 0, node.costs.length);
+    if (lvl > 0) crestUpgrades[node.id] = lvl;
+  });
   const rawAttempts = parsed.waveAttempts && typeof parsed.waveAttempts === 'object' ? parsed.waveAttempts : {};
 
   return {
     tutorialCompleted: parsed.tutorialCompleted === true,
     shards: toWhole(parsed.shards, 0),
-    totalShardsEarned: toWhole(parsed.totalShardsEarned, 0),
+    totalShardsEarned,
     sector,
     maxSectorReached: Math.max(sector, toWhole(parsed.maxSectorReached, 1, 1, 100000)),
     lethalClears: toWhole(parsed.lethalClears, 0),
@@ -260,6 +319,8 @@ function sanitizeSave(parsed) {
     },
     stageStars: toCountMap(parsed.stageStars, 3),
     chestsClaimed: toCountMap(parsed.chestsClaimed, CHAPTER_CHEST_STARS.length),
+    crestUpgrades,
+    runGoldStart: toWhole(parsed.runGoldStart, 0, 0, totalShardsEarned),
     estSessionRevenueUsd: toFiniteNumber(parsed.estSessionRevenueUsd, DEFAULT_SAVE.estSessionRevenueUsd),
   };
 }
@@ -380,6 +441,9 @@ export default function App() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showBestiaryModal, setShowBestiaryModal] = useState(false);
   const [showStageMap, setShowStageMap] = useState(false);
+  const [showCrestTree, setShowCrestTree] = useState(false);
+  // Gold the garrison farmed while the game was closed, shown once on load
+  const [offlineReward, setOfflineReward] = useState(() => computeOfflineReward(save));
   // Stage that auto is replaying, or null
   const [autoSector, setAutoSector] = useState(null);
   const [showGuideDrawer, setShowGuideDrawer] = useState(false);
@@ -399,6 +463,19 @@ export default function App() {
       setTelemetryFeed(entries);
     });
     return unsub;
+  }, []);
+
+  // Keep the last-seen time fresh so the offline garrison counts only real time away
+  useEffect(() => {
+    writeLastSeen();
+    const timer = setInterval(writeLastSeen, LAST_SEEN_HEARTBEAT_MS);
+    window.addEventListener('pagehide', writeLastSeen);
+    document.addEventListener('visibilitychange', writeLastSeen);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('pagehide', writeLastSeen);
+      document.removeEventListener('visibilitychange', writeLastSeen);
+    };
   }, []);
 
   useEffect(() => {
@@ -540,7 +617,7 @@ export default function App() {
 
       registerCampaignAttempt();
       const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
-      const prestigeMult = 1 + (currentSave.overclockCores || 0) * 0.5;
+      const prestigeMult = getCrestGoldMult(currentSave.overclockCores || 0, currentSave.crestUpgrades);
       const adMult = (boostLeft > 0 ? 2 : 1) * prestigeMult;
 
       const result = executeAbilityAndResolveChains({
@@ -880,7 +957,7 @@ export default function App() {
     setFiringWeaponId(selectedAbilityId);
     setTimeout(() => setFiringWeaponId(null), 420);
 
-    const prestigeMult = 1 + (save.overclockCores || 0) * 0.5;
+    const prestigeMult = getCrestGoldMult(save.overclockCores || 0, save.crestUpgrades);
     const adMult = (adBoostSeconds > 0 ? 2 : 1) * prestigeMult;
 
     const result = executeAbilityAndResolveChains({
@@ -1090,18 +1167,25 @@ export default function App() {
   };
 
   const handlePrestigeReboot = () => {
-    if (save.sector < 10) return;
-    const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
+    if (save.sector < PRESTIGE_MIN_SECTOR) return;
+    const coresToGain = getCrestsForReset(save.totalShardsEarned - save.runGoldStart);
+    const crests = save.crestUpgrades;
+    // Crest tree perks set where the new run starts
+    const startGrid = crests.crest_courtyard || 0;
+    const startVolleys = crests.crest_volley || 0;
     playSfx('clear', muted);
 
     setSave((prev) => ({
       ...DEFAULT_SAVE,
       tutorialCompleted: true,
-      shards: 100,
+      shards: 100 + (prev.crestUpgrades.crest_start_gold || 0) * 250,
       totalShardsEarned: prev.totalShardsEarned,
+      runGoldStart: prev.totalShardsEarned,
       maxSectorReached: prev.maxSectorReached,
       lethalClears: prev.lethalClears,
       overclockCores: (prev.overclockCores || 0) + coresToGain,
+      crestUpgrades: prev.crestUpgrades,
+      upgrades: { ...DEFAULT_SAVE.upgrades, grid_size: startGrid, max_charges: startVolleys },
       stageStars: prev.stageStars,
       chestsClaimed: prev.chestsClaimed,
       dailyClearedDate: prev.dailyClearedDate,
@@ -1109,8 +1193,36 @@ export default function App() {
     }));
 
     // Pass the reset grid and volley sizes; `save` here is still the pre-reset snapshot
-    startGameSession('CAMPAIGN', 1, 3, 2);
+    startGameSession('CAMPAIGN', 1, 3 + startGrid, 2 + startVolleys);
     trackEvent('prestige_overclock', { cores_gained: coresToGain });
+  };
+
+  const handleBuyCrest = (nodeId) => {
+    const node = CREST_TREE.find((n) => n.id === nodeId);
+    if (!node) return;
+    const lvl = save.crestUpgrades[nodeId] || 0;
+    const cost = node.costs[lvl];
+    const unspent = (save.overclockCores || 0) - getCrestsSpent(save.crestUpgrades);
+    if (cost === undefined || unspent < cost) return;
+    playSfx('upgrade', muted);
+    setSave((prev) => ({
+      ...prev,
+      crestUpgrades: { ...prev.crestUpgrades, [nodeId]: (prev.crestUpgrades[nodeId] || 0) + 1 },
+    }));
+    trackEvent('crest_upgrade', { node_id: nodeId, new_level: lvl + 1, cost });
+  };
+
+  const collectOfflineReward = (mult) => {
+    const reward = offlineReward;
+    if (!reward) return;
+    setOfflineReward(null);
+    const gold = reward.gold * mult;
+    setSave((prev) => ({
+      ...prev,
+      shards: prev.shards + gold,
+      totalShardsEarned: prev.totalShardsEarned + gold,
+    }));
+    trackEvent('offline_collect', { gold, minutes: reward.minutes, doubled: mult > 1 });
   };
 
   const handleShareScore = () => {
@@ -1199,6 +1311,7 @@ export default function App() {
   // Best stage cleared this run of the campaign, the one to farm when the frontier holds
   const bestClearedSector = save.sector - 1;
   const isFrontierBoard = boardSector === save.sector;
+  const unspentCrests = Math.max(0, (save.overclockCores || 0) - getCrestsSpent(save.crestUpgrades));
   // Auto: fires the best-scoring shot each beat, then starts the stage again when it ends.
   // Handlers change every render, so the loop reads the latest ones through a ref.
   const autoActionsRef = useRef(null);
@@ -1512,6 +1625,20 @@ export default function App() {
                   <Castle size={18} className="menu-sword-cursor" />
                   <span className="menu-btn-label">Map</span>
                   <span className="menu-btn-tag">Replay stages</span>
+                </button>
+              )}
+
+              {(save.overclockCores || 0) > 0 && (
+                <button
+                  type="button"
+                  className="indie-menu-btn"
+                  onClick={() => setShowCrestTree(true)}
+                >
+                  <Crown size={18} className="menu-sword-cursor" />
+                  <span className="menu-btn-label">Crests</span>
+                  <span className={`menu-btn-tag ${unspentCrests > 0 ? 'ready' : ''}`}>
+                    {unspentCrests > 0 ? `${unspentCrests} to spend` : 'Crest tree'}
+                  </span>
                 </button>
               )}
 
@@ -2149,6 +2276,36 @@ export default function App() {
         rewardTitle={rewardedModalConfig.rewardTitle}
         onRewardClaimed={rewardedModalConfig.onClaim}
       />
+
+      {/* Hidden while the ad plays so the ad card sits on top; it returns if the ad is skipped */}
+      {offlineReward && screen === 'MENU' && !rewardedModalConfig.isOpen && (
+        <OfflineRewardModal
+          reward={offlineReward}
+          onCollect={() => collectOfflineReward(1)}
+          onWatchAd={() =>
+            setRewardedModalConfig({
+              isOpen: true,
+              rewardTitle: '2× Garrison Gold',
+              onClaim: () => {
+                collectOfflineReward(2);
+                setSave((prev) => ({
+                  ...prev,
+                  estSessionRevenueUsd: +(prev.estSessionRevenueUsd + 0.025).toFixed(3),
+                }));
+              },
+            })
+          }
+        />
+      )}
+
+      {showCrestTree && (
+        <CrestTreeModal
+          totalCrests={save.overclockCores || 0}
+          crestUpgrades={save.crestUpgrades}
+          onBuy={handleBuyCrest}
+          onClose={() => setShowCrestTree(false)}
+        />
+      )}
 
       {showStageMap && (
         <StageMapModal

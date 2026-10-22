@@ -28,6 +28,9 @@ import {
   getAbilityUpgradeCost,
   getWeaponUnlockCost,
   getStageLabel,
+  getCrestsForReset,
+  getCrestGoldMult,
+  PRESTIGE_MIN_SECTOR,
 } from '../game/engine';
 import { WeaponPixelIcon } from './CreatureSprite';
 
@@ -380,28 +383,29 @@ export function UpgradeSkillTree({
       };
     }
 
-    const canPrestige = isParentMet && save.sector >= 10;
-    const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
+    const canPrestige = isParentMet && save.sector >= PRESTIGE_MIN_SECTOR;
+    const coresToGain = getCrestsForReset(save.totalShardsEarned - save.runGoldStart);
+    const crestMult = getCrestGoldMult(save.overclockCores || 0, save.crestUpgrades);
     return {
       title: 'Ascend',
       subtitle: 'Prestige',
       description:
-        'Start over from Wave 1 and lose Gold upgrades. Keep Crests: each gives +50% Gold forever.',
-      statLine: `Now +${(save.overclockCores || 0) * 50}% Gold. Ascend for +${coresToGain} ${coresToGain === 1 ? 'Crest' : 'Crests'}.`,
+        'Start over from Stage 1-1 and lose Gold upgrades. Keep Crests and spend them on lasting upgrades. More Gold this run means more Crests.',
+      statLine: `Crests now give ×${crestMult.toFixed(2)} Gold. Ascend for +${coresToGain} ${coresToGain === 1 ? 'Crest' : 'Crests'}.`,
       currentLvl,
       maxLvl: 99,
       isMax: false,
       cost: 0,
-      reqSector: 10,
-      sectorLocked: save.sector < 10,
+      reqSector: PRESTIGE_MIN_SECTOR,
+      sectorLocked: save.sector < PRESTIGE_MIN_SECTOR,
       isParentMet,
       parentName,
       parentReqLevel: node.parentReqLevel,
       canAfford: canPrestige,
       actionLabel: !isParentMet
         ? `Needs ${parentName} Lv ${node.parentReqLevel}`
-        : save.sector < 10
-        ? `Reach Stage ${getStageLabel(10)} (now Stage ${getStageLabel(save.sector)})`
+        : save.sector < PRESTIGE_MIN_SECTOR
+        ? `Reach Stage ${getStageLabel(PRESTIGE_MIN_SECTOR)} (now Stage ${getStageLabel(save.sector)})`
         : `Ascend · +${coresToGain} ${coresToGain === 1 ? 'Crest' : 'Crests'}`,
     };
   };
