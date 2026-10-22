@@ -3272,3 +3272,54 @@ body {
     padding: 10px 12px;
   }
 }
+
+/* ============================================================================
+   CRASH RECOVERY SCREEN (ErrorBoundary)
+   ============================================================================ */
+.crash-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.crash-card {
+  width: 100%;
+  max-width: 460px;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-highlight);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: center;
+}
+
+.crash-card h1 {
+  font-size: 1.4rem;
+  color: #fbbf24;
+}
+
+.crash-card p {
+  color: var(--text-muted);
+}
+
+.crash-detail {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-base);
+  color: #fda4af;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
