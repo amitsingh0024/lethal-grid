@@ -1,5 +1,5 @@
 import React from 'react';
-import { Map as MapIcon } from 'lucide-react';
+import { Castle, Crown, Lock } from './PixelIcons';
 import { STAGES_PER_CHAPTER, getStageLabel } from '../game/engine';
 
 /**
@@ -15,11 +15,11 @@ export function StageMapModal({ frontierSector, onPlayStage, onClose }) {
       <div className="modal-card stage-map-card" onClick={(e) => e.stopPropagation()}>
         <div className="bestiary-modal-header">
           <h3>
-            <MapIcon size={18} className="text-amber" /> Siege Map
+            <Castle size={18} className="text-amber" /> Stage Map
           </h3>
           <p>
-            Replay any cleared stage to farm Gold. Every run pays, and harder stages pay more.
-            Your first clear of a new stage pays triple.
+            Replay a cleared stage to farm Gold. Every run pays, and harder stages pay more. A
+            first clear pays triple.
           </p>
         </div>
 
@@ -46,11 +46,11 @@ export function StageMapModal({ frontierSector, onPlayStage, onClose }) {
                       }`}
                     >
                       <span className="stage-map-node-label">
-                        {isBoss ? '👑 ' : ''}
+                        {isBoss && <Crown size={12} />}
                         {getStageLabel(sector)}
                       </span>
                       <span className="stage-map-node-tag">
-                        {isCleared ? 'Farm' : isFrontier ? 'Push' : '🔒'}
+                        {isCleared ? 'Replay' : isFrontier ? 'Next' : <Lock size={12} />}
                       </span>
                     </button>
                   );
@@ -61,7 +61,7 @@ export function StageMapModal({ frontierSector, onPlayStage, onClose }) {
         </div>
 
         <button type="button" className="btn-secondary" onClick={onClose}>
-          Close Map
+          Close
         </button>
       </div>
     </div>

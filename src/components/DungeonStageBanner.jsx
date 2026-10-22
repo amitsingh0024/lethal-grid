@@ -1,6 +1,7 @@
 import React from 'react';
 import { NODE_TYPES } from '../game/engine';
 import { PixelSprite } from './CreatureSprite';
+import { Flag } from './PixelIcons';
 
 /**
  * BACKPACK HERO / PEGLIN STYLE TOP DUNGEON BATTLE SCENE
@@ -29,7 +30,7 @@ export function DungeonStageBanner({
           <span className="torch-bracket" />
         </div>
         <div className="dungeon-arch-title">
-          <span>{stageTitle || `WAVE ${waveNumber}`} • CASTLE COURTYARD</span>
+          <span>{stageTitle || `Wave ${waveNumber}`}</span>
         </div>
         <div className="wall-torch">
           <span className="torch-flame" />
@@ -70,7 +71,7 @@ export function DungeonStageBanner({
         <div className={`horde-stage-side ${isCleared ? 'horde-defeated' : ''}`}>
           <div className="horde-character-box">
             {isCleared ? (
-              <span className="victory-flag-icon">🏳️</span>
+              <Flag size={48} className="victory-flag-icon" />
             ) : waveNumber % 5 === 0 ? (
               <PixelSprite frame0="BOSS_0" frame1="BOSS_1" size={64} />
             ) : (
@@ -78,7 +79,7 @@ export function DungeonStageBanner({
             )}
           </div>
           <span className="actor-pedestal-label horde-label">
-            {isCleared ? 'ROUTED!' : `${remainingEnemies}/${totalEnemies} RAIDERS`}
+            {isCleared ? 'Cleared' : `${remainingEnemies}/${totalEnemies} left`}
           </span>
         </div>
       </div>
