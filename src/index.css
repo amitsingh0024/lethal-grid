@@ -3323,3 +3323,109 @@ body {
   gap: 10px;
   justify-content: center;
 }
+
+/* ============================================================================
+   BOARD TILE SCALING: tile contents size off the tile itself (cqi = 1% of the
+   tile's width), so a 3x3 keep and an 8x8 citadel both fit on a 320px phone
+   ============================================================================ */
+.grid-tile {
+  container-type: size;
+  min-width: 0;
+  min-height: 0;
+  padding: 5%;
+}
+
+.grid-tile .tile-top-row {
+  gap: 2cqi;
+  font-size: clamp(7px, 15cqi, 0.66rem);
+  line-height: 1.1;
+}
+
+.grid-tile .tile-type-tag {
+  min-width: 0;
+}
+
+.grid-tile .tile-hp-pill {
+  flex-shrink: 0;
+  font-size: inherit;
+  padding: 0.1em 0.4em;
+  border-radius: 0.5em;
+  white-space: nowrap;
+}
+
+.grid-tile .creature-wrap {
+  flex: none;
+  width: 56cqi;
+  height: 56cqi;
+  max-width: 62px;
+  max-height: 62px;
+}
+
+.grid-tile .conduit-dir-tag {
+  top: auto;
+  bottom: -4cqi;
+  right: -10cqi;
+  font-size: clamp(6px, 13cqi, 0.65rem);
+  line-height: 1.2;
+  padding: 0 0.3em;
+}
+
+.grid-tile .tile-hp-bar-bg {
+  flex: none;
+  height: clamp(2px, 6cqi, 5px);
+}
+
+.grid-tile .explosion-burst {
+  font-size: min(1.5rem, 48cqi);
+}
+
+.grid-tile .tile-cleared-mark {
+  font-size: min(0.95rem, 36cqi);
+}
+
+/* Mid-size tiles: "SHAMAN" next to the HP pill would truncate, so show HP only */
+@container (max-width: 96px) {
+  .grid-tile .tile-type-tag {
+    display: none;
+  }
+
+  .grid-tile .creature-wrap {
+    width: 60cqi;
+    height: 60cqi;
+  }
+
+  .grid-tile .tile-top-row {
+    justify-content: flex-end;
+  }
+}
+
+/* Small tiles (5x5+ on phones): also drop the heart, pin the HP
+   number to the corner as a badge and give the freed space to the sprite */
+@container (max-width: 46px) {
+  .grid-tile .tile-top-row {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: auto;
+    z-index: 2;
+    font-size: max(7px, 19cqi);
+  }
+
+  .grid-tile .tile-hp-heart {
+    display: none;
+  }
+
+  .grid-tile .tile-hp-pill {
+    padding: 0.05em 0.3em;
+  }
+
+  .grid-tile .creature-wrap {
+    width: 74cqi;
+    height: 74cqi;
+    margin: auto auto 0;
+  }
+
+  .grid-tile .tile-hp-bar-bg {
+    margin-top: 4cqi;
+  }
+}
