@@ -3456,3 +3456,253 @@ body {
 .tile-hp-heart {
   color: #ef4444;
 }
+
+/* ============================================================================
+   PIXEL UI KIT
+   9-slice frames from public/ui, drawn at 2 screen pixels per art pixel.
+   Panels are wood and iron, slots are inset wells, buttons come in gold
+   (primary), iron (secondary) and red (danger) with idle, hover and pressed art.
+   ============================================================================ */
+.top-nav,
+.skill-tree-header,
+.skill-tree-bottom-dock,
+.modal-card,
+.turn-result-banner {
+  border-radius: 0;
+  border-style: solid;
+  border-width: 12px;
+  border-image: url('/ui/panel.png') 6 fill / 12px stretch;
+  background: none;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45);
+  image-rendering: pixelated;
+}
+
+.skill-tree-viewport {
+  /* frame only; the tree keeps its own dark field inside */
+  border-radius: 0;
+  outline: none;
+  border-style: solid;
+  border-width: 12px;
+  border-image: url('/ui/panel.png') 6 / 12px stretch;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.45);
+  image-rendering: pixelated;
+}
+
+.wallet-pill,
+.title-status-chip,
+.charges-display,
+.tree-camera-controls,
+.weapon-dock-btn {
+  border-radius: 0;
+  border-style: solid;
+  border-width: 8px;
+  border-image: url('/ui/slot.png') 4 fill / 8px stretch;
+  background: none;
+  box-shadow: none;
+  image-rendering: pixelated;
+}
+
+.weapon-dock-btn.selected {
+  border-image: url('/ui/slot-selected.png') 4 fill / 8px stretch;
+  box-shadow: none;
+}
+
+.stage-speech-scroll {
+  border-radius: 0;
+  outline: none;
+  border-style: solid;
+  border-width: 6px;
+  border-image: url('/ui/parchment.png') 3 fill / 6px stretch;
+  background: none;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.45);
+  image-rendering: pixelated;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-icon,
+.indie-menu-btn,
+.indie-menu-btn.primary,
+.title-utility-btn,
+.tree-cam-btn,
+.btn-forge-node,
+.btn-reward-chip {
+  border-radius: 0;
+  border-style: solid;
+  border-width: 8px 8px 12px;
+  border-image: url('/ui/btn-iron.png') 4 4 6 4 fill / 8px 8px 12px stretch;
+  background: none;
+  box-shadow: none;
+  color: #fef3c7;
+  image-rendering: pixelated;
+  transition: none;
+}
+
+.btn-secondary,
+.btn-danger,
+.btn-primary,
+.btn-reward-chip {
+  font-family: var(--font-display);
+  padding: 2px 8px 0;
+}
+
+.btn-icon {
+  width: auto;
+  height: auto;
+  padding: 2px;
+}
+
+.btn-secondary:hover:not(:disabled),
+.btn-icon:hover,
+.indie-menu-btn:hover,
+.title-utility-btn:hover,
+.tree-cam-btn:hover,
+.btn-reward-chip:hover:not(:disabled) {
+  border-image-source: url('/ui/btn-iron-hover.png');
+  background: none;
+  transform: none;
+}
+
+.btn-secondary:active:not(:disabled),
+.btn-icon:active,
+.indie-menu-btn:active,
+.title-utility-btn:active,
+.tree-cam-btn:active,
+.btn-reward-chip:active:not(:disabled) {
+  border-image-source: url('/ui/btn-iron-pressed.png');
+  padding-top: 6px;
+  padding-bottom: 0;
+}
+
+.btn-primary,
+.indie-menu-btn.primary,
+.btn-forge-node.ready {
+  border-image-source: url('/ui/btn-gold.png');
+  color: #3b2412;
+  text-shadow: none;
+}
+
+.btn-primary:hover:not(:disabled),
+.indie-menu-btn.primary:hover,
+.btn-forge-node.ready:hover {
+  border-image-source: url('/ui/btn-gold-hover.png');
+  background: none;
+  transform: none;
+}
+
+.btn-primary:active:not(:disabled),
+.indie-menu-btn.primary:active,
+.btn-forge-node.ready:active {
+  border-image-source: url('/ui/btn-gold-pressed.png');
+}
+
+.indie-menu-btn.primary .menu-btn-label,
+.indie-menu-btn.primary .menu-sword-cursor {
+  color: #3b2412;
+  text-shadow: none;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-image-source: url('/ui/btn-red.png');
+}
+
+.btn-danger:hover {
+  border-image-source: url('/ui/btn-red-hover.png');
+}
+
+.btn-danger:active {
+  border-image-source: url('/ui/btn-red-pressed.png');
+}
+
+/* Game HUD: home and logo on the left, forge or play, gold, sound and settings on the right */
+.game-hud {
+  flex-wrap: nowrap;
+  padding: 4px 6px;
+}
+
+.hud-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.hud-logo {
+  display: block;
+  height: 28px;
+  width: auto;
+  image-rendering: pixelated;
+}
+
+.hud-btn {
+  font-size: 0.9rem;
+}
+
+/* Title: a soft vignette over the castle instead of a dark box */
+.indie-title-screen {
+  background: radial-gradient(ellipse 60% 70% at 50% 45%, rgba(16, 11, 7, 0.55), transparent 75%);
+}
+
+.title-center-stage {
+  background: none;
+  border-radius: 0;
+}
+
+.title-main-logo {
+  text-shadow: none;
+  margin-bottom: 14px;
+  line-height: 0;
+}
+
+.title-main-logo img {
+  display: block;
+  width: min(576px, 86vw);
+  height: auto;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.35));
+}
+
+.settings-modal-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-list button {
+  justify-content: flex-start;
+  font-size: 0.95rem;
+  padding: 4px 10px 2px;
+}
+
+@media (max-width: 520px) {
+  .hud-logo {
+    display: none;
+  }
+
+  .hud-btn span:not(.nav-badge-count) {
+    display: none;
+  }
+
+  .top-actions {
+    gap: 6px;
+  }
+
+  .title-corner-bar {
+    flex-wrap: nowrap;
+  }
+
+  .title-utility-btn span {
+    display: none;
+  }
+}
