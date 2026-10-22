@@ -30,6 +30,8 @@ import {
   Settings,
   GoldCoin,
   Castle,
+  Star,
+  Robot,
 } from './components/PixelIcons';
 import {
   NODE_TYPES,
@@ -47,6 +49,11 @@ import {
   getWeaponUnlockCost,
   FIRST_CLEAR_GOLD_MULT,
   getStageLabel,
+  STAGES_PER_CHAPTER,
+  CHAPTER_CHEST_STARS,
+  getClearStars,
+  getChapterStars,
+  getChapterChestGold,
   getTodayDateSeed,
   createSeededRandom,
 } from './game/engine';
@@ -122,6 +129,10 @@ const DEFAULT_SAVE = {
   dailyClearedDate: null,
   // Attempts at the frontier wave, reported to analytics when it is first cleared
   waveAttempts: { sector: 0, count: 0 },
+  // Best stars per stage (wave number -> 1..3) and chapter chests opened (chapter -> tiers);
+  // both survive a prestige reset
+  stageStars: {},
+  chestsClaimed: {},
   estSessionRevenueUsd: 0.004,
 };
 
@@ -133,6 +144,79 @@ const toFiniteNumber = (value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER)
 
 const toWhole = (value, fallback, min = 0, max = Number.MAX_SAFE_INTEGER) =>
   Math.floor(toFiniteNumber(value, fallback, min, max));
+
+// A { positive whole key: whole count } map, with every count clamped to 1..maxCount
+const toCountMap = (value, maxCount) => {
+  const out = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  Object.keys(value).forEach((key) => {
+    const k = Number(key);
+    const count = toWhole(value[key], 0, 0, maxCount);
+    if (Number.isInteger(k) && k >= 1 && k <= 100000 && count > 0) out[k] = count;
+  });
+  return out;
+};
+
+const AUTO_BEAT_MS = 1200;
+// Pause after a run ends so the result reads and auto never outpaces a player by much
+const AUTO_RESTART_MS = 2500;
+
+// Auto's aim: try every living raider with a throwaway roll and take the shot that fells the most
+function pickAutoTarget(live, { selectedAbilityId, save, activeGridSize }) {
+  const rng = createSeededRandom(`auto-${live.volleysFired}`);
+  let best = null;
+  let bestScore = -1;
+  live.board.forEach((cell) => {
+    if (cell.type === NODE_TYPES.EMPTY || cell.hp <= 0) return;
+    const trial = executeAbilityAndResolveChains({
+      cells: live.board,
+      gridSize: activeGridSize,
+      targetRow: cell.row,
+      targetCol: cell.col,
+      abilityId: selectedAbilityId,
+      abilityLevel: Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
+      chainAmpLevel: save.upgrades.chain_amp || 0,
+      luckySparkLevel: save.upgrades.lucky_spark || 0,
+      contagionLevel: save.upgrades.contagion || 0,
+      sector: live.sector,
+      turnAmplifierBonus: live.amp,
+      rng,
+    });
+    const score = trial.stats.nodesDestroyed + (trial.stats.isBoardClear ? 100 : 0);
+    if (score > bestScore) {
+      bestScore = score;
+      best = cell;
+    }
+  });
+  return best;
+}
+
+function StarRow({ count, label, size = 14 }) {
+  return (
+    <span className="star-row" role="img" aria-label={label} title={label}>
+      {[1, 2, 3].map((n) => (
+        <Star key={n} size={size} className={n <= count ? 'star-lit' : 'star-dim'} />
+      ))}
+    </span>
+  );
+}
+
+// Records a stage clear's stars and opens any chapter chests they unlock
+function applyStageClear(prevStars, prevChests, sector, stars) {
+  if (stars <= (prevStars[sector] || 0)) {
+    return { stageStars: prevStars, chestsClaimed: prevChests, chestGold: 0 };
+  }
+  const stageStars = { ...prevStars, [sector]: stars };
+  const chapter = Math.ceil(sector / STAGES_PER_CHAPTER);
+  const claimed = prevChests[chapter] || 0;
+  const reached = CHAPTER_CHEST_STARS.filter((n) => getChapterStars(stageStars, chapter) >= n).length;
+  let chestGold = 0;
+  for (let tier = claimed + 1; tier <= reached; tier++) {
+    chestGold += getChapterChestGold(chapter, tier);
+  }
+  const chestsClaimed = reached > claimed ? { ...prevChests, [chapter]: reached } : prevChests;
+  return { stageStars, chestsClaimed, chestGold };
+}
 
 // localStorage is player-editable, so coerce every field back into a valid range
 function sanitizeSave(parsed) {
@@ -174,6 +258,8 @@ function sanitizeSave(parsed) {
       sector: toWhole(rawAttempts.sector, 0, 0, 100000),
       count: toWhole(rawAttempts.count, 0, 0, 1000),
     },
+    stageStars: toCountMap(parsed.stageStars, 3),
+    chestsClaimed: toCountMap(parsed.chestsClaimed, CHAPTER_CHEST_STARS.length),
     estSessionRevenueUsd: toFiniteNumber(parsed.estSessionRevenueUsd, DEFAULT_SAVE.estSessionRevenueUsd),
   };
 }
@@ -261,6 +347,9 @@ export default function App() {
       attemptCounted: false,
       runGold: 0,
       firstClearBonus: 0,
+      volleysFired: 0,
+      starsEarned: 0,
+      chestGold: 0,
       rng: Math.random,
       dailyPending: 0,
       adVolleyUsed: false,
@@ -291,6 +380,8 @@ export default function App() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showBestiaryModal, setShowBestiaryModal] = useState(false);
   const [showStageMap, setShowStageMap] = useState(false);
+  // Stage that auto is replaying, or null
+  const [autoSector, setAutoSector] = useState(null);
   const [showGuideDrawer, setShowGuideDrawer] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [telemetryFeed, setTelemetryFeed] = useState([]);
@@ -372,6 +463,14 @@ export default function App() {
         live.firstClearBonus = live.runGold * (FIRST_CLEAR_GOLD_MULT - 1);
         earned += live.firstClearBonus;
       }
+      if (isVictory) {
+        live.starsEarned = getClearStars({
+          volleysFired: live.volleysFired,
+          volleysLeft: live.chargesLeft,
+        });
+        const { stageStars, chestsClaimed } = saveRef.current;
+        live.chestGold = applyStageClear(stageStars, chestsClaimed, live.sector, live.starsEarned).chestGold;
+      }
     } else if (live.mode === 'DAILY') {
       // Daily gold is held until the decree is won, and only the first win each day pays
       live.dailyPending += result.stats.shardsEarned;
@@ -384,13 +483,21 @@ export default function App() {
 
     const todaySeed = getTodayDateSeed();
     const clearedSector = live.sector;
+    const starsEarned = live.starsEarned;
     setSave((prev) => {
       const advance = live.mode === 'CAMPAIGN' && isVictory && prev.sector === clearedSector;
       const nextSector = advance ? clearedSector + 1 : prev.sector;
+      const clear =
+        live.mode === 'CAMPAIGN' && isVictory
+          ? applyStageClear(prev.stageStars, prev.chestsClaimed, clearedSector, starsEarned)
+          : { stageStars: prev.stageStars, chestsClaimed: prev.chestsClaimed, chestGold: 0 };
+      const banked = earned + clear.chestGold;
       return {
         ...prev,
-        shards: prev.shards + earned,
-        totalShardsEarned: prev.totalShardsEarned + earned,
+        shards: prev.shards + banked,
+        totalShardsEarned: prev.totalShardsEarned + banked,
+        stageStars: clear.stageStars,
+        chestsClaimed: clear.chestsClaimed,
         sector: nextSector,
         maxSectorReached: Math.max(prev.maxSectorReached, nextSector),
         lethalClears: isVictory ? prev.lethalClears + 1 : prev.lethalClears,
@@ -464,7 +571,7 @@ export default function App() {
       const earned = settleShot(result, outcome);
 
       if (outcome === 'VICTORY') {
-        setLastTurnStats({ ...result.stats, shardsEarned: earned, firstClearBonus: battleRef.current.firstClearBonus });
+        setLastTurnStats(clearStats(result, earned));
         setCommanderMessage(
           `Your archers got the last one. Wave cleared! +${earned} Gold`
         );
@@ -489,6 +596,9 @@ export default function App() {
       attemptCounted: false,
       runGold: 0,
       firstClearBonus: 0,
+      volleysFired: 0,
+      starsEarned: 0,
+      chestGold: 0,
       rng: Math.random,
       dailyPending: 0,
       adVolleyUsed: false,
@@ -506,6 +616,18 @@ export default function App() {
     const lesson = TUTORIAL_LESSONS[step - 1] || TUTORIAL_LESSONS[0];
     setCommanderMessage(lesson.commanderSpeech);
     trackEvent('tutorial_step_started', { step });
+  };
+
+  // Shot stats for the result banner, with the clear's bonus gold and stars
+  const clearStats = (result, earned) => {
+    const live = battleRef.current;
+    return {
+      ...result.stats,
+      shardsEarned: earned,
+      firstClearBonus: live.firstClearBonus,
+      stars: live.starsEarned,
+      chestGold: live.chestGold,
+    };
   };
 
   const startGameSession = (
@@ -543,6 +665,9 @@ export default function App() {
       attemptCounted: false,
       runGold: 0,
       firstClearBonus: 0,
+      volleysFired: 0,
+      starsEarned: 0,
+      chestGold: 0,
       // Seeding crits and lucky procs makes the Daily play out the same for everyone
       rng: isDaily ? createSeededRandom(`DAILY-RNG-${todaySeed}`) : Math.random,
       dailyPending: 0,
@@ -749,6 +874,7 @@ export default function App() {
     const isTutorial = live.mode === 'TUTORIAL';
     const isDaily = live.mode === 'DAILY';
     registerCampaignAttempt();
+    live.volleysFired += 1;
 
     // Trigger physical recoil/use animation on the weapon card in the dock
     setFiringWeaponId(selectedAbilityId);
@@ -797,7 +923,7 @@ export default function App() {
       outcome,
     });
     const earned = settleShot(result, outcome);
-    setLastTurnStats({ ...result.stats, shardsEarned: earned, firstClearBonus: battleRef.current.firstClearBonus });
+    setLastTurnStats(clearStats(result, earned));
 
     const popupId = `${Date.now()}-${Math.random()}`;
     const luckyTag =
@@ -976,6 +1102,8 @@ export default function App() {
       maxSectorReached: prev.maxSectorReached,
       lethalClears: prev.lethalClears,
       overclockCores: (prev.overclockCores || 0) + coresToGain,
+      stageStars: prev.stageStars,
+      chestsClaimed: prev.chestsClaimed,
       dailyClearedDate: prev.dailyClearedDate,
       estSessionRevenueUsd: prev.estSessionRevenueUsd,
     }));
@@ -1071,6 +1199,41 @@ export default function App() {
   // Best stage cleared this run of the campaign, the one to farm when the frontier holds
   const bestClearedSector = save.sector - 1;
   const isFrontierBoard = boardSector === save.sector;
+  // Auto: fires the best-scoring shot each beat, then starts the stage again when it ends.
+  // Handlers change every render, so the loop reads the latest ones through a ref.
+  const autoActionsRef = useRef(null);
+  autoActionsRef.current = { handleCellClick, startGameSession, selectedAbilityId, save, activeGridSize };
+  useEffect(() => {
+    if (autoSector === null) return;
+    if (screen !== 'PLAY' || gameMode !== 'CAMPAIGN') {
+      setAutoSector(null);
+      return;
+    }
+    const timer = setInterval(() => {
+      const live = battleRef.current;
+      const actions = autoActionsRef.current;
+      if (live.mode !== 'CAMPAIGN' || live.sector !== autoSector) {
+        setAutoSector(null);
+        return;
+      }
+      if (performance.now() < live.lockUntil) return;
+      if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) {
+        if (performance.now() < live.lockUntil + AUTO_RESTART_MS) return;
+        actions.startGameSession('CAMPAIGN', autoSector);
+        return;
+      }
+      const target = pickAutoTarget(live, actions);
+      if (!target) return;
+      lastPointerTypeRef.current = 'auto';
+      actions.handleCellClick(target);
+    }, AUTO_BEAT_MS);
+    return () => clearInterval(timer);
+  }, [autoSector, screen, gameMode]);
+
+  // Auto plays only stages already cleared with 3 stars, so it farms and never pushes
+  const canAutoSiege =
+    screen === 'PLAY' && !isFrontierBoard && (save.stageStars[boardSector] || 0) >= 3 && autoSector === null;
+  const isAutoSieging = autoSector !== null && autoSector === boardSector;
   const monetizationConfig = getMonetizationConfig();
 
   const getSkillNodeLevel = (nodeId) => {
@@ -1448,13 +1611,23 @@ export default function App() {
                   <Sparkles size={12} /> Ignite {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}%
                 </span>
               )}
-              {screen === 'PLAY' && gameMode === 'CAMPAIGN' && !isFrontierBoard && (
-                <span
+              {screen === 'PLAY' && gameMode === 'CAMPAIGN' && isAutoSieging ? (
+                <button
+                  type="button"
                   className="amp-pill"
-                  title="A cleared stage. Replays pay full Gold."
+                  title="Auto plays this stage until you stop it"
+                  onClick={() => setAutoSector(null)}
                 >
-                  Replay {getStageLabel(boardSector)}
-                </span>
+                  <Robot size={12} /> Auto on · Stop
+                </button>
+              ) : (
+                screen === 'PLAY' &&
+                gameMode === 'CAMPAIGN' &&
+                !isFrontierBoard && (
+                  <span className="amp-pill" title="A cleared stage. Replays pay full Gold.">
+                    Replay {getStageLabel(boardSector)}
+                  </span>
+                )
               )}
               {turnAmplifierBonus > 1 && (
                 <span className="amp-pill">
@@ -1624,6 +1797,12 @@ export default function App() {
                       ? 'Wave cleared!'
                       : `Out of shots. ${remainingAliveNodes} still standing.`}
                   </strong>
+                  {screen === 'PLAY' && gameMode === 'CAMPAIGN' && isBoardCleared && lastTurnStats?.stars > 0 && (
+                    <StarRow
+                      count={lastTurnStats.stars}
+                      label={`${lastTurnStats.stars} of 3 stars. Best: ${save.stageStars[boardSector] || 0}`}
+                    />
+                  )}
                   <p>
                     {screen === 'TUTORIAL'
                       ? isBoardCleared
@@ -1632,9 +1811,15 @@ export default function App() {
                       : isBoardCleared
                       ? gameMode === 'DAILY' && !lastTurnStats?.shardsEarned
                         ? "You already won today, so this was practice."
-                        : lastTurnStats?.firstClearBonus > 0
-                        ? `+${lastTurnStats?.shardsEarned || 0} Gold. First clear pays triple.`
-                        : `+${lastTurnStats?.shardsEarned || 0} Gold, clear bonus included`
+                        : `${
+                            lastTurnStats?.firstClearBonus > 0
+                              ? `+${lastTurnStats?.shardsEarned || 0} Gold. First clear pays triple.`
+                              : `+${lastTurnStats?.shardsEarned || 0} Gold, clear bonus included.`
+                          }${
+                            lastTurnStats?.chestGold > 0
+                              ? ` Chapter chest opened: +${lastTurnStats.chestGold} Gold.`
+                              : ''
+                          }`
                       : gameMode === 'DAILY'
                       ? 'The daily board holds. Win it once for Gold.'
                       : 'Every hit still paid. Upgrade in the Forge, then retry or farm a cleared stage.'}
@@ -1692,6 +1877,16 @@ export default function App() {
                         >
                           <ShoppingBag size={15} />
                           <span>Forge ({affordableUpgradesCount})</span>
+                        </button>
+                      )}
+                      {gameMode === 'CAMPAIGN' && canAutoSiege && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setAutoSector(boardSector)}
+                        >
+                          <Robot size={15} />
+                          <span>Auto {getStageLabel(boardSector)}</span>
                         </button>
                       )}
                       {gameMode === 'CAMPAIGN' &&
@@ -1958,6 +2153,8 @@ export default function App() {
       {showStageMap && (
         <StageMapModal
           frontierSector={save.sector}
+          stageStars={save.stageStars}
+          chestsClaimed={save.chestsClaimed}
           onPlayStage={(sector) => {
             setShowStageMap(false);
             startGameSession('CAMPAIGN', sector);

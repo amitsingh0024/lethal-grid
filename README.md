@@ -50,6 +50,8 @@ The core loop is replay and upgrade: play a stage, bank the gold, buy upgrades, 
 - **Every run pays in full**, win or lose, for every raider slain.
 - **Harder stages pay more.** Gold per kill is about a sixth of the stage's base raider HP (`getGoldPerKill` in `src/game/engine.js`), so the best farm is the newest stage you can clear.
 - **First clears pay triple.** Breaking a new stage multiplies that run's gold by `FIRST_CLEAR_GOLD_MULT` (3).
+- **Stars and chests.** A clear earns up to 3 stars: one for the clear, one for a volley to spare, one for clearing in a single volley. A chapter's stars open chests at 8 and 15 stars (`CHAPTER_CHEST_STARS`), paying gold scaled to the chapter boss. Stars and chests survive a prestige reset.
+- **Auto.** A cleared 3-star stage can be set to auto. It fires the shot that fells the most raiders, replays the stage after a short pause, and stops when the player leaves the board or taps Stop.
 - **Prices carry the pacing.** Every Forge price is multiplied by `UPGRADE_PRICE_SCALE` (4). Raise it to lengthen the game, lower it to shorten it.
 
 Pacing was tuned with a bot that plays the real engine with greedy upgrade buying. Median runs to reach each wave, 30 trials:
