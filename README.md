@@ -41,10 +41,25 @@ Chains trigger other enemies, so one hit can clear the whole board.
 - **Saboteur Ambush Traps:** more kegs, shamans and banners on every wave.
 - **Battlement Archer Garrison:** archers auto-shoot enemies every 2.2 seconds.
 
-### Winning and losing a wave
-A wave is won when every raider is down, and lost when the volleys run out first. Only a win moves you to the next wave. Archers help only while you still have volleys left.
+### Stages, winning and losing
+Waves are shown as chapter stages: waves 1 to 5 are stages 1-1 to 1-5 (a boss on 1-5), wave 6 is 2-1, and so on. A stage is won when every raider is down, and lost when the volleys run out first. Only a win on the frontier stage unlocks the next one. Archers help only while you still have volleys left. Leaving for the Royal Forge mid-stage resumes the same board.
 
-Retrying the same wave pays less gold each time: 100%, then 50%, 25%, 12.5%, and never below 10%. The count starts on the first shot (yours or an archer's), survives a page reload, and resets when the wave is won. Leaving for the Royal Forge mid-wave resumes the same board.
+### Economy
+The core loop is replay and upgrade: play a stage, bank the gold, buy upgrades, then push the next stage or farm a cleared one from the Siege Map.
+
+- **Every run pays in full**, win or lose, for every raider slain.
+- **Harder stages pay more.** Gold per kill is about a sixth of the stage's base raider HP (`getGoldPerKill` in `src/game/engine.js`), so the best farm is the newest stage you can clear.
+- **First clears pay triple.** Breaking a new stage multiplies that run's gold by `FIRST_CLEAR_GOLD_MULT` (3).
+- **Prices carry the pacing.** Every Forge price is multiplied by `UPGRADE_PRICE_SCALE` (4). Raise it to lengthen the game, lower it to shorten it.
+
+Pacing was tuned with a bot that plays the real engine with greedy upgrade buying. Median runs to reach each wave, 30 trials:
+
+| Wave (stage) | Random aim | Best aim |
+| --- | --- | --- |
+| 3 (1-3) | 3 | 2 |
+| 5 (1-5 boss) | 17 | 20 |
+| 10 (2-5 boss) | 80 | 64 |
+| 20 (4-5 boss) | 120 | 110 |
 
 ### Daily challenge
 Every day at `00:00 UTC` everyone gets the same board. The seed is the date (`YYYY-MM-DD`) fed into a deterministic Mulberry32 generator, so no server is needed. Crits and lucky procs use a seed from the same date. Gold is paid only for the first win each day, and replays are practice. Results can be shared as an emoji grid.

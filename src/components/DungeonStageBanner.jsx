@@ -13,6 +13,7 @@ import { Flag } from './PixelIcons';
  */
 export function DungeonStageBanner({
   waveNumber = 1,
+  stageTitle = '',
   remainingEnemies = 5,
   totalEnemies = 9,
   isAttacking = false,
@@ -29,7 +30,7 @@ export function DungeonStageBanner({
           <span className="torch-bracket" />
         </div>
         <div className="dungeon-arch-title">
-          <span>Wave {waveNumber}</span>
+          <span>{stageTitle || `Wave ${waveNumber}`}</span>
         </div>
         <div className="wall-torch">
           <span className="torch-flame" />

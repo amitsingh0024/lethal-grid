@@ -269,9 +269,9 @@ export function getTodayDateSeed() {
 
 export function getUpgradeCost(upgradeDef, currentLevel) {
   if (upgradeDef.customCosts && upgradeDef.customCosts[currentLevel] !== undefined) {
-    return upgradeDef.customCosts[currentLevel];
+    return upgradeDef.customCosts[currentLevel] * UPGRADE_PRICE_SCALE;
   }
-  return Math.floor(upgradeDef.baseCost * Math.pow(upgradeDef.costScale, currentLevel));
+  return Math.floor(upgradeDef.baseCost * Math.pow(upgradeDef.costScale, currentLevel)) * UPGRADE_PRICE_SCALE;
 }
 
 export function getUpgradeRequiredSector(upgradeDef, currentLevel) {
@@ -281,16 +281,43 @@ export function getUpgradeRequiredSector(upgradeDef, currentLevel) {
   return 1;
 }
 
-// Replaying the same wave pays less each time so early waves can't be farmed:
-// attempt 1 = 100%, then 50%, 25%, 12.5%, and never below 10%.
-export function getRetryGoldMultiplier(attempt) {
-  if (!Number.isFinite(attempt) || attempt <= 1) return 1;
-  return Math.max(0.1, Math.pow(0.5, attempt - 1));
+// Every run pays in full, win or lose. Farming is held back by upgrade costs outgrowing income,
+// and pushing forward pays best: kill gold tracks enemy HP and a stage's first clear pays triple.
+// Pacing was tuned with a bot playing the real engine (see README, "Economy").
+export const FIRST_CLEAR_GOLD_MULT = 3;
+// One knob for every Forge price, so the cost curve can be retuned without touching each upgrade
+export const UPGRADE_PRICE_SCALE = 4;
+export const STAGES_PER_CHAPTER = 5;
+
+// Waves are shown as chapter stages: waves 1-5 are 1-1 to 1-5 (boss on 1-5), wave 6 is 2-1
+export function getStageLabel(sector) {
+  const s = Math.max(1, Math.floor(sector));
+  const chapter = Math.ceil(s / STAGES_PER_CHAPTER);
+  const stage = ((s - 1) % STAGES_PER_CHAPTER) + 1;
+  return `${chapter}-${stage}`;
+}
+
+const DAILY_BASE_HP = 6;
+
+// Base raider HP for a wave; individual raiders roll around this value
+export function getWaveBaseHp(sector, isDaily = false) {
+  if (isDaily) return DAILY_BASE_HP;
+  return Math.max(3, Math.floor(2 + (sector - 1) * 2.1 + Math.pow(sector, 1.38) * 0.65));
+}
+
+// Gold for each raider slain: about a sixth of the wave's base HP, so harder stages pay more.
+// The Daily is priced as wave 5 (stage 1-5), the sector it is played at.
+export function getGoldPerKill(sector) {
+  return Math.max(1, Math.round(getWaveBaseHp(sector) / 6));
+}
+
+export function getWeaponUnlockCost(ability) {
+  return ability.unlockCost * UPGRADE_PRICE_SCALE;
 }
 
 export function getAbilityUpgradeCost(abilityIndex, currentLevel) {
   const base = 25 + abilityIndex * 35;
-  return Math.floor(base * Math.pow(1.72, currentLevel - 1));
+  return Math.floor(base * Math.pow(1.72, currentLevel - 1)) * UPGRADE_PRICE_SCALE;
 }
 
 export const TUTORIAL_LESSONS = [
@@ -389,12 +416,7 @@ export function generateBoard({
 
   // Steep enemy HP scaling on higher waves so flat attack alone struggles,
   // making Chain Synergies, % Max-HP Shred, and Lucky Fuse Ignitions thrilling!
-  const baseHp = isDaily
-    ? 6
-    : Math.max(
-        3,
-        Math.floor(2 + (sector - 1) * 2.1 + Math.pow(sector, 1.38) * 0.65)
-      );
+  const baseHp = getWaveBaseHp(sector, isDaily);
 
   const specialChanceBonus = volatileBonusLevel * 0.025;
 
@@ -850,8 +872,7 @@ export function executeAbilityAndResolveChains({
     }
   }
 
-  // REBALANCED GRIND ECONOMY: Controlled Gold Drops so upgrades require genuine progression!
-  const baseGoldPerKill = 1 + Math.floor((sector - 1) * 0.35);
+  const baseGoldPerKill = getGoldPerKill(sector);
   const cappedChainBonus = 1 + Math.min(0.8, chainDepth * 0.08);
   const taxCharterMult = 1 + shardMultLevel * 0.2;
   const clearBonusMult = isBoardClear ? 1.25 : 1.0;

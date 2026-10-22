@@ -29,6 +29,7 @@ import {
   Tv,
   Settings,
   GoldCoin,
+  Castle,
 } from './components/PixelIcons';
 import {
   NODE_TYPES,
@@ -43,7 +44,9 @@ import {
   getUpgradeCost,
   getUpgradeRequiredSector,
   getAbilityUpgradeCost,
-  getRetryGoldMultiplier,
+  getWeaponUnlockCost,
+  FIRST_CLEAR_GOLD_MULT,
+  getStageLabel,
   getTodayDateSeed,
   createSeededRandom,
 } from './game/engine';
@@ -55,6 +58,7 @@ import {
   SHOW_DEV_TOOLS,
 } from './services/analytics';
 import { playSfx } from './services/sfx';
+import { StageMapModal } from './components/StageMapModal';
 import { shake, squash, popIn } from './services/juice';
 import { RewardedAdModal } from './components/AdUnit';
 import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
@@ -116,7 +120,7 @@ const DEFAULT_SAVE = {
     overclock_pulse: 0,
   },
   dailyClearedDate: null,
-  // Attempts made on the current campaign wave; each retry pays less gold
+  // Attempts at the frontier wave, reported to analytics when it is first cleared
   waveAttempts: { sector: 0, count: 0 },
   estSessionRevenueUsd: 0.004,
 };
@@ -182,12 +186,6 @@ function backupCorruptSave(raw) {
   }
 }
 
-// Gold multiplier the next attempt at this wave will earn
-function getNextAttemptGoldMult(waveAttempts, sector) {
-  const attempt = waveAttempts && waveAttempts.sector === sector ? waveAttempts.count + 1 : 1;
-  return getRetryGoldMultiplier(attempt);
-}
-
 export default function App() {
   const [save, setSave] = useState(() => {
     let raw = null;
@@ -247,7 +245,6 @@ export default function App() {
 
   // 'IN_PROGRESS' until the board is cleared (VICTORY) or the volleys run out (DEFEAT)
   const [waveOutcome, setWaveOutcome] = useState('IN_PROGRESS');
-  const [boardGoldMult, setBoardGoldMult] = useState(1);
   const [adVolleyUsed, setAdVolleyUsed] = useState(false);
 
   // Live battle state read and written synchronously, so clicks landing in the same frame
@@ -262,7 +259,8 @@ export default function App() {
       mode: 'CAMPAIGN',
       sector: save.sector,
       attemptCounted: false,
-      goldMult: 1,
+      runGold: 0,
+      firstClearBonus: 0,
       rng: Math.random,
       dailyPending: 0,
       adVolleyUsed: false,
@@ -276,7 +274,6 @@ export default function App() {
     if ('chargesLeft' in patch) setChargesLeft(patch.chargesLeft);
     if ('outcome' in patch) setWaveOutcome(patch.outcome);
     if ('amp' in patch) setTurnAmplifierBonus(patch.amp);
-    if ('goldMult' in patch) setBoardGoldMult(patch.goldMult);
     if ('adVolleyUsed' in patch) setAdVolleyUsed(patch.adVolleyUsed);
   };
 
@@ -293,6 +290,7 @@ export default function App() {
   const [showRevenueDashboard, setShowRevenueDashboard] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showBestiaryModal, setShowBestiaryModal] = useState(false);
+  const [showStageMap, setShowStageMap] = useState(false);
   const [showGuideDrawer, setShowGuideDrawer] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [telemetryFeed, setTelemetryFeed] = useState([]);
@@ -345,32 +343,35 @@ export default function App() {
   const archerContextRef = useRef({});
   archerContextRef.current = { screen, adBoostSeconds, activeGridSize };
 
-  // The first shot (player or archer) on a campaign board commits an attempt at that wave
+  // The first shot (player or archer) on a campaign board commits an attempt at that wave.
+  // Only attempts at the frontier wave are counted; replays of cleared stages are farming.
   const registerCampaignAttempt = () => {
     const live = battleRef.current;
-    if (live.mode !== 'CAMPAIGN') return 1;
-    if (live.attemptCounted) return live.goldMult;
+    if (live.mode !== 'CAMPAIGN' || live.attemptCounted) return;
+    live.attemptCounted = true;
+    if (live.sector !== saveRef.current.sector) return;
 
     const prevAttempts = saveRef.current.waveAttempts;
     const attempt = prevAttempts && prevAttempts.sector === live.sector ? prevAttempts.count + 1 : 1;
-    const goldMult = getRetryGoldMultiplier(attempt);
-    live.attemptCounted = true;
-    syncBattle({ goldMult });
-
     const waveAttempts = { sector: live.sector, count: attempt };
     saveRef.current = { ...saveRef.current, waveAttempts };
     setSave((prev) => ({ ...prev, waveAttempts }));
-    return goldMult;
   };
 
-  // Banks the gold for a resolved shot and advances the wave exactly once on VICTORY
-  const settleShot = (result, outcome, goldMult) => {
+  // Banks the gold for a resolved shot and advances the wave exactly once on VICTORY.
+  // Every campaign run pays in full; the first clear of the frontier wave pays triple.
+  const settleShot = (result, outcome) => {
     const live = battleRef.current;
     const isVictory = outcome === 'VICTORY';
     let earned = 0;
 
     if (live.mode === 'CAMPAIGN') {
-      earned = Math.floor(result.stats.shardsEarned * goldMult);
+      earned = Math.floor(result.stats.shardsEarned);
+      live.runGold += earned;
+      if (isVictory && live.sector === saveRef.current.sector) {
+        live.firstClearBonus = live.runGold * (FIRST_CLEAR_GOLD_MULT - 1);
+        earned += live.firstClearBonus;
+      }
     } else if (live.mode === 'DAILY') {
       // Daily gold is held until the decree is won, and only the first win each day pays
       live.dailyPending += result.stats.shardsEarned;
@@ -399,9 +400,12 @@ export default function App() {
     });
 
     if (isVictory) {
+      const attempts = saveRef.current.waveAttempts;
       trackEvent('lethal_board_clear', {
         mode: live.mode,
         sector: clearedSector,
+        first_clear: live.firstClearBonus > 0,
+        attempts: attempts && attempts.sector === clearedSector ? attempts.count : 0,
         grid_size: `${archerContextRef.current.activeGridSize}x${archerContextRef.current.activeGridSize}`,
         chain_depth: result.stats.chainDepth,
       });
@@ -427,7 +431,7 @@ export default function App() {
       const aliveCells = live.board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
       if (aliveCells.length === 0) return;
 
-      const goldMult = registerCampaignAttempt();
+      registerCampaignAttempt();
       const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
       const prestigeMult = 1 + (currentSave.overclockCores || 0) * 0.5;
       const adMult = (boostLeft > 0 ? 2 : 1) * prestigeMult;
@@ -457,10 +461,10 @@ export default function App() {
       // Archers land between player shots; keep any reveal in progress pointed at the new board
       setReveal((r) => (r && r.board === shotFrom ? { ...r, board: result.nextCells } : r));
       syncBattle({ board: result.nextCells, amp: result.nextTurnAmplifierBonus, outcome });
-      const earned = settleShot(result, outcome, goldMult);
+      const earned = settleShot(result, outcome);
 
       if (outcome === 'VICTORY') {
-        setLastTurnStats({ ...result.stats, shardsEarned: earned });
+        setLastTurnStats({ ...result.stats, shardsEarned: earned, firstClearBonus: battleRef.current.firstClearBonus });
         setCommanderMessage(
           `Your archers got the last one. Wave cleared! +${earned} Gold`
         );
@@ -483,7 +487,8 @@ export default function App() {
       mode: 'TUTORIAL',
       sector: 2,
       attemptCounted: false,
-      goldMult: 1,
+      runGold: 0,
+      firstClearBonus: 0,
       rng: Math.random,
       dailyPending: 0,
       adVolleyUsed: false,
@@ -494,7 +499,6 @@ export default function App() {
       chargesLeft: 1,
       outcome: 'IN_PROGRESS',
       amp: 1,
-      goldMult: 1,
       adVolleyUsed: false,
     });
     setArmedCellId(null);
@@ -529,7 +533,6 @@ export default function App() {
       isDaily,
     });
 
-    const goldMult = isDaily ? 1 : getNextAttemptGoldMult(save.waveAttempts, targetSector);
     battleRef.current = {
       board: nextCells,
       chargesLeft: maxChg,
@@ -538,7 +541,8 @@ export default function App() {
       mode: targetMode,
       sector: boardSectorValue,
       attemptCounted: false,
-      goldMult,
+      runGold: 0,
+      firstClearBonus: 0,
       // Seeding crits and lucky procs makes the Daily play out the same for everyone
       rng: isDaily ? createSeededRandom(`DAILY-RNG-${todaySeed}`) : Math.random,
       dailyPending: 0,
@@ -550,7 +554,6 @@ export default function App() {
       chargesLeft: maxChg,
       outcome: 'IN_PROGRESS',
       amp: 1,
-      goldMult,
       adVolleyUsed: false,
     });
     setArmedCellId(null);
@@ -562,9 +565,9 @@ export default function App() {
         ? dailyAlreadyWon
           ? `Daily Siege #${todaySeed}. You already won today, so this run is practice.`
           : `Daily Siege #${todaySeed}. Everyone gets this board today. Win it once for Gold.`
-        : goldMult < 1
-        ? `Wave ${targetSector}, again. This try pays ${Math.round(goldMult * 100)}% Gold.`
-        : `Wave ${targetSector}. Hit the kegs and shamans first.`
+        : targetSector < save.sector
+        ? `Stage ${getStageLabel(targetSector)}, replay. Every raider you take down pays Gold.`
+        : `Stage ${getStageLabel(targetSector)}. Hit the kegs and shamans first.`
     );
   };
 
@@ -575,7 +578,7 @@ export default function App() {
       live.mode === 'CAMPAIGN' &&
       live.outcome === 'IN_PROGRESS' &&
       live.attemptCounted &&
-      live.sector === save.sector &&
+      live.sector <= save.sector &&
       live.board.length === campaignGridSize * campaignGridSize;
     if (canResume) {
       setScreen('PLAY');
@@ -745,7 +748,7 @@ export default function App() {
 
     const isTutorial = live.mode === 'TUTORIAL';
     const isDaily = live.mode === 'DAILY';
-    const goldMult = registerCampaignAttempt();
+    registerCampaignAttempt();
 
     // Trigger physical recoil/use animation on the weapon card in the dock
     setFiringWeaponId(selectedAbilityId);
@@ -793,8 +796,8 @@ export default function App() {
       amp: result.nextTurnAmplifierBonus,
       outcome,
     });
-    const earned = settleShot(result, outcome, goldMult);
-    setLastTurnStats({ ...result.stats, shardsEarned: earned });
+    const earned = settleShot(result, outcome);
+    setLastTurnStats({ ...result.stats, shardsEarned: earned, firstClearBonus: battleRef.current.firstClearBonus });
 
     const popupId = `${Date.now()}-${Math.random()}`;
     const luckyTag =
@@ -877,11 +880,13 @@ export default function App() {
     }
 
     const latestLuckyEvent = result.events?.find((e) => e.type === 'LUCKY_PROC');
-    const nextRetryPct = Math.round(
-      getNextAttemptGoldMult(saveRef.current.waveAttempts, live.sector) * 100
-    );
     if (result.stats.isBoardClear) {
-      const goldText = isDaily && earned === 0 ? 'Practice run, no Gold.' : `+${earned} Gold`;
+      const goldText =
+        isDaily && earned === 0
+          ? 'Practice run, no Gold.'
+          : live.firstClearBonus > 0
+          ? `+${earned} Gold, first clear pays triple`
+          : `+${earned} Gold`;
       announce(
         latestLuckyEvent
           ? `${latestLuckyEvent.text} Wave cleared! ${goldText}`
@@ -901,7 +906,7 @@ export default function App() {
       );
     } else {
       announce(
-        `Out of shots. +${earned} Gold. Upgrade in the Forge, then try again (${nextRetryPct}% Gold).`
+        `Out of shots. +${earned} Gold. Upgrade in the Forge, then try again or farm a cleared stage.`
       );
     }
   };
@@ -938,7 +943,7 @@ export default function App() {
     const currentLvl = save.abilityLevels[abilityId] ?? (idx === 0 ? 1 : 0);
     if (currentLvl === 0 && save.maxSectorReached < (ab.minSector || 1)) return;
     const cost =
-      currentLvl === 0 ? ab.unlockCost : getAbilityUpgradeCost(idx, currentLvl);
+      currentLvl === 0 ? getWeaponUnlockCost(ab) : getAbilityUpgradeCost(idx, currentLvl);
     if (save.shards < cost) return;
 
     playSfx('upgrade', muted);
@@ -966,7 +971,7 @@ export default function App() {
     setSave((prev) => ({
       ...DEFAULT_SAVE,
       tutorialCompleted: true,
-      shards: 25,
+      shards: 100,
       totalShardsEarned: prev.totalShardsEarned,
       maxSectorReached: prev.maxSectorReached,
       lethalClears: prev.lethalClears,
@@ -997,7 +1002,7 @@ export default function App() {
 
     const shareText = [
       `🏰 Lethal Grid (${
-        gameMode === 'DAILY' ? `Daily Siege #${todaySeed}` : `Wave ${boardSector}`
+        gameMode === 'DAILY' ? `Daily Siege #${todaySeed}` : `Stage ${getStageLabel(boardSector)}`
       })`,
       `Board ${activeGridSize}×${activeGridSize} | Waves cleared: ${save.lethalClears}`,
       ...emojiRows,
@@ -1063,7 +1068,9 @@ export default function App() {
   ).length;
   const isBoardCleared = remainingAliveNodes === 0;
   const isWaveLive = waveOutcome === 'IN_PROGRESS' && chargesLeft > 0;
-  const nextRetryGoldPct = Math.round(getNextAttemptGoldMult(save.waveAttempts, boardSector) * 100);
+  // Best stage cleared this run of the campaign, the one to farm when the frontier holds
+  const bestClearedSector = save.sector - 1;
+  const isFrontierBoard = boardSector === save.sector;
   const monetizationConfig = getMonetizationConfig();
 
   const getSkillNodeLevel = (nodeId) => {
@@ -1098,7 +1105,7 @@ export default function App() {
       const lvl = save.abilityLevels[ab.id] ?? (node.abilityIndex === 0 ? 1 : 0);
       if (lvl >= 15) return false;
       if (lvl === 0) {
-        return save.maxSectorReached >= (ab.minSector || 1) && save.shards >= ab.unlockCost;
+        return save.maxSectorReached >= (ab.minSector || 1) && save.shards >= getWeaponUnlockCost(ab);
       }
       return save.shards >= getAbilityUpgradeCost(node.abilityIndex, lvl);
     }
@@ -1239,7 +1246,7 @@ export default function App() {
               <div className="title-status-chip" title="Your Kingdom Save Progress">
                 <span><GoldCoin size={16} /> {save.shards.toLocaleString()}</span>
                 <span className="chip-sep">•</span>
-                <span>Wave {save.sector}</span>
+                <span>Stage {getStageLabel(save.sector)}</span>
               </div>
             </div>
 
@@ -1329,7 +1336,19 @@ export default function App() {
                 >
                   <Sword size={18} className="menu-sword-cursor" />
                   <span className="menu-btn-label">Continue</span>
-                  <span className="menu-btn-tag gold">Wave {save.sector}</span>
+                  <span className="menu-btn-tag gold">Stage {getStageLabel(save.sector)}</span>
+                </button>
+              )}
+
+              {save.tutorialCompleted && save.sector > 1 && (
+                <button
+                  type="button"
+                  className="indie-menu-btn"
+                  onClick={() => setShowStageMap(true)}
+                >
+                  <Castle size={18} className="menu-sword-cursor" />
+                  <span className="menu-btn-label">Map</span>
+                  <span className="menu-btn-tag">Replay stages</span>
                 </button>
               )}
 
@@ -1365,7 +1384,7 @@ export default function App() {
                 >
                   <Sword size={18} className="menu-sword-cursor" />
                   <span className="menu-btn-label">Skip Tutorial</span>
-                  <span className="menu-btn-tag">Wave {save.sector}</span>
+                  <span className="menu-btn-tag">Stage {getStageLabel(save.sector)}</span>
                 </button>
               ) : (
                 <button
@@ -1391,6 +1410,13 @@ export default function App() {
           {/* BACKPACK HERO / PEGLIN STYLE TOP DUNGEON STAGE SCENE */}
           <DungeonStageBanner
             waveNumber={screen === 'TUTORIAL' ? tutorialStep : boardSector}
+            stageTitle={
+              screen === 'TUTORIAL'
+                ? `Trial ${tutorialStep}`
+                : gameMode === 'DAILY'
+                ? 'Daily Siege'
+                : `Stage ${getStageLabel(boardSector)}`
+            }
             remainingEnemies={remainingAliveNodes}
             totalEnemies={board.filter((c) => c.type !== NODE_TYPES.EMPTY).length}
             isAttacking={Boolean(firingWeaponId)}
@@ -1422,12 +1448,12 @@ export default function App() {
                   <Sparkles size={12} /> Ignite {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}%
                 </span>
               )}
-              {screen === 'PLAY' && gameMode === 'CAMPAIGN' && boardGoldMult < 1 && (
+              {screen === 'PLAY' && gameMode === 'CAMPAIGN' && !isFrontierBoard && (
                 <span
                   className="amp-pill"
-                  title="Each retry of the same wave pays less Gold. Clear the wave to reset it."
+                  title="A cleared stage. Replays pay full Gold."
                 >
-                  Retry: {Math.round(boardGoldMult * 100)}% Gold
+                  Replay {getStageLabel(boardSector)}
                 </span>
               )}
               {turnAmplifierBonus > 1 && (
@@ -1458,7 +1484,7 @@ export default function App() {
                 onClick={() =>
                   screen === 'TUTORIAL'
                     ? startTutorial(tutorialStep)
-                    : startGameSession(gameMode, save.sector)
+                    : startGameSession(gameMode, boardSector)
                 }
               >
                 <RotateCcw size={14} />
@@ -1606,10 +1632,12 @@ export default function App() {
                       : isBoardCleared
                       ? gameMode === 'DAILY' && !lastTurnStats?.shardsEarned
                         ? "You already won today, so this was practice."
+                        : lastTurnStats?.firstClearBonus > 0
+                        ? `+${lastTurnStats?.shardsEarned || 0} Gold. First clear pays triple.`
                         : `+${lastTurnStats?.shardsEarned || 0} Gold, clear bonus included`
                       : gameMode === 'DAILY'
                       ? 'The daily board holds. Win it once for Gold.'
-                      : `Upgrade in the Forge, then try again. A retry pays ${nextRetryGoldPct}% Gold.`}
+                      : 'Every hit still paid. Upgrade in the Forge, then retry or farm a cleared stage.'}
                   </p>
                 </div>
 
@@ -1632,7 +1660,7 @@ export default function App() {
                           onClick={() => startGameSession('CAMPAIGN', save.sector)}
                         >
                           <Play size={16} />
-                          <span>Start Wave {save.sector}</span>
+                          <span>Start Stage {getStageLabel(save.sector)}</span>
                         </button>
                       )
                     ) : (
@@ -1666,10 +1694,38 @@ export default function App() {
                           <span>Forge ({affordableUpgradesCount})</span>
                         </button>
                       )}
+                      {gameMode === 'CAMPAIGN' &&
+                        (isBoardCleared ? (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={() => startGameSession('CAMPAIGN', boardSector)}
+                          >
+                            <RotateCcw size={15} />
+                            <span>Replay {getStageLabel(boardSector)}</span>
+                          </button>
+                        ) : (
+                          bestClearedSector >= 1 &&
+                          bestClearedSector !== boardSector && (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => startGameSession('CAMPAIGN', bestClearedSector)}
+                            >
+                              <RotateCcw size={15} />
+                              <span>Farm {getStageLabel(bestClearedSector)}</span>
+                            </button>
+                          )
+                        ))}
                       <button
                         type="button"
                         className="btn-primary"
-                        onClick={() => startGameSession(gameMode, save.sector)}
+                        onClick={() =>
+                          startGameSession(
+                            gameMode,
+                            gameMode === 'CAMPAIGN' && isBoardCleared ? save.sector : boardSector
+                          )
+                        }
                       >
                         <FastForward size={16} />
                         <span>
@@ -1678,8 +1734,8 @@ export default function App() {
                               ? 'Play again (practice)'
                               : 'Retry'
                             : isBoardCleared
-                            ? `Next: Wave ${save.sector}`
-                            : `Retry (${nextRetryGoldPct}% Gold)`}
+                            ? `Next: Stage ${getStageLabel(save.sector)}`
+                            : `Retry ${getStageLabel(boardSector)}`}
                         </span>
                       </button>
                     </>
@@ -1736,7 +1792,7 @@ export default function App() {
                         <span className="weapon-dmg-badge">{stats.damage} dmg</span>
                       ) : (
                         <span className="weapon-dmg-badge">
-                          Wave {ab.minSector} · {ab.unlockCost} <GoldCoin size={12} />
+                          Stage {getStageLabel(ab.minSector)} · {getWeaponUnlockCost(ab)} <GoldCoin size={12} />
                         </span>
                       )}
                     </div>
@@ -1898,6 +1954,17 @@ export default function App() {
         rewardTitle={rewardedModalConfig.rewardTitle}
         onRewardClaimed={rewardedModalConfig.onClaim}
       />
+
+      {showStageMap && (
+        <StageMapModal
+          frontierSector={save.sector}
+          onPlayStage={(sector) => {
+            setShowStageMap(false);
+            startGameSession('CAMPAIGN', sector);
+          }}
+          onClose={() => setShowStageMap(false)}
+        />
+      )}
 
       {showBestiaryModal && (
         <div

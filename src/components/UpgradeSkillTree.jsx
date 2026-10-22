@@ -26,6 +26,8 @@ import {
   getUpgradeCost,
   getUpgradeRequiredSector,
   getAbilityUpgradeCost,
+  getWeaponUnlockCost,
+  getStageLabel,
 } from '../game/engine';
 import { WeaponPixelIcon } from './CreatureSprite';
 
@@ -299,7 +301,7 @@ export function UpgradeSkillTree({
       const sectorLocked = !isUnlocked && save.maxSectorReached < reqSector;
       const cost = isUnlocked
         ? getAbilityUpgradeCost(node.abilityIndex, currentLvl)
-        : ab.unlockCost;
+        : getWeaponUnlockCost(ab);
       const stats = ab.getStats(Math.max(1, currentLvl));
       const nextStats = !isMax ? ab.getStats(currentLvl + 1) : null;
       const canAfford =
@@ -327,7 +329,7 @@ export function UpgradeSkillTree({
         actionLabel: !isParentMet
           ? `Needs ${parentName} Lv ${node.parentReqLevel}`
           : sectorLocked
-          ? `Reach Wave ${reqSector}`
+          ? `Reach Stage ${getStageLabel(reqSector)}`
           : isMax
           ? 'Max level'
           : isUnlocked
@@ -373,7 +375,7 @@ export function UpgradeSkillTree({
           : isMax
           ? 'Max level'
           : sectorLocked
-          ? `Reach Wave ${reqSector}`
+          ? `Reach Stage ${getStageLabel(reqSector)}`
           : `Upgrade · ${cost.toLocaleString()} Gold`,
       };
     }
@@ -399,7 +401,7 @@ export function UpgradeSkillTree({
       actionLabel: !isParentMet
         ? `Needs ${parentName} Lv ${node.parentReqLevel}`
         : save.sector < 10
-        ? `Reach Wave 10 (now Wave ${save.sector})`
+        ? `Reach Stage ${getStageLabel(10)} (now Stage ${getStageLabel(save.sector)})`
         : `Ascend · +${coresToGain} ${coresToGain === 1 ? 'Crest' : 'Crests'}`,
     };
   };
@@ -441,11 +443,11 @@ export function UpgradeSkillTree({
           <div className="tree-treasury-pill">
             <span><GoldCoin size={16} /> {save.shards.toLocaleString()}</span>
             <span className="chip-sep">·</span>
-            <span>Best: Wave {save.maxSectorReached}</span>
+            <span>Best: Stage {getStageLabel(save.maxSectorReached)}</span>
           </div>
           <button type="button" className="btn-primary" onClick={onReturnToBattle}>
             <Sword size={18} />
-            <span>Play Wave {save.sector}</span>
+            <span>Play Stage {getStageLabel(save.sector)}</span>
           </button>
         </div>
       </div>
@@ -629,7 +631,7 @@ export function UpgradeSkillTree({
                     }`}
                   >
                     {details.sectorLocked
-                      ? `Wave ${details.reqSector}`
+                      ? `Stage ${getStageLabel(details.reqSector)}`
                       : <>{details.cost.toLocaleString()} <GoldCoin size={12} /></>}
                   </span>
                 )}
@@ -709,8 +711,8 @@ export function UpgradeSkillTree({
                     >
                       <span>{!hoveredDetails.sectorLocked ? <Check size={12} /> : <Lock size={12} />}</span>
                       <span>
-                        Reach Wave {hoveredDetails.reqSector} (best: Wave{' '}
-                        {save.maxSectorReached})
+                        Reach Stage {getStageLabel(hoveredDetails.reqSector)} (best: Stage{' '}
+                        {getStageLabel(save.maxSectorReached)})
                       </span>
                     </div>
                   )}
@@ -745,7 +747,7 @@ export function UpgradeSkillTree({
                     : !hoveredDetails.isParentMet
                     ? 'Locked'
                     : hoveredDetails.sectorLocked
-                    ? `Reach Wave ${hoveredDetails.reqSector}`
+                    ? `Reach Stage ${getStageLabel(hoveredDetails.reqSector)}`
                     : `Need ${(hoveredDetails.cost - save.shards).toLocaleString()} more Gold`}
                 </span>
               </div>
@@ -787,7 +789,7 @@ export function UpgradeSkillTree({
             )}
             {selectedDetails.isParentMet && selectedDetails.sectorLocked && (
               <p className="inspector-req-warning">
-                <Lock size={12} /> Reach <strong>Wave {selectedDetails.reqSector}</strong> first.
+                <Lock size={12} /> Reach <strong>Stage {getStageLabel(selectedDetails.reqSector)}</strong> first.
               </p>
             )}
           </div>
