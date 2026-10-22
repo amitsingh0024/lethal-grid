@@ -17,35 +17,95 @@ import React, { useEffect, useRef } from 'react';
  *    Carves two sweeping, gleaming steel sword arcs in an X-pattern across the diagonals with iron sparks.
  * 5. Chain Explosions (Powder-Keg Barrel Blast & Storm-Rune Bolts):
  *    Spawns expanding shockwaves, flying wooden barrel staves, fireballs, and runic lightning bolts!
+ * 6. Hit feedback: a white flash and a popping damage number on every tile hit, debris on kills,
+ *    a board flash on clears, and HITSTOP items that freeze the whole layer for a few frames.
+ *
+ * Effects are drawn in a fixed 520x520 space scaled to the device's pixel density, and run on
+ * their own clock so they play at the same speed on 60Hz and 120Hz screens and pause for hit-stop.
  */
-export function BattleVFXCanvas({ vfxQueue, gridSize }) {
+const LOGICAL_SIZE = 520;
+const MAX_PIXEL_RATIO = 2;
+// Longest frame step the clock takes, so a stalled or backgrounded tab doesn't skip effects
+const MAX_FRAME_STEP_MS = 100;
+const FRAME_MS = 1000 / 60;
+
+const KILL_DEBRIS = ['#65a30d', '#365314', '#141013', '#b45309', '#fbbf24'];
+
+export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
   const canvasRef = useRef(null);
   const activeAnimsRef = useRef([]);
   const particlesRef = useRef([]);
   const processedIdsRef = useRef(new Set());
+  // Effect clock: advances with real time except while a hit-stop is holding it
+  const clockRef = useRef({ now: 0, last: null, frozenUntil: 0 });
+  // Tile centers in canvas space, measured from the real grid when effects start
+  const layoutRef = useRef(null);
   // Starts the draw loop; the loop stops itself once nothing is left to draw
   const wakeLoopRef = useRef(() => {});
+
+  const measureLayout = () => {
+    const canvas = canvasRef.current;
+    const grid = gridRef?.current;
+    if (!canvas || !grid) return;
+    const box = canvas.getBoundingClientRect();
+    if (!box.width) return;
+    const k = LOGICAL_SIZE / box.width;
+    layoutRef.current = Array.from(grid.children, (tile) => {
+      const r = tile.getBoundingClientRect();
+      return {
+        x: (r.left + r.width / 2 - box.left) * k,
+        y: (r.top + r.height / 2 - box.top) * k,
+        cellW: r.width * k,
+        cellH: r.height * k,
+      };
+    });
+  };
 
   // Enqueue new weapon & chain-reaction animations
   useEffect(() => {
     if (!vfxQueue || vfxQueue.length === 0) return;
 
+    const clock = clockRef.current;
+    let added = false;
     vfxQueue.forEach((item) => {
       if (processedIdsRef.current.has(item.id)) return;
       processedIdsRef.current.add(item.id);
+      added = true;
       activeAnimsRef.current.push({
         ...item,
-        startTime: performance.now() + (item.delayMs || 0),
+        startTime: clock.now + (item.delayMs || 0),
       });
     });
+    if (!added) return;
+    measureLayout();
     wakeLoopRef.current();
   }, [vfxQueue]);
+
+  // Match the canvas's pixel buffer to its on-screen size so effects stay sharp on phones
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(([entry]) => {
+      const cssW = entry.contentRect.width;
+      if (!cssW) return;
+      const ratio = Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1);
+      const px = Math.round(cssW * ratio);
+      if (canvas.width !== px) {
+        canvas.width = px;
+        canvas.height = px;
+      }
+      layoutRef.current = null;
+    });
+    observer.observe(canvas);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     let rafId = null;
+    layoutRef.current = null;
 
     const spawnBurstParticles = (x, y, colorPalette, count = 24, speedScale = 1) => {
       for (let i = 0; i < count; i++) {
@@ -69,6 +129,8 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
     };
 
     const getCellCenter = (row, col, width, height) => {
+      const measured = layoutRef.current?.[row * gridSize + col];
+      if (measured) return measured;
       const pad = 12;
       const usableW = width - pad * 2;
       const usableH = height - pad * 2;
@@ -82,10 +144,28 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
       };
     };
 
-    const renderLoop = (now) => {
-      const width = canvas.width;
-      const height = canvas.height;
-      ctx.clearRect(0, 0, width, height);
+    const renderLoop = (frameTime) => {
+      const clock = clockRef.current;
+      const step = clock.last === null ? FRAME_MS : Math.min(MAX_FRAME_STEP_MS, frameTime - clock.last);
+      clock.last = frameTime;
+
+      // Hit-stop: hold the last frame as it is while the freeze lasts
+      if (frameTime < clock.frozenUntil) {
+        rafId = requestAnimationFrame(renderLoop);
+        return;
+      }
+      clock.now += step;
+      const now = clock.now;
+      const dt = step / FRAME_MS;
+
+      const width = LOGICAL_SIZE;
+      const height = LOGICAL_SIZE;
+      const scale = canvas.width / LOGICAL_SIZE;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      if (!layoutRef.current) measureLayout();
+      let freezeMs = 0;
 
       // 1. Render Active Weapon Trajectories & Chain Bursts
       const remainingAnims = [];
@@ -99,10 +179,16 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
         const duration = anim.duration || 480;
         const progress = Math.min(1, elapsed / duration);
 
+        if (anim.type === 'HITSTOP') {
+          freezeMs = Math.max(freezeMs, anim.duration);
+          continue;
+        }
+
         const targetPos = getCellCenter(anim.row, anim.col, width, height);
+        const impactMs = anim.impactMs ?? duration * (anim.impactAt ?? 0.55);
 
         // Trigger impact particles when trajectory finishes (or immediately for explosions)
-        if (!anim.hasSpawnedImpact && progress >= (anim.impactAt || 0.55)) {
+        if (!anim.hasSpawnedImpact && elapsed >= impactMs) {
           anim.hasSpawnedImpact = true;
           if (anim.type === 'nova_bomb' || anim.type === 'BARREL_EXPLOSION') {
             spawnBurstParticles(
@@ -136,7 +222,22 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
               26,
               1.2
             );
+          } else if (anim.type === 'HIT' && anim.killed) {
+            spawnBurstParticles(targetPos.x, targetPos.y, KILL_DEBRIS, 10, 0.75);
           }
+        }
+
+        // --- HIT FEEDBACK: white flash over the tile + popping damage number ---
+        if (anim.type === 'HIT') {
+          drawHit(ctx, anim, elapsed, targetPos);
+        }
+
+        // --- BOARD CLEAR: one bright flash over the whole courtyard ---
+        else if (anim.type === 'FLASH') {
+          ctx.save();
+          ctx.fillStyle = `rgba(255, 244, 214, ${0.55 * (1 - progress) ** 2})`;
+          ctx.fillRect(0, 0, width, height);
+          ctx.restore();
         }
 
         // --- DRAW WEAPON 1: HEAVY BALLISTA VOLLEY (Row & Col Piercing Bolts) ---
@@ -340,11 +441,11 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
       // 2. Render & Update Flying Shrapnel, Wood Splinters & Fire Embers
       const nextParticles = [];
       for (const p of particlesRef.current) {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += p.gravity;
-        p.alpha -= p.decay;
-        p.rotation += p.vRot;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += p.gravity * dt;
+        p.alpha -= p.decay * dt;
+        p.rotation += p.vRot * dt;
 
         if (p.alpha > 0.02) {
           ctx.save();
@@ -366,8 +467,12 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
       }
       particlesRef.current = nextParticles;
 
+      if (freezeMs > 0) clock.frozenUntil = frameTime + freezeMs;
+
       if (remainingAnims.length === 0 && nextParticles.length === 0) {
-        ctx.clearRect(0, 0, width, height);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        clock.last = null;
         rafId = null;
         return;
       }
@@ -383,6 +488,7 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = null;
+      clockRef.current.last = null;
       wakeLoopRef.current = () => {};
     };
   }, [gridSize]);
@@ -390,10 +496,64 @@ export function BattleVFXCanvas({ vfxQueue, gridSize }) {
   return (
     <canvas
       ref={canvasRef}
-      width={520}
-      height={520}
+      width={LOGICAL_SIZE}
+      height={LOGICAL_SIZE}
       className="battle-vfx-canvas"
       aria-hidden="true"
     />
   );
+}
+
+const HIT_FLASH_MS = 110;
+const NUMBER_MS = 780;
+
+/** Damage number styles: crits are big and gold, lucky procs violet, kills red */
+function numberStyle(anim) {
+  if (anim.lucky) return { fill: '#e9d5ff', stroke: '#3b0764', size: 30 };
+  if (anim.crit) return { fill: '#fde047', stroke: '#7c2d12', size: 32 };
+  if (anim.killed) return { fill: '#fecaca', stroke: '#450a0a', size: 24 };
+  return { fill: '#ffffff', stroke: '#1c1917', size: 22 };
+}
+
+function drawHit(ctx, anim, elapsed, pos) {
+  // Tile flash
+  if (elapsed < HIT_FLASH_MS) {
+    const a = 1 - elapsed / HIT_FLASH_MS;
+    ctx.save();
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.75 * a})`;
+    const w = pos.cellW * 0.9;
+    const h = pos.cellH * 0.9;
+    ctx.fillRect(pos.x - w / 2, pos.y - h / 2, w, h);
+    ctx.restore();
+  }
+
+  // Number: pops in with overshoot, drifts up, fades out at the end
+  const t = Math.min(1, elapsed / NUMBER_MS);
+  const style = numberStyle(anim);
+  const pop = t < 0.15 ? 0.4 + (t / 0.15) * 0.95 : t < 0.28 ? 1.35 - ((t - 0.15) / 0.13) * 0.35 : 1;
+  const rise = (1 - (1 - t) ** 3) * 30;
+  const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+  const text = anim.lucky ? `${anim.damage}!!` : anim.crit ? `${anim.damage}!` : `${anim.damage}`;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(pos.x + (anim.jitterX || 0), pos.y - pos.cellH * 0.15 - rise + (anim.jitterY || 0));
+  ctx.scale(pop, pop);
+  ctx.font = `900 ${style.size}px system-ui, -apple-system, 'Segoe UI', sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = style.stroke;
+  ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = style.fill;
+  ctx.fillText(text, 0, 0);
+  if (anim.crit || anim.lucky) {
+    ctx.font = `900 11px system-ui, -apple-system, 'Segoe UI', sans-serif`;
+    ctx.lineWidth = 4;
+    const label = anim.lucky ? 'LUCKY' : 'CRIT';
+    ctx.strokeText(label, 0, -style.size * 0.75);
+    ctx.fillText(label, 0, -style.size * 0.75);
+  }
+  ctx.restore();
 }

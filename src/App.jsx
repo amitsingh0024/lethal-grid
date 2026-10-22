@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import confetti from 'canvas-confetti';
 import {
   Crosshair,
@@ -48,6 +49,8 @@ import {
   getMonetizationConfig,
   SHOW_DEV_TOOLS,
 } from './services/analytics';
+import { playSfx } from './services/sfx';
+import { shake, squash, popIn } from './services/juice';
 import { RewardedAdModal } from './components/AdUnit';
 import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
@@ -62,68 +65,24 @@ function WeaponIllustration({ id }) {
   return <WeaponPixelIcon id={id} size={36} />;
 }
 
-/**
- * Medieval Acoustic SFX Synthesizer (Bow Twang, Alchemist Shatter, Barrel Boom, Fanfare)
- */
-function playSound(type, muted) {
-  if (muted || typeof window === 'undefined') return;
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    if (!window.__gameAudioCtx) {
-      window.__gameAudioCtx = new AudioCtx();
-    }
-    const ctx = window.__gameAudioCtx;
-    if (ctx.state === 'suspended') ctx.resume();
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    const now = ctx.currentTime;
-    if (type === 'strike') {
-      // Bowstring twang / sword thud
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(210, now);
-      osc.frequency.exponentialRampToValueAtTime(75, now + 0.18);
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
-      osc.start(now);
-      osc.stop(now + 0.18);
-    } else if (type === 'chain') {
-      // Deep black-powder barrel boom
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(150, now);
-      osc.frequency.exponentialRampToValueAtTime(42, now + 0.32);
-      gain.gain.setValueAtTime(0.26, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
-      osc.start(now);
-      osc.stop(now + 0.32);
-    } else if (type === 'clear') {
-      // Royal Brass Horn Fanfare chord
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(293.66, now); // D4
-      osc.frequency.setValueAtTime(369.99, now + 0.09); // F#4
-      osc.frequency.setValueAtTime(440.0, now + 0.18); // A4
-      osc.frequency.setValueAtTime(587.33, now + 0.28); // D5
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-      osc.start(now);
-      osc.stop(now + 0.5);
-    } else if (type === 'upgrade') {
-      // Blacksmith anvil clink
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.exponentialRampToValueAtTime(1320, now + 0.15);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-      osc.start(now);
-      osc.stop(now + 0.15);
-    }
-  } catch {
-    // Ignore audio context blocks
-  }
+// Canvas item for one hit: tile flash, damage number and, on a kill, debris.
+// Repeat hits on a tile stack their numbers upward so they stay readable.
+function buildHitVfx(hit, atMs, stackIndex = 0) {
+  return {
+    id: `vfx-hit-${hit.cellId}-${atMs}-${Math.random()}`,
+    type: 'HIT',
+    row: hit.row,
+    col: hit.col,
+    damage: hit.damage,
+    crit: hit.crit,
+    lucky: hit.lucky,
+    killed: hit.killed,
+    delayMs: atMs,
+    duration: 780,
+    impactMs: 0,
+    jitterX: (Math.random() - 0.5) * 10,
+    jitterY: -stackIndex * 16,
+  };
 }
 
 const DEFAULT_SAVE = {
@@ -252,10 +211,16 @@ export default function App() {
   const [armedCellId, setArmedCellId] = useState(null);
   const lastPointerTypeRef = useRef('mouse');
   const [muted, setMuted] = useState(false);
-  const [screenShake, setScreenShake] = useState(false);
   const [floatingPopups, setFloatingPopups] = useState([]);
   const [vfxQueue, setVfxQueue] = useState([]);
   const [firingWeaponId, setFiringWeaponId] = useState(null);
+  // A shot settles the battle at once, but the board keeps showing each hit tile's old HP until
+  // that hit's effect lands. `hidden` maps cell id to the HP still shown; `board` ties the reveal
+  // to the board it was made for, so a new wave or reset drops it.
+  const [reveal, setReveal] = useState(null);
+  const revealTokenRef = useRef(null);
+  const gridStageRef = useRef(null);
+  const gridRef = useRef(null);
 
   const campaignGridSize = Math.min(8, 3 + (save.upgrades.grid_size || 0));
   const activeGridSize =
@@ -479,10 +444,12 @@ export default function App() {
         isAutoArcherShot: true,
       });
 
-      if (result.vfxAnimations?.length > 0) {
-        setVfxQueue((prev) => [...prev.slice(-10), ...result.vfxAnimations]);
-      }
+      const hitVfx = (result.hits || []).map((h) => buildHitVfx(h, h.atMs));
+      setVfxQueue((prev) => [...prev.slice(-10), ...(result.vfxAnimations || []), ...hitVfx]);
       const outcome = result.stats.isBoardClear ? 'VICTORY' : 'IN_PROGRESS';
+      const shotFrom = live.board;
+      // Archers land between player shots; keep any reveal in progress pointed at the new board
+      setReveal((r) => (r && r.board === shotFrom ? { ...r, board: result.nextCells } : r));
       syncBattle({ board: result.nextCells, amp: result.nextTurnAmplifierBonus, outcome });
       const earned = settleShot(result, outcome, goldMult);
 
@@ -627,6 +594,135 @@ export default function App() {
     cells: board,
   });
 
+  /**
+   * Plays a resolved shot back in time with its effects: each group of hits shows its HP loss,
+   * flash, number, squash, shake and sound when its projectile or chain blast lands. Big moments
+   * get a short hit-stop, and every later beat is pushed back by it so the board and effects
+   * stay in step. Input stays locked until the last hit lands.
+   */
+  const playShotReveal = (result, shotFrom, { weaponId, onFinish }) => {
+    const token = {};
+    revealTokenRef.current = token;
+    const hits = result.hits || [];
+    const live = battleRef.current;
+
+    const shownHp = new Map(shotFrom.map((c) => [c.id, c.hp]));
+    const hidden = {};
+    const lastHitIndex = {};
+    hits.forEach((h, i) => {
+      if (!(h.cellId in hidden)) hidden[h.cellId] = shownHp.get(h.cellId) ?? h.hpAfter + h.damage;
+      lastHitIndex[h.cellId] = i;
+    });
+
+    const groups = [];
+    hits.forEach((h, i) => {
+      let g = groups[groups.length - 1];
+      if (!g || g.atMs !== h.atMs) {
+        g = { atMs: h.atMs, depth: h.depth, hits: [] };
+        groups.push(g);
+      }
+      g.hits.push({ ...h, last: lastHitIndex[h.cellId] === i });
+    });
+    groups.sort((a, b) => a.atMs - b.atMs);
+
+    const isClear = result.stats.isBoardClear;
+    const extraVfx = [];
+    const hitsOnCell = {};
+    let freezeSoFar = 0;
+    groups.forEach((g, gi) => {
+      const isFinal = gi === groups.length - 1;
+      g.realAt = g.atMs + freezeSoFar;
+      g.hits.forEach((h) => {
+        const n = (hitsOnCell[h.cellId] = (hitsOnCell[h.cellId] || 0) + 1);
+        if (extraVfx.length < 64) extraVfx.push(buildHitVfx(h, g.atMs, n - 1));
+      });
+      const bigHit = g.hits.some(
+        (h) => h.crit || h.lucky || (h.killed && shotFrom[h.idx]?.type === NODE_TYPES.BOSS)
+      );
+      const freeze = isFinal && isClear ? 140 : bigHit ? 70 : 0;
+      if (isFinal && isClear) {
+        extraVfx.push({ id: `vfx-flash-${Math.random()}`, type: 'FLASH', delayMs: g.atMs, duration: 320 });
+      }
+      if (freeze > 0) {
+        extraVfx.push({ id: `vfx-stop-${Math.random()}`, type: 'HITSTOP', delayMs: g.atMs, duration: freeze });
+        freezeSoFar += freeze;
+      }
+    });
+
+    setVfxQueue((prev) => [...prev.slice(-10), ...(result.vfxAnimations || []), ...extraVfx]);
+    if (groups.length === 0) {
+      playSfx('hit', muted, { weapon: weaponId });
+      onFinish();
+      return 0;
+    }
+    setReveal({ token, board: result.nextCells, hidden });
+    const lastAt = groups[groups.length - 1].realAt;
+    live.lockUntil = performance.now() + lastAt + 40;
+
+    groups.forEach((g, gi) => {
+      setTimeout(() => {
+        if (revealTokenRef.current !== token) return;
+        flushSync(() =>
+          setReveal((r) => {
+            if (!r || r.token !== token) return r;
+            const next = { ...r.hidden };
+            g.hits.forEach((h) => {
+              if (h.last) delete next[h.cellId];
+              else next[h.cellId] = h.hpAfter;
+            });
+            return { ...r, hidden: next };
+          })
+        );
+        playHitGroupFeedback(g, {
+          weaponId,
+          isClearBeat: isClear && gi === groups.length - 1,
+        });
+      }, g.realAt);
+    });
+
+    // Let the final blow breathe before the result banner and summary appear
+    setTimeout(() => {
+      if (revealTokenRef.current !== token) return;
+      revealTokenRef.current = null;
+      setReveal((r) => (r && r.token === token ? null : r));
+      onFinish();
+    }, lastAt + (isClear ? 520 : 320));
+    return lastAt;
+  };
+
+  const playHitGroupFeedback = (g, { weaponId, isClearBeat }) => {
+    const kills = g.hits.filter((h) => h.killed).length;
+    const crits = g.hits.some((h) => h.crit);
+    const lucky = g.hits.some((h) => h.lucky);
+
+    const grid = gridRef.current;
+    if (grid) {
+      g.hits.forEach((h) => {
+        const tile = grid.children[h.idx];
+        if (!tile) return;
+        if (h.killed && h.last) popIn(tile.querySelector('.tile-wreckage'));
+        else squash(tile.querySelector('.creature-wrap'), h.crit || h.lucky);
+      });
+    }
+
+    if (isClearBeat) {
+      shake(gridStageRef.current, 10, 460);
+    } else {
+      const base = g.depth === 0 ? (kills > 0 ? 3 : 2) : Math.min(9, 3 + g.depth * 1.2);
+      shake(gridStageRef.current, base + (crits || lucky ? 2 : 0), g.depth === 0 ? 180 : 260);
+    }
+
+    if (g.depth === 0) {
+      playSfx('hit', muted, { kills, weapon: weaponId });
+    } else {
+      const lightning = g.hits.some((h) => h.source === 'Rune Lightning');
+      playSfx('chain', muted, { depth: g.depth, lightning });
+    }
+    if (lucky) playSfx('lucky', muted);
+    else if (crits) playSfx('crit', muted);
+    if (isClearBeat) playSfx('clear', muted);
+  };
+
   // Execute Weapon Strike + Trigger 60fps Canvas Weapon Animation
   const handleCellClick = (cell) => {
     const live = battleRef.current;
@@ -637,6 +733,7 @@ export default function App() {
     if (lastPointerTypeRef.current === 'touch' && armedCellId !== cell.id) {
       setArmedCellId(cell.id);
       setHoverCell({ row, col });
+      playSfx('tap', muted);
       return;
     }
     setArmedCellId(null);
@@ -675,11 +772,7 @@ export default function App() {
       rng: live.rng,
     });
 
-    // Enqueue 60fps Canvas weapon projectile & barrel explosion animations!
-    if (result.vfxAnimations && result.vfxAnimations.length > 0) {
-      setVfxQueue((prev) => [...prev.slice(-10), ...result.vfxAnimations]);
-    }
-
+    const shotFrom = live.board;
     const nextCharges = Math.min(
       maxTurnCharges,
       live.chargesLeft - 1 + (result.stats.refundedCharge || 0)
@@ -698,29 +791,6 @@ export default function App() {
     const earned = settleShot(result, outcome, goldMult);
     setLastTurnStats({ ...result.stats, shardsEarned: earned });
 
-    if (
-      result.stats.chainDepth > 0 ||
-      result.stats.isBoardClear ||
-      result.stats.luckyProcsCount > 0
-    ) {
-      setScreenShake(true);
-      setTimeout(() => setScreenShake(false), 380);
-    }
-
-    // Celebrate 100% Lethal Siege Clear or Lucky Jackpot with Golden Confetti!
-    if (result.stats.isBoardClear) {
-      try {
-        confetti({
-          particleCount: 45,
-          spread: 65,
-          origin: { y: 0.6 },
-          colors: ['#fbbf24', '#f59e0b', '#fef08a', '#dc2626'],
-        });
-      } catch {
-        // Ignore confetti errors
-      }
-    }
-
     const popupId = `${Date.now()}-${Math.random()}`;
     const luckyTag =
       result.stats.refundedCharge > 0
@@ -731,38 +801,54 @@ export default function App() {
         ? `⚡ ${result.stats.critHitsCount}× CRIT! `
         : '';
 
-    setFloatingPopups((prev) => [
-      ...prev.slice(-4),
-      {
-        id: popupId,
-        row,
-        col,
-        text: result.stats.isBoardClear
-          ? `${luckyTag}⚔️ SIEGE BROKEN! +${earned} Gold`
-          : `${luckyTag}-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}× Chain)`,
-      },
-    ]);
-    setTimeout(() => {
-      setFloatingPopups((prev) => prev.filter((p) => p.id !== popupId));
-    }, 1350);
+    const revealMs = playShotReveal(result, shotFrom, {
+      weaponId: selectedAbilityId,
+      onFinish: () => {
+        // Celebrate 100% Lethal Siege Clear or Lucky Jackpot with Golden Confetti!
+        if (result.stats.isBoardClear) {
+          try {
+            confetti({
+              particleCount: 45,
+              spread: 65,
+              origin: { y: 0.6 },
+              colors: ['#fbbf24', '#f59e0b', '#fef08a', '#dc2626'],
+              disableForReducedMotion: true,
+            });
+          } catch {
+            // Ignore confetti errors
+          }
+        } else if (outcome === 'DEFEAT') {
+          playSfx('defeat', muted);
+        }
 
-    if (result.stats.isBoardClear) {
-      playSound('clear', muted);
-    } else if (result.stats.chainDepth > 0 || result.stats.luckyProcsCount > 0) {
-      playSound('chain', muted);
-    } else {
-      playSound('strike', muted);
-    }
+        setFloatingPopups((prev) => [
+          ...prev.slice(-4),
+          {
+            id: popupId,
+            row,
+            col,
+            text: result.stats.isBoardClear
+              ? `${luckyTag}⚔️ SIEGE BROKEN! +${earned} Gold`
+              : `${luckyTag}-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}× Chain)`,
+          },
+        ]);
+        setTimeout(() => {
+          setFloatingPopups((prev) => prev.filter((p) => p.id !== popupId));
+        }, 1350);
+      },
+    });
+    // The commander comments once the shot has played out, not while it is still landing
+    const announce = (msg) => setTimeout(() => setCommanderMessage(msg), revealMs);
 
     if (isTutorial) {
       if (result.stats.isBoardClear) {
         if (tutorialStep < 3) {
-          setCommanderMessage(
+          announce(
             `HUZZAH! Every raider routed in a single volley! Click "Next Training Trial" below!`
           );
         } else {
           const rewardGold = save.tutorialCompleted ? 0 : 15;
-          setCommanderMessage(
+          announce(
             `🏆 Training Complete! You've mastered Powder-Kegs, Storm-Rune Shamans, and War-Banners${
               rewardGold > 0 ? ` (+${rewardGold} Gold Crowns awarded)` : ''
             }!`
@@ -778,7 +864,7 @@ export default function App() {
           });
         }
       } else {
-        setCommanderMessage(
+        announce(
           `Close, Commander! Strike the glowing yellow-circled unit so its explosion chains to the entire courtyard!`
         );
       }
@@ -791,25 +877,25 @@ export default function App() {
     );
     if (result.stats.isBoardClear) {
       const goldText = isDaily && earned === 0 ? 'practice run, no Gold' : `+${earned} Gold`;
-      setCommanderMessage(
+      announce(
         latestLuckyEvent
           ? `${latestLuckyEvent.text} ⚔️ TOTAL VICTORY (${goldText})!`
           : `⚔️ TOTAL VICTORY! ${result.stats.chainDepth}× Chain Reaction routed the siege (${goldText})!`
       );
     } else if (latestLuckyEvent) {
-      setCommanderMessage(
+      announce(
         `${latestLuckyEvent.text} (${result.stats.remainingNodes} foes remain, ${nextCharges} volleys left!)`
       );
     } else if (nextCharges > 0) {
-      setCommanderMessage(
+      announce(
         `Direct hit! ${result.stats.remainingNodes} raiders remain and you have ${nextCharges} attack left—finish them!`
       );
     } else if (isDaily) {
-      setCommanderMessage(
+      announce(
         `Volley spent! The Daily Decree holds. Retry it — Gold is paid only when you win.`
       );
     } else {
-      setCommanderMessage(
+      announce(
         `Volley spent! Wave ${live.sector} holds (+${earned} Gold looted). A retry pays ${nextRetryPct}% Gold—upgrade in the Royal Forge and try again!`
       );
     }
@@ -823,7 +909,7 @@ export default function App() {
     const cost = getUpgradeCost(upgradeDef, currentLvl);
     if (save.shards < cost) return;
 
-    playSound('upgrade', muted);
+    playSfx('upgrade', muted);
     const nextLvl = currentLvl + 1;
 
     setSave((prev) => ({
@@ -850,7 +936,7 @@ export default function App() {
       currentLvl === 0 ? ab.unlockCost : getAbilityUpgradeCost(idx, currentLvl);
     if (save.shards < cost) return;
 
-    playSound('upgrade', muted);
+    playSfx('upgrade', muted);
     setSave((prev) => ({
       ...prev,
       shards: prev.shards - cost,
@@ -870,7 +956,7 @@ export default function App() {
   const handlePrestigeReboot = () => {
     if (save.sector < 10) return;
     const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
-    playSound('clear', muted);
+    playSfx('clear', muted);
 
     setSave((prev) => ({
       ...DEFAULT_SAVE,
@@ -959,7 +1045,17 @@ export default function App() {
     }
   };
 
-  const remainingAliveNodes = board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0).length;
+  const isRevealing = Boolean(reveal && reveal.board === board);
+  const displayBoard = isRevealing
+    ? board.map((c) =>
+        c.id in reveal.hidden
+          ? { ...c, hp: reveal.hidden[c.id], justHit: false, destroyedByChain: false }
+          : c
+      )
+    : board;
+  const remainingAliveNodes = displayBoard.filter(
+    (c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0
+  ).length;
   const isBoardCleared = remainingAliveNodes === 0;
   const isWaveLive = waveOutcome === 'IN_PROGRESS' && chargesLeft > 0;
   const nextRetryGoldPct = Math.round(getNextAttemptGoldMult(save.waveAttempts, boardSector) * 100);
@@ -1388,12 +1484,13 @@ export default function App() {
           </div>
 
           {/* COBBLESTONE COURTYARD GRID + 60FPS CANVAS WEAPON VFX OVERLAY */}
-          <div className={`grid-stage ${screenShake ? 'board-shake' : ''}`}>
+          <div className="grid-stage" ref={gridStageRef}>
             <div className="courtyard-board-wrap">
               {/* 60FPS WEAPON TRAJECTORY & EXPLOSION CANVAS */}
-              <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} />
+              <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} gridRef={gridRef} />
 
               <div
+                ref={gridRef}
                 className={`tactical-grid grid-size-${activeGridSize}`}
                 style={{
                   gridTemplateColumns: `repeat(${activeGridSize}, minmax(0, 1fr))`,
@@ -1403,7 +1500,7 @@ export default function App() {
                   if (lastPointerTypeRef.current !== 'touch') setHoverCell({ row: null, col: null });
                 }}
               >
-                {board.map((cell, idx) => {
+                {displayBoard.map((cell, idx) => {
                   const isTargeted = previewIndices.has(idx);
                   const isDead = cell.type === NODE_TYPES.EMPTY || cell.hp <= 0;
                   const meta = NODE_META[cell.type] || NODE_META.STANDARD;
@@ -1498,7 +1595,7 @@ export default function App() {
             </div>
 
             {/* WAVE VICTORY OR RETRY BANNER */}
-            {!isWaveLive && (
+            {!isWaveLive && !isRevealing && (
               <div className={`turn-result-banner ${isBoardCleared ? 'win' : 'retry'}`}>
                 <div>
                   <strong>
@@ -1629,6 +1726,7 @@ export default function App() {
                       if (screen === 'PLAY') setScreen('UPGRADES');
                       return;
                     }
+                    if (ab.id !== selectedAbilityId) playSfx('tap', muted);
                     setSelectedAbilityId(ab.id);
                   }}
                 >
