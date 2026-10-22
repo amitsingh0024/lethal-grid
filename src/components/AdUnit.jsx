@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Sparkles, DollarSign, ShieldCheck, Tv } from 'lucide-react';
+import { Play, Sparkles, DollarSign, ShieldCheck, Tv } from './PixelIcons';
 import { getMonetizationConfig, recordAdEvent } from '../services/analytics';
 
 /**
@@ -97,10 +97,10 @@ export function RewardedAdModal({ isOpen, onClose, rewardTitle, onRewardClaimed 
       <div className="modal-card rewarded-ad-card">
         <div className="rewarded-ad-header">
           <span className="badge-amber">
-            <Tv size={14} /> OPTIONAL REWARD
+            <Tv size={12} /> Optional reward
           </span>
           <span className="rewarded-timer">
-            {secondsLeft > 0 ? `Reward unlocks in ${secondsLeft}s...` : 'Reward Ready!'}
+            {secondsLeft > 0 ? `Ready in ${secondsLeft}s` : 'Ready'}
           </span>
         </div>
 
@@ -124,7 +124,7 @@ export function RewardedAdModal({ isOpen, onClose, rewardTitle, onRewardClaimed 
             onClick={handleClaim}
           >
             <Play size={16} />
-            {secondsLeft > 0 ? `Watching Ad (${secondsLeft}s)...` : 'Claim Reward'}
+            {secondsLeft > 0 ? `Watching ad (${secondsLeft}s)` : 'Claim'}
           </button>
         </div>
       </div>

@@ -1,5 +1,5 @@
 /**
- * LETHAL GRID: OVERCLOCK — Medieval Tactical Chain-Reaction & Snowball Incremental Engine
+ * LETHAL GRID — Medieval Tactical Chain-Reaction & Snowball Incremental Engine
  *
  * Implements:
  * - Mulberry32 deterministic PRNG for 100% client-side Daily Siege seeds
@@ -22,47 +22,47 @@ export const NODE_TYPES = {
 
 export const NODE_META = {
   STANDARD: {
-    label: 'Goblin Footpad',
+    label: 'Goblin',
     short: 'GOBLIN',
     color: 'cyan',
-    desc: 'Shield-bearing goblin raider. Drops Gold Crowns when slain.',
+    desc: 'Plain raider. Drops Gold.',
   },
   BOMB: {
-    label: 'Powder-Keg Sapper',
+    label: 'Sapper',
     short: 'KEG',
     color: 'rose',
-    desc: 'Carries an unstable black-powder barrel! Explodes in a 3×3 fireball when slain or Lucky-Ignited!',
+    desc: 'Explodes 3×3 when it falls or Ignites.',
   },
   CONDUIT: {
-    label: 'Storm-Rune Shaman',
+    label: 'Shaman',
     short: 'SHAMAN',
     color: 'amber',
-    desc: 'Unleashes a crackling Runic Lightning bolt across its entire Row or Column when slain or Lucky-Ignited!',
+    desc: 'Throws lightning down its row or column when it falls or Ignites.',
   },
   AMPLIFIER: {
-    label: 'War-Banner Herald',
+    label: 'Herald',
     short: 'BANNER',
     color: 'emerald',
-    desc: 'Slaying this herald rallies your defenders, boosting ALL damage this turn by +50%!',
+    desc: 'Rally: +50% damage for the rest of the turn.',
   },
   BOSS: {
-    label: 'Ironclad Siege Ogre',
+    label: 'Ogre',
     short: 'OGRE',
     color: 'violet',
-    desc: 'Towering iron-plated warlord. Drops 5× Gold Crowns and triggers a 5×5 shockwave on death!',
+    desc: 'Lots of HP. Drops 5× Gold and shakes 5×5 when it falls.',
   },
 };
 
 export const ABILITIES = [
   {
     id: 'rail_beam',
-    name: 'Heavy Ballista Volley',
+    name: 'Ballista',
     hotkey: '1',
     icon: 'Crosshair',
     color: 'amber',
     unlockCost: 0,
     minSector: 1,
-    baseDesc: 'Fires iron-tipped bolts across the entire Row & Column (+ shape).',
+    baseDesc: 'Hits its row and column.',
     getStats: (level) => {
       const dmg = Math.floor(1 + level * 1.4);
       const radius = level >= 6 ? 1 : 0;
@@ -71,22 +71,22 @@ export const ABILITIES = [
         radius,
         tierLabel:
           level >= 6
-            ? 'Tier III: Dragon-Piercer Bolts + 3×3 Shrapnel'
+            ? 'Tier III: row, column and 3×3 shrapnel'
             : level >= 3
-            ? 'Tier II: Tempered Iron Bolts'
-            : 'Tier I: Castle Wall Ballista (+)',
+            ? 'Tier II: tempered bolts'
+            : 'Tier I: row and column',
       };
     },
   },
   {
     id: 'nova_bomb',
-    name: 'Alchemist Wildfire Flask',
+    name: 'Wildfire',
     hotkey: '2',
     icon: 'Flame',
     color: 'rose',
     unlockCost: 180,
     minSector: 3,
-    baseDesc: 'Hurls a volatile glass potion that shatters into a 3×3 wildfire blast.',
+    baseDesc: 'Bursts 3×3.',
     getStats: (level) => {
       const dmg = Math.floor(2 + level * 1.7);
       const range = level >= 7 ? 2 : 1;
@@ -95,41 +95,41 @@ export const ABILITIES = [
         range,
         tierLabel:
           level >= 7
-            ? 'Tier III: 5×5 Dragonfire Cauldron'
+            ? 'Tier III: bursts 5×5'
             : level >= 3
-            ? 'Tier II: Volatile Pitch Flask (3×3)'
-            : 'Tier I: Alchemist Fire Flask (3×3)',
+            ? 'Tier II: hotter 3×3'
+            : 'Tier I: bursts 3×3',
       };
     },
   },
   {
     id: 'arc_chain',
-    name: 'Dwarven Thunder-Hammer',
+    name: 'Hammer',
     hotkey: '3',
     icon: 'Zap',
     color: 'cyan',
     unlockCost: 850,
     minSector: 7,
-    baseDesc: 'Hurls a runic warhammer that ricochets to the highest-HP enemies.',
+    baseDesc: 'Bounces to the toughest enemies.',
     getStats: (level) => {
       const dmg = Math.floor(2 + level * 1.5);
       const bounces = 3 + Math.floor(level * 1.1);
       return {
         damage: dmg,
         bounces,
-        tierLabel: `Tier ${level >= 6 ? 'III' : level >= 3 ? 'II' : 'I'}: Ricochets to ${bounces} Foes`,
+        tierLabel: `Tier ${level >= 6 ? 'III' : level >= 3 ? 'II' : 'I'}: bounces ${bounces} times`,
       };
     },
   },
   {
     id: 'overclock_pulse',
-    name: "Executioner's Greatsword",
+    name: 'Greatsword',
     hotkey: '4',
     icon: 'Sparkles',
     color: 'violet',
     unlockCost: 3600,
     minSector: 12,
-    baseDesc: 'Cleaves diagonals (X-slash) and sunders enemy armor (2× damage taken).',
+    baseDesc: 'Cuts both diagonals. Sunder: targets take 2× damage.',
     getStats: (level) => {
       const dmg = Math.floor(2 + level * 1.6);
       return {
@@ -137,8 +137,8 @@ export const ABILITIES = [
         weakenMultiplier: level >= 5 ? 2.5 : 2,
         tierLabel:
           level >= 5
-            ? 'Tier II: Royal Whirlwind Cleave (2.5× Sunder)'
-            : 'Tier I: Diagonal Steel Cleave (2× Sunder)',
+            ? 'Tier II: Sunder 2.5×'
+            : 'Tier I: Sunder 2×',
       };
     },
   },
@@ -153,7 +153,7 @@ const EXTRA_CHARGE_SECTORS = [4, 9, 15, 22, 30];
 export const UPGRADE_CATALOG = [
   {
     id: 'grid_size',
-    name: 'Expand Castle Courtyard',
+    name: 'Bigger Board',
     category: 'BF_EXPANSION',
     maxLevel: 5,
     baseCost: 120,
@@ -164,82 +164,82 @@ export const UPGRADE_CATALOG = [
       const size = 3 + lvl;
       const next = Math.min(8, size + 1);
       return lvl >= 5
-        ? `MAX: ${size}×${size} Grand Citadel Courtyard`
-        : `${size}×${size} → ${next}×${next} Stone Courtyard (+More Raiders & Bigger Chains!)`;
+        ? `Max: ${size}×${size}`
+        : `Board ${size}×${size} → ${next}×${next}. More raiders, longer chains.`;
     },
   },
   {
     id: 'max_charges',
-    name: 'Extra Siege Volley',
+    name: 'Extra Shot',
     category: 'BF_EXPANSION',
     maxLevel: 5,
     baseCost: 160,
     costScale: 5.0,
     customCosts: EXTRA_CHARGE_COSTS,
     requiredSectors: EXTRA_CHARGE_SECTORS,
-    getEffectText: (lvl) => `${2 + lvl} → ${3 + lvl} Weapon Attacks per 1-Turn Siege Wave`,
+    getEffectText: (lvl) => `Shots per wave ${2 + lvl} → ${3 + lvl}`,
   },
   {
     id: 'lucky_spark',
-    name: "Fortune's Spark (Luck & Crit)",
+    name: 'Lucky Spark',
     category: 'LUCK_SNOWBALL',
     maxLevel: 25,
     baseCost: 28,
     costScale: 1.55,
     getEffectText: (lvl) =>
-      `${8 + Math.round(lvl * 1.8)}% → ${8 + Math.round((lvl + 1) * 1.8)}% Lucky Instant-Detonate on High-HP Kegs/Shamans + ${8 + Math.round((lvl + 1) * 1.5)}% 3× Crit Chance!`,
+      `Ignite ${8 + Math.round(lvl * 1.8)}% → ${8 + Math.round((lvl + 1) * 1.8)}%. Crit (3×) ${8 + Math.round((lvl + 1) * 1.5)}%.`,
   },
   {
     id: 'contagion',
-    name: 'Goblin Barrel Contagion',
+    name: 'Contagion',
     category: 'LUCK_SNOWBALL',
     maxLevel: 20,
     baseCost: 45,
     costScale: 1.65,
     getEffectText: (lvl) =>
-      `${lvl * 4}% → ${(lvl + 1) * 4}% chance slain Goblins explode 3×3 + ${12 + (lvl + 1) * 3}% chance 5-Kills refund +1 Volley!`,
+      `Goblins explode 3×3: ${lvl * 4}% → ${(lvl + 1) * 4}%. ${12 + (lvl + 1) * 3}% chance a 5-kill shot refunds +1 Shot.`,
   },
   {
     id: 'chain_amp',
-    name: 'Refined Black Powder',
+    name: 'Black Powder',
     category: 'SYNERGY',
     maxLevel: 40,
     baseCost: 20,
     costScale: 1.48,
     getEffectText: (lvl) =>
-      `+${lvl * 20}% → +${(lvl + 1) * 20}% Chain Blast DMG & melts ${18 + (lvl + 1) * 1.5}% of target Max HP!`,
+      `Chain damage +${lvl * 20}% → +${(lvl + 1) * 20}%. Blasts also take ${18 + (lvl + 1) * 1.5}% of max HP.`,
   },
   {
     id: 'shard_mult',
-    name: 'Royal Tax & Plunder Charter',
+    name: 'Plunder',
     category: 'SYNERGY',
     maxLevel: 50,
     baseCost: 24,
     costScale: 1.52,
     getEffectText: (lvl) =>
-      `×${(1 + lvl * 0.2).toFixed(2)} → ×${(1 + (lvl + 1) * 0.2).toFixed(2)} Gold Crowns Looted`,
+      `Gold ×${(1 + lvl * 0.2).toFixed(2)} → ×${(1 + (lvl + 1) * 0.2).toFixed(2)}`,
   },
   {
     id: 'volatile_spawn',
-    name: 'Saboteur Ambush Traps',
+    name: 'Saboteurs',
     category: 'SYNERGY',
     maxLevel: 15,
     baseCost: 55,
     costScale: 1.75,
     getEffectText: (lvl) =>
-      `+${lvl * 3}% → +${(lvl + 1) * 3}% extra Powder-Kegs, Shamans & Banners on every wave`,
+      `More sappers, shamans and heralds: +${lvl * 3}% → +${(lvl + 1) * 3}%`,
   },
   {
     id: 'auto_drone',
-    name: 'Battlement Archer Garrison',
+    name: 'Archers',
     category: 'AUTOMATION',
     maxLevel: 25,
     baseCost: 65,
     costScale: 1.72,
     getEffectText: (lvl) =>
       lvl === 0
-        ? 'Hire Castle Archers that physically shoot random enemies on the board every 2.2s!'
-        : `Archers shoot ${1 + Math.floor((lvl + 1) / 5)} arrows every 2.2s (${2 + lvl * 2} DMG + can trigger Lucky Ignitions!)`,
+        ? 'Archers fire at a random enemy every 2.2s.'
+        : `${1 + Math.floor((lvl + 1) / 5)} arrows every 2.2s, ${2 + lvl * 2} damage each. Can Ignite.`,
   },
 ];
 
@@ -296,25 +296,25 @@ export function getAbilityUpgradeCost(abilityIndex, currentLevel) {
 export const TUTORIAL_LESSONS = [
   {
     step: 1,
-    title: 'Lesson I: The Powder-Keg Sapper',
+    title: 'Lesson 1: Sappers',
     commanderSpeech:
-      'Hail, Commander! Behold that reckless Goblin hugging a Black-Powder Keg in the center of our courtyard. Loose a Ballista Bolt at the center stone (Row 2, Col 2) to detonate his barrel and rout all 5 raiders in ONE shot!',
+      'That goblin in the middle is holding a powder keg. Shoot it and watch.',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 1, col: 1 },
   },
   {
     step: 2,
-    title: 'Lesson II: Storm-Rune Chain Lightning',
+    title: 'Lesson 2: Shamans',
     commanderSpeech:
-      'A glorious blast! Now spy the hooded Storm-Rune Shaman on the left—slaying him unleashes a lightning bolt across his entire row, igniting the Powder-Keg on the right! Strike the Shaman at Row 2, Col 1!',
+      'Shamans throw lightning down their row when they fall. Hit the shaman.',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 1, col: 0 },
   },
   {
     step: 3,
-    title: 'Lesson III: The War-Banner Rally',
+    title: 'Lesson 3: Heralds',
     commanderSpeech:
-      'Final trial! An Ironclad Siege Ogre approaches the gate! Strike the emerald War-Banner at the top (Row 1, Col 2) first—shattering their banner grants +50% Rally Damage and sets off a chain reaction that fells the Ogre!',
+      'An ogre. Hit the green banner first: it gives +50% damage for the rest of the turn.',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 0, col: 1 },
   },
@@ -641,9 +641,7 @@ export function executeAbilityAndResolveChains({
         luckyProcsCount += 1;
         events.push({
           type: 'LUCKY_PROC',
-          text: `🎲 LUCKY IGNITION! Spark hit the ${NODE_META[cell.type].label} fuse at (${
-            cell.row + 1
-          },${cell.col + 1}) and instantly detonated all ${cell.hp} HP!`,
+          text: `Ignite! The ${NODE_META[cell.type].label.toLowerCase()} went up early.`,
         });
       } else if (cell.type === NODE_TYPES.STANDARD && rng() < luckyExecuteChance) {
         effectiveDamage = cell.hp;
@@ -652,9 +650,7 @@ export function executeAbilityAndResolveChains({
         luckyProcsCount += 1;
         events.push({
           type: 'LUCKY_PROC',
-          text: `🎲 LUCKY HEADSHOT! Instant lethal strike on Goblin Footpad at (${
-            cell.row + 1
-          },${cell.col + 1})!`,
+          text: `Headshot!`,
         });
       } else if (cell.type === NODE_TYPES.BOSS && rng() < luckyExecuteChance) {
         const bossCrush = Math.ceil(cell.maxHp * 0.55);
@@ -664,7 +660,7 @@ export function executeAbilityAndResolveChains({
         luckyProcsCount += 1;
         events.push({
           type: 'LUCKY_PROC',
-          text: `🎲 LUCKY CRUSHING BLOW! Shattered Ogre armor for ${bossCrush} DMG!`,
+          text: `Crushing blow! ${bossCrush} to the ogre.`,
         });
       }
     }
@@ -702,9 +698,7 @@ export function executeAbilityAndResolveChains({
           dynamicAmp += 0.5;
           events.push({
             type: 'AMPLIFIER',
-            text: `War-Banner shattered at (${cell.row + 1},${cell.col + 1})! Rally Damage boosted to ${(
-              dynamicAmp * 100
-            ).toFixed(0)}%!`,
+            text: `Rally! Damage now ${(dynamicAmp * 100).toFixed(0)}%.`,
           });
         } else if (
           cell.type === NODE_TYPES.BOMB ||
@@ -728,9 +722,7 @@ export function executeAbilityAndResolveChains({
           luckyProcsCount += 1;
           events.push({
             type: 'LUCKY_PROC',
-            text: `💥 CONTAGION! Slain Goblin at (${cell.row + 1},${
-              cell.col + 1
-            }) dropped a hidden Powder-Keg and exploded!`,
+            text: `Contagion! A goblin had a keg after all.`,
           });
           chainExplosionQueue.push({
             idx,
@@ -798,9 +790,7 @@ export function executeAbilityAndResolveChains({
 
         events.push({
           type: 'EXPLOSION',
-          text: `${type === NODE_TYPES.BOSS ? 'Siege Ogre' : 'Powder-Keg'} detonated at (${
-            row + 1
-          },${col + 1})!`,
+          text: `${type === NODE_TYPES.BOSS ? 'Ogre' : 'Keg'} blast!`,
         });
 
         for (let dr = -radius; dr <= radius; dr++) {
@@ -832,9 +822,7 @@ export function executeAbilityAndResolveChains({
 
         events.push({
           type: 'CONDUIT',
-          text: `Storm-Rune Shaman unleashed a ${conduitAxis} lightning bolt from (${row + 1},${
-            col + 1
-          })!`,
+          text: `Shaman lightning!`,
         });
 
         for (let i = 0; i < gridSize; i++) {
@@ -857,7 +845,7 @@ export function executeAbilityAndResolveChains({
       luckyProcsCount += 1;
       events.push({
         type: 'LUCKY_PROC',
-        text: `⚡ MOMENTUM REFUND! Routing ${nodesDestroyed} foes in one volley granted +1 FREE Siege Volley!`,
+        text: `${nodesDestroyed} in one shot. +1 Shot`,
       });
     }
   }

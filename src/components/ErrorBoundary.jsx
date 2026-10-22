@@ -44,15 +44,15 @@ export class ErrorBoundary extends React.Component {
         <div className="crash-card">
           <h1>The siege hit a snag</h1>
           <p>
-            Something went wrong, but your progress is saved. Reload to jump back into the courtyard.
+            Something went wrong, but your progress is saved. Reload to jump back in.
           </p>
           <code className="crash-detail">{String(error?.message || error)}</code>
           <div className="crash-actions">
             <button type="button" className="btn-primary" onClick={() => window.location.reload()}>
-              Reload Game
+              Reload
             </button>
             <button type="button" className="btn-secondary" onClick={this.handleCopy}>
-              {copied ? 'Error Copied!' : 'Copy Error Details'}
+              {copied ? 'Copied' : 'Copy error details'}
             </button>
           </div>
         </div>
