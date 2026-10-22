@@ -1397,6 +1397,7 @@ export default function App() {
                 className={`tactical-grid grid-size-${activeGridSize}`}
                 style={{
                   gridTemplateColumns: `repeat(${activeGridSize}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${activeGridSize}, minmax(0, 1fr))`,
                 }}
                 onMouseLeave={() => {
                   if (lastPointerTypeRef.current !== 'touch') setHoverCell({ row: null, col: null });
@@ -1461,7 +1462,10 @@ export default function App() {
                         <>
                           <div className="tile-top-row">
                             <span className="tile-type-tag">{meta.short}</span>
-                            <span className="tile-hp-pill">❤️ {cell.hp}</span>
+                            <span className="tile-hp-pill">
+                              <span className="tile-hp-heart" aria-hidden="true">❤️ </span>
+                              {cell.hp}
+                            </span>
                           </div>
 
                           <CreatureSprite
