@@ -13,6 +13,8 @@ import {
   getUpgradeCost,
   getUpgradeRequiredSector,
   getAbilityUpgradeCost,
+  getWeaponUnlockCost,
+  getStageLabel,
 } from '../game/engine';
 import { WeaponPixelIcon } from './CreatureSprite';
 
@@ -286,7 +288,7 @@ export function UpgradeSkillTree({
       const sectorLocked = !isUnlocked && save.maxSectorReached < reqSector;
       const cost = isUnlocked
         ? getAbilityUpgradeCost(node.abilityIndex, currentLvl)
-        : ab.unlockCost;
+        : getWeaponUnlockCost(ab);
       const stats = ab.getStats(Math.max(1, currentLvl));
       const nextStats = !isMax ? ab.getStats(currentLvl + 1) : null;
       const canAfford =
@@ -314,7 +316,7 @@ export function UpgradeSkillTree({
         actionLabel: !isParentMet
           ? `Requires ${parentName} Lv.${node.parentReqLevel}`
           : sectorLocked
-          ? `🔒 Reach Wave ${reqSector} (${cost.toLocaleString()} 🪙)`
+          ? `🔒 Reach Stage ${getStageLabel(reqSector)} (${cost.toLocaleString()} 🪙)`
           : isMax
           ? 'MAX TEMPERED'
           : isUnlocked
@@ -360,7 +362,7 @@ export function UpgradeSkillTree({
           : isMax
           ? 'MAX LEVEL REACHED'
           : sectorLocked
-          ? `🔒 Reach Wave ${reqSector} (${cost.toLocaleString()} 🪙)`
+          ? `🔒 Reach Stage ${getStageLabel(reqSector)} (${cost.toLocaleString()} 🪙)`
           : `Forge Lv.${currentLvl + 1} (${cost.toLocaleString()} 🪙)`,
       };
     }
@@ -386,7 +388,7 @@ export function UpgradeSkillTree({
       actionLabel: !isParentMet
         ? `Requires ${parentName} Lv.${node.parentReqLevel}`
         : save.sector < 10
-        ? `🔒 Reach Wave 10 in Current Run (Now: Wave ${save.sector})`
+        ? `🔒 Reach Stage ${getStageLabel(10)} in Current Run (Now: Stage ${getStageLabel(save.sector)})`
         : `👑 Ascend for +${coresToGain} Royal Crests`,
     };
   };
@@ -432,10 +434,10 @@ export function UpgradeSkillTree({
           <div className="tree-treasury-pill">
             <span>🪙 {save.shards.toLocaleString()} Gold</span>
             <span className="chip-sep">•</span>
-            <span>Max Wave: {save.maxSectorReached}</span>
+            <span>Best Stage: {getStageLabel(save.maxSectorReached)}</span>
           </div>
           <button type="button" className="btn-primary" onClick={onReturnToBattle}>
-            <span>⚔️ Return to Siege (Wave {save.sector})</span>
+            <span>⚔️ Return to Siege (Stage {getStageLabel(save.sector)})</span>
           </button>
         </div>
       </div>
@@ -619,7 +621,7 @@ export function UpgradeSkillTree({
                     }`}
                   >
                     {details.sectorLocked
-                      ? `🔒 Wave ${details.reqSector}`
+                      ? `🔒 Stage ${getStageLabel(details.reqSector)}`
                       : `${details.cost.toLocaleString()} 🪙`}
                   </span>
                 )}
@@ -699,8 +701,8 @@ export function UpgradeSkillTree({
                     >
                       <span>{!hoveredDetails.sectorLocked ? '✓' : '🔒'}</span>
                       <span>
-                        Siege Wave {hoveredDetails.reqSector} Milestone (Best: Wave{' '}
-                        {save.maxSectorReached})
+                        Stage {getStageLabel(hoveredDetails.reqSector)} Milestone (Best: Stage{' '}
+                        {getStageLabel(save.maxSectorReached)})
                       </span>
                     </div>
                   )}
@@ -735,7 +737,7 @@ export function UpgradeSkillTree({
                     : !hoveredDetails.isParentMet
                     ? 'Parent Node Locked'
                     : hoveredDetails.sectorLocked
-                    ? `Reach Wave ${hoveredDetails.reqSector}`
+                    ? `Reach Stage ${getStageLabel(hoveredDetails.reqSector)}`
                     : `Need ${(hoveredDetails.cost - save.shards).toLocaleString()} more 🪙`}
                 </span>
               </div>
@@ -777,7 +779,7 @@ export function UpgradeSkillTree({
             )}
             {selectedDetails.isParentMet && selectedDetails.sectorLocked && (
               <p className="inspector-req-warning">
-                🔒 Milestone Locked: Reach <strong>Siege Wave {selectedDetails.reqSector}</strong> in
+                🔒 Milestone Locked: Reach <strong>Stage {getStageLabel(selectedDetails.reqSector)}</strong> in
                 battle first.
               </p>
             )}

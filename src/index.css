@@ -3423,3 +3423,73 @@ body {
     animation: none !important;
   }
 }
+
+/* Siege Map: replay cleared stages, push the frontier */
+.stage-map-card {
+  max-width: 560px;
+  max-height: calc(100vh - 32px);
+}
+
+.stage-map-chapters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.stage-map-chapter-label {
+  display: block;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fbbf24;
+  margin-bottom: 6px;
+}
+
+.stage-map-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.stage-map-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: #1b130d;
+  border: 1px solid #4a3423;
+  min-height: 52px;
+}
+
+.stage-map-node-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.stage-map-node-tag {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+}
+
+.stage-map-node.cleared:hover {
+  border-color: #d97706;
+}
+
+.stage-map-node.frontier {
+  border: 2px solid #fbbf24;
+  background: rgba(120, 53, 15, 0.55);
+}
+
+.stage-map-node.frontier .stage-map-node-tag {
+  color: #fde68a;
+  font-weight: 800;
+}
+
+.stage-map-node.locked {
+  opacity: 0.45;
+}
