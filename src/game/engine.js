@@ -320,6 +320,17 @@ export const TUTORIAL_LESSONS = [
   },
 ];
 
+// Chain links land one after another after the weapon hits; deep chains bunch up so a turn
+// never takes more than about a second to play out
+const CHAIN_STEP_MS = 150;
+const CHAIN_IMPACT_MS = 40;
+const MAX_STAGGERED_LINKS = 6;
+
+function getHitRevealMs(depth, primaryImpactMs) {
+  if (depth === 0) return primaryImpactMs;
+  return primaryImpactMs + 60 + Math.min(depth - 1, MAX_STAGGERED_LINKS) * CHAIN_STEP_MS;
+}
+
 export function generateTutorialBoard(step = 1) {
   const gridSize = 3;
   const makeCell = (r, c, type = NODE_TYPES.EMPTY, hp = 0, conduitAxis = 'ROW') => ({
@@ -543,6 +554,8 @@ export function executeAbilityAndResolveChains({
 
   const events = [];
   const vfxAnimations = [];
+  // Every hit in resolution order, so the screen can reveal damage when its effect lands
+  const hits = [];
   let totalDamageDealt = 0;
   let nodesDestroyed = 0;
   let chainDepth = 0;
@@ -579,14 +592,18 @@ export function executeAbilityAndResolveChains({
       .forEach(({ cell }) => bounceTargets.push({ row: cell.row, col: cell.col }));
   }
 
+  const primaryType = isAutoArcherShot ? 'rail_beam' : abilityId;
+  const primaryDuration = primaryType === 'nova_bomb' ? 560 : 420;
+  const primaryImpactMs = Math.round(primaryDuration * 0.55);
   vfxAnimations.push({
     id: `vfx-primary-${Date.now()}-${Math.random()}`,
-    type: isAutoArcherShot ? 'rail_beam' : abilityId,
+    type: primaryType,
     row: targetRow,
     col: targetCol,
     bounceTargets,
     delayMs: 0,
-    duration: abilityId === 'nova_bomb' ? 560 : 420,
+    duration: primaryDuration,
+    impactMs: primaryImpactMs,
   });
 
   function applyDamageToCell(idx, rawDamage, sourceLabel, isChainReaction = false) {
@@ -656,6 +673,20 @@ export function executeAbilityAndResolveChains({
     cell.hp -= actualDamage;
     cell.justHit = true;
     totalDamageDealt += actualDamage;
+    hits.push({
+      idx,
+      cellId: cell.id,
+      row: cell.row,
+      col: cell.col,
+      damage: actualDamage,
+      hpAfter: Math.max(0, cell.hp),
+      killed: cell.hp <= 0,
+      crit: isCrit,
+      lucky: triggeredLuckyProc,
+      depth: chainDepth,
+      source: sourceLabel,
+      atMs: getHitRevealMs(chainDepth, primaryImpactMs),
+    });
 
     if (cell.hp <= 0) {
       cell.hp = 0;
@@ -760,9 +791,9 @@ export function executeAbilityAndResolveChains({
           type: 'BARREL_EXPLOSION',
           row,
           col,
-          delayMs: Math.min(chainDepth * 140, 900),
+          delayMs: getHitRevealMs(chainDepth, primaryImpactMs) - CHAIN_IMPACT_MS,
           duration: 460,
-          impactAt: 0.1,
+          impactMs: CHAIN_IMPACT_MS,
         });
 
         events.push({
@@ -794,9 +825,9 @@ export function executeAbilityAndResolveChains({
           row,
           col,
           axis: conduitAxis,
-          delayMs: Math.min(chainDepth * 140, 900),
+          delayMs: getHitRevealMs(chainDepth, primaryImpactMs) - CHAIN_IMPACT_MS,
           duration: 420,
-          impactAt: 0.1,
+          impactMs: CHAIN_IMPACT_MS,
         });
 
         events.push({
@@ -852,6 +883,7 @@ export function executeAbilityAndResolveChains({
     nextCells,
     events,
     vfxAnimations,
+    hits,
     nextTurnAmplifierBonus: dynamicAmp,
     stats: {
       nodesDestroyed,
