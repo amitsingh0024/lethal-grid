@@ -6,7 +6,20 @@ import {
   ZoomOut,
   Maximize2,
   Move,
-} from 'lucide-react';
+  Castle,
+  Sword,
+  Crown,
+  Fire,
+  Flag,
+  Potion,
+  Bomb,
+  Sparkles,
+  Zap,
+  Coins,
+  Target,
+  Check,
+  GoldCoin,
+} from './PixelIcons';
 import {
   ABILITIES,
   UPGRADE_CATALOG,
@@ -35,7 +48,7 @@ export const SKILL_TREE_NODES = [
     x: 900,
     y: 600,
     branch: 'CORE',
-    iconEmoji: '🏹',
+    icon: Target,
     parentId: null,
     parentReqLevel: 0,
   },
@@ -47,7 +60,7 @@ export const SKILL_TREE_NODES = [
     x: 900,
     y: 340,
     branch: 'CITADEL',
-    iconEmoji: '🏰',
+    icon: Castle,
     parentId: 'rail_beam',
     parentReqLevel: 2,
   },
@@ -57,7 +70,7 @@ export const SKILL_TREE_NODES = [
     x: 680,
     y: 140,
     branch: 'CITADEL',
-    iconEmoji: '⚔️',
+    icon: Sword,
     parentId: 'grid_size',
     parentReqLevel: 1,
   },
@@ -67,7 +80,7 @@ export const SKILL_TREE_NODES = [
     x: 1120,
     y: 140,
     branch: 'CITADEL',
-    iconEmoji: '👑',
+    icon: Crown,
     parentId: 'grid_size',
     parentReqLevel: 1,
   },
@@ -79,7 +92,7 @@ export const SKILL_TREE_NODES = [
     x: 590,
     y: 540,
     branch: 'DEMOLITION',
-    iconEmoji: '🛢️',
+    icon: Fire,
     parentId: 'rail_beam',
     parentReqLevel: 1,
   },
@@ -89,7 +102,7 @@ export const SKILL_TREE_NODES = [
     x: 310,
     y: 340,
     branch: 'DEMOLITION',
-    iconEmoji: '💣',
+    icon: Flag,
     parentId: 'chain_amp',
     parentReqLevel: 2,
   },
@@ -100,7 +113,7 @@ export const SKILL_TREE_NODES = [
     x: 310,
     y: 680,
     branch: 'DEMOLITION',
-    iconEmoji: '🧪',
+    icon: Potion,
     parentId: 'chain_amp',
     parentReqLevel: 2,
   },
@@ -110,7 +123,7 @@ export const SKILL_TREE_NODES = [
     x: 240,
     y: 960,
     branch: 'DEMOLITION',
-    iconEmoji: '💥',
+    icon: Bomb,
     parentId: 'nova_bomb',
     parentReqLevel: 1,
   },
@@ -122,7 +135,7 @@ export const SKILL_TREE_NODES = [
     x: 1210,
     y: 540,
     branch: 'FORTUNE',
-    iconEmoji: '🎲',
+    icon: Sparkles,
     parentId: 'rail_beam',
     parentReqLevel: 1,
   },
@@ -133,7 +146,7 @@ export const SKILL_TREE_NODES = [
     x: 1490,
     y: 360,
     branch: 'FORTUNE',
-    iconEmoji: '🔨',
+    icon: Zap,
     parentId: 'lucky_spark',
     parentReqLevel: 2,
   },
@@ -144,7 +157,7 @@ export const SKILL_TREE_NODES = [
     x: 1520,
     y: 720,
     branch: 'FORTUNE',
-    iconEmoji: '🗡️',
+    icon: Sword,
     parentId: 'arc_chain',
     parentReqLevel: 1,
   },
@@ -156,7 +169,7 @@ export const SKILL_TREE_NODES = [
     x: 900,
     y: 860,
     branch: 'ECONOMY',
-    iconEmoji: '🪙',
+    icon: Coins,
     parentId: 'rail_beam',
     parentReqLevel: 1,
   },
@@ -166,7 +179,7 @@ export const SKILL_TREE_NODES = [
     x: 900,
     y: 1090,
     branch: 'ECONOMY',
-    iconEmoji: '🎯',
+    icon: Target,
     parentId: 'shard_mult',
     parentReqLevel: 2,
   },
@@ -265,7 +278,7 @@ export function UpgradeSkillTree({
     if (node.kind === 'UPGRADE') {
       return UPGRADE_CATALOG.find((u) => u.id === node.id)?.name || node.id;
     }
-    return 'Royal Ascension';
+    return 'Ascend';
   }
 
   const getNodeDetails = (node) => {
@@ -294,13 +307,13 @@ export function UpgradeSkillTree({
 
       return {
         title: ab.name,
-        subtitle: isUnlocked ? stats.tierLabel : 'Siege Weapon Blueprint',
+        subtitle: isUnlocked ? stats.tierLabel : 'Weapon',
         description: `${ab.baseDesc}`,
         statLine: isUnlocked
           ? nextStats
-            ? `Direct Strike: ${stats.damage} DMG → ${nextStats.damage} DMG (${nextStats.tierLabel})`
-            : `Direct Strike: ${stats.damage} DMG (Max Tempered)`
-          : `Unlocks at ${stats.damage} Base Direct DMG (${stats.tierLabel})`,
+            ? `Damage ${stats.damage} → ${nextStats.damage}`
+            : `Damage ${stats.damage}`
+          : `Damage ${stats.damage}`,
         currentLvl,
         maxLvl,
         isMax,
@@ -312,14 +325,14 @@ export function UpgradeSkillTree({
         parentReqLevel: node.parentReqLevel,
         canAfford,
         actionLabel: !isParentMet
-          ? `Requires ${parentName} Lv.${node.parentReqLevel}`
+          ? `Needs ${parentName} Lv ${node.parentReqLevel}`
           : sectorLocked
-          ? `🔒 Reach Wave ${reqSector} (${cost.toLocaleString()} 🪙)`
+          ? `Reach Wave ${reqSector}`
           : isMax
-          ? 'MAX TEMPERED'
+          ? 'Max level'
           : isUnlocked
-          ? `Temper Lv.${currentLvl + 1} (${cost.toLocaleString()} 🪙)`
-          : `Unlock Weapon (${cost.toLocaleString()} 🪙)`,
+          ? `Upgrade · ${cost.toLocaleString()} Gold`
+          : `Unlock · ${cost.toLocaleString()} Gold`,
       };
     }
 
@@ -337,12 +350,12 @@ export function UpgradeSkillTree({
         title: upg.name,
         subtitle:
           node.branch === 'CITADEL'
-            ? 'Citadel Fortification'
+            ? 'Walls'
             : node.branch === 'FORTUNE'
-            ? 'Luck & Critical Cascade'
+            ? 'Luck'
             : node.branch === 'DEMOLITION'
-            ? 'Black Powder & Contagion'
-            : 'Royal Treasury & Garrison',
+            ? 'Powder'
+            : 'Treasury',
         description: upg.desc,
         statLine: upg.getEffectText(currentLvl),
         currentLvl,
@@ -356,23 +369,23 @@ export function UpgradeSkillTree({
         parentReqLevel: node.parentReqLevel,
         canAfford,
         actionLabel: !isParentMet
-          ? `Requires ${parentName} Lv.${node.parentReqLevel}`
+          ? `Needs ${parentName} Lv ${node.parentReqLevel}`
           : isMax
-          ? 'MAX LEVEL REACHED'
+          ? 'Max level'
           : sectorLocked
-          ? `🔒 Reach Wave ${reqSector} (${cost.toLocaleString()} 🪙)`
-          : `Forge Lv.${currentLvl + 1} (${cost.toLocaleString()} 🪙)`,
+          ? `Reach Wave ${reqSector}`
+          : `Upgrade · ${cost.toLocaleString()} Gold`,
       };
     }
 
     const canPrestige = isParentMet && save.sector >= 10;
     const coresToGain = Math.max(1, Math.floor((save.sector - 5) / 4));
     return {
-      title: 'Royal Ascension (Prestige)',
-      subtitle: 'Permanent Kingdom Prestige',
+      title: 'Ascend',
+      subtitle: 'Prestige',
       description:
-        'Reset your current wave and gold upgrades in exchange for permanent Royal Crests (+50% Gold Crowns per Crest)!',
-      statLine: `Current Bonus: +${(save.overclockCores || 0) * 50}% Global Gold • Ascend Now: +${coresToGain} Crests`,
+        'Start over from Wave 1 and lose Gold upgrades. Keep Crests: each gives +50% Gold forever.',
+      statLine: `Now +${(save.overclockCores || 0) * 50}% Gold. Ascend for +${coresToGain} ${coresToGain === 1 ? 'Crest' : 'Crests'}.`,
       currentLvl,
       maxLvl: 99,
       isMax: false,
@@ -384,10 +397,10 @@ export function UpgradeSkillTree({
       parentReqLevel: node.parentReqLevel,
       canAfford: canPrestige,
       actionLabel: !isParentMet
-        ? `Requires ${parentName} Lv.${node.parentReqLevel}`
+        ? `Needs ${parentName} Lv ${node.parentReqLevel}`
         : save.sector < 10
-        ? `🔒 Reach Wave 10 in Current Run (Now: Wave ${save.sector})`
-        : `👑 Ascend for +${coresToGain} Royal Crests`,
+        ? `Reach Wave 10 (now Wave ${save.sector})`
+        : `Ascend · +${coresToGain} ${coresToGain === 1 ? 'Crest' : 'Crests'}`,
     };
   };
 
@@ -418,24 +431,21 @@ export function UpgradeSkillTree({
       {/* HEADER BAR */}
       <div className="skill-tree-header">
         <div>
-          <span className="skill-tree-eyebrow">PANNABLE & ZOOMABLE CONSTELLATION TREE</span>
           <h2>
-            <TrendingUp size={20} className="text-amber" /> THE ROYAL FORGE SKILL TREE
+            <TrendingUp size={24} className="text-amber" /> Forge
           </h2>
-          <p>
-            Drag anywhere to pan • Scroll or use <strong>+/-</strong> to zoom • Click a medallion to
-            inspect or forge!
-          </p>
+          <p>Spend Gold on upgrades. Tap one to see it, tap again to buy.</p>
         </div>
 
         <div className="skill-tree-header-right">
           <div className="tree-treasury-pill">
-            <span>🪙 {save.shards.toLocaleString()} Gold</span>
-            <span className="chip-sep">•</span>
-            <span>Max Wave: {save.maxSectorReached}</span>
+            <span><GoldCoin size={16} /> {save.shards.toLocaleString()}</span>
+            <span className="chip-sep">·</span>
+            <span>Best: Wave {save.maxSectorReached}</span>
           </div>
           <button type="button" className="btn-primary" onClick={onReturnToBattle}>
-            <span>⚔️ Return to Siege (Wave {save.sector})</span>
+            <Sword size={18} />
+            <span>Play Wave {save.sector}</span>
           </button>
         </div>
       </div>
@@ -458,7 +468,7 @@ export function UpgradeSkillTree({
             type="button"
             className="tree-cam-btn"
             onClick={() => setZoom((z) => clampZoom(z + 0.15))}
-            title="Zoom In"
+            title="Zoom in"
           >
             <ZoomIn size={16} />
           </button>
@@ -467,7 +477,7 @@ export function UpgradeSkillTree({
             type="button"
             className="tree-cam-btn"
             onClick={() => setZoom((z) => clampZoom(z - 0.15))}
-            title="Zoom Out"
+            title="Zoom out"
           >
             <ZoomOut size={16} />
           </button>
@@ -475,7 +485,7 @@ export function UpgradeSkillTree({
             type="button"
             className="tree-cam-btn"
             onClick={resetCamera}
-            title="Reset & Center Camera"
+            title="Center"
           >
             <Maximize2 size={15} />
             <span>Center</span>
@@ -483,7 +493,7 @@ export function UpgradeSkillTree({
         </div>
 
         <div className="tree-drag-hint">
-          <Move size={13} /> Drag to Pan • Scroll to Zoom
+          <Move size={12} /> Drag to move
         </div>
 
         {/* TRANSFORMABLE 1800x1200 WORLD PLANE */}
@@ -497,16 +507,16 @@ export function UpgradeSkillTree({
         >
           {/* QUADRANT BANNERS IN WORLD SPACE */}
           <div className="world-branch-banner" style={{ left: '900px', top: '55px' }}>
-            🏰 NORTH: CITADEL FORTIFICATIONS & VOLLEYS
+            Walls
           </div>
           <div className="world-branch-banner" style={{ left: '300px', top: '230px' }}>
-            🛢️ WEST: BLACK POWDER & CONTAGION
+            Powder
           </div>
           <div className="world-branch-banner" style={{ left: '1490px', top: '230px' }}>
-            🎲 EAST: FORTUNE, CRITS & ARSENAL
+            Luck
           </div>
           <div className="world-branch-banner" style={{ left: '900px', top: '1165px' }}>
-            🪙 SOUTH: ROYAL TREASURY & AUTO-ARCHERS
+            Treasury
           </div>
 
           {/* 1:1 PIXEL SVG DEPENDENCY LINES */}
@@ -592,7 +602,7 @@ export function UpgradeSkillTree({
                   {node.kind === 'ABILITY' ? (
                     <WeaponPixelIcon id={node.id} size={38} />
                   ) : (
-                    <span className="medallion-emoji">{node.iconEmoji}</span>
+                    <node.icon size={36} className="medallion-emoji" />
                   )}
 
                   {!details.isParentMet && (
@@ -603,9 +613,9 @@ export function UpgradeSkillTree({
 
                   <span className="medallion-lvl-pip">
                     {details.isMax
-                      ? 'MAX'
+                      ? 'Max'
                       : node.kind === 'ABILITY' && details.currentLvl === 0
-                      ? '🔒'
+                      ? <Lock size={12} />
                       : `${details.currentLvl}/${details.maxLvl}`}
                   </span>
                 </div>
@@ -619,8 +629,8 @@ export function UpgradeSkillTree({
                     }`}
                   >
                     {details.sectorLocked
-                      ? `🔒 Wave ${details.reqSector}`
-                      : `${details.cost.toLocaleString()} 🪙`}
+                      ? `Wave ${details.reqSector}`
+                      : <>{details.cost.toLocaleString()} <GoldCoin size={12} /></>}
                   </span>
                 )}
               </button>
@@ -651,7 +661,7 @@ export function UpgradeSkillTree({
                   {hoveredNode.kind === 'ABILITY' ? (
                     <WeaponPixelIcon id={hoveredNode.id} size={30} />
                   ) : (
-                    <span>{hoveredNode.iconEmoji}</span>
+                    <hoveredNode.icon size={24} />
                   )}
                 </div>
                 <div className="hover-tooltip-title-col">
@@ -659,8 +669,8 @@ export function UpgradeSkillTree({
                     <h4>{hoveredDetails.title}</h4>
                     <span className="hover-tooltip-lvl-badge">
                       {hoveredDetails.isMax
-                        ? 'MAX'
-                        : `Lv. ${hoveredDetails.currentLvl}/${hoveredDetails.maxLvl}`}
+                        ? 'Max'
+                        : `Lv ${hoveredDetails.currentLvl}/${hoveredDetails.maxLvl}`}
                     </span>
                   </div>
                   <span className="hover-tooltip-subtitle">
@@ -684,9 +694,9 @@ export function UpgradeSkillTree({
                         hoveredDetails.isParentMet ? 'req-met' : 'req-locked'
                       }`}
                     >
-                      <span>{hoveredDetails.isParentMet ? '✓' : '🔒'}</span>
+                      <span>{hoveredDetails.isParentMet ? <Check size={12} /> : <Lock size={12} />}</span>
                       <span>
-                        Requires <strong>{hoveredDetails.parentName}</strong> Lv.
+                        Needs <strong>{hoveredDetails.parentName}</strong> Lv{' '}
                         {hoveredDetails.parentReqLevel}
                       </span>
                     </div>
@@ -697,9 +707,9 @@ export function UpgradeSkillTree({
                         !hoveredDetails.sectorLocked ? 'req-met' : 'req-locked'
                       }`}
                     >
-                      <span>{!hoveredDetails.sectorLocked ? '✓' : '🔒'}</span>
+                      <span>{!hoveredDetails.sectorLocked ? <Check size={12} /> : <Lock size={12} />}</span>
                       <span>
-                        Siege Wave {hoveredDetails.reqSector} Milestone (Best: Wave{' '}
+                        Reach Wave {hoveredDetails.reqSector} (best: Wave{' '}
                         {save.maxSectorReached})
                       </span>
                     </div>
@@ -715,11 +725,11 @@ export function UpgradeSkillTree({
                       save.shards >= hoveredDetails.cost ? 'cost-ok' : 'cost-short'
                     }`}
                   >
-                    🪙 {hoveredDetails.cost.toLocaleString()} Gold
+                    <GoldCoin size={16} /> {hoveredDetails.cost.toLocaleString()}
                   </span>
                 ) : (
                   <span className="hover-cost-tag cost-ok">
-                    {hoveredDetails.isMax ? '✨ Fully Tempered' : '👑 Kingdom Prestige'}
+                    {hoveredDetails.isMax ? 'Max level' : 'Prestige'}
                   </span>
                 )}
 
@@ -729,14 +739,14 @@ export function UpgradeSkillTree({
                   }`}
                 >
                   {hoveredDetails.canAfford
-                    ? '⚡ Click Node to Forge!'
+                    ? 'Tap to buy'
                     : hoveredDetails.isMax
-                    ? 'MAX LEVEL'
+                    ? 'Max level'
                     : !hoveredDetails.isParentMet
-                    ? 'Parent Node Locked'
+                    ? 'Locked'
                     : hoveredDetails.sectorLocked
                     ? `Reach Wave ${hoveredDetails.reqSector}`
-                    : `Need ${(hoveredDetails.cost - save.shards).toLocaleString()} more 🪙`}
+                    : `Need ${(hoveredDetails.cost - save.shards).toLocaleString()} more Gold`}
                 </span>
               </div>
             </div>
@@ -751,7 +761,7 @@ export function UpgradeSkillTree({
             {selectedNode.kind === 'ABILITY' ? (
               <WeaponPixelIcon id={selectedNode.id} size={44} />
             ) : (
-              <span className="inspector-big-emoji">{selectedNode.iconEmoji}</span>
+              <selectedNode.icon size={48} className="inspector-big-emoji" />
             )}
           </div>
 
@@ -762,7 +772,7 @@ export function UpgradeSkillTree({
                 {selectedDetails.subtitle}
               </span>
               <span className="inspector-lvl-pill">
-                Lv. {selectedDetails.currentLvl} / {selectedDetails.maxLvl}
+                Lv {selectedDetails.currentLvl}/{selectedDetails.maxLvl}
               </span>
             </div>
 
@@ -771,14 +781,13 @@ export function UpgradeSkillTree({
 
             {!selectedDetails.isParentMet && (
               <p className="inspector-req-warning">
-                🔒 Prerequisite: Forge <strong>{selectedDetails.parentName}</strong> to Level{' '}
-                {selectedDetails.parentReqLevel} first.
+                <Lock size={12} /> Needs <strong>{selectedDetails.parentName}</strong> at Lv{' '}
+                {selectedDetails.parentReqLevel}.
               </p>
             )}
             {selectedDetails.isParentMet && selectedDetails.sectorLocked && (
               <p className="inspector-req-warning">
-                🔒 Milestone Locked: Reach <strong>Siege Wave {selectedDetails.reqSector}</strong> in
-                battle first.
+                <Lock size={12} /> Reach <strong>Wave {selectedDetails.reqSector}</strong> first.
               </p>
             )}
           </div>

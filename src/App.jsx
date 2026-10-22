@@ -24,7 +24,12 @@ import {
   Home,
   ShoppingBag,
   GraduationCap,
-} from 'lucide-react';
+  Sword,
+  Heart,
+  Skull,
+  Tv,
+  GoldCoin,
+} from './components/PixelIcons';
 import {
   NODE_TYPES,
   NODE_META,
@@ -276,7 +281,7 @@ export default function App() {
   };
 
   const [commanderMessage, setCommanderMessage] = useState(
-    'Choose a Siege Weapon below and strike a raider in the stone courtyard!'
+    'Pick a weapon, then tap a raider.'
   );
   const [lastTurnStats, setLastTurnStats] = useState(null);
   const [adBoostSeconds, setAdBoostSeconds] = useState(0);
@@ -456,7 +461,7 @@ export default function App() {
       if (outcome === 'VICTORY') {
         setLastTurnStats({ ...result.stats, shardsEarned: earned });
         setCommanderMessage(
-          `⚔️ TOTAL VICTORY! Your Battlement Archers felled the last raider for +${earned} Gold Crowns!`
+          `Your archers got the last one. Wave cleared! +${earned} Gold`
         );
       }
     }, 2200);
@@ -550,16 +555,15 @@ export default function App() {
     setArmedCellId(null);
     setBoardSector(boardSectorValue);
     setLastTurnStats(null);
-    const luckPct = 8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8);
     const dailyAlreadyWon = isDaily && save.dailyClearedDate === todaySeed;
     setCommanderMessage(
       isDaily
         ? dailyAlreadyWon
-          ? `Royal Daily Decree #${todaySeed}: You already won today's decree. This run is practice and pays no Gold.`
-          : `Royal Daily Decree #${todaySeed}: Every Commander in the realm faces this exact Siege formation today! Gold is paid on victory, once per day.`
+          ? `Daily Siege #${todaySeed}. You already won today, so this run is practice.`
+          : `Daily Siege #${todaySeed}. Everyone gets this board today. Win it once for Gold.`
         : goldMult < 1
-        ? `Wave ${targetSector} retry: this attempt pays ${Math.round(goldMult * 100)}% Gold. Clear it to march on!`
-        : `Wave ${targetSector}: Strike Powder-Kegs & Shamans! (${luckPct}% Lucky Instant-Ignition chance on high-HP foes!)`
+        ? `Wave ${targetSector}, again. This try pays ${Math.round(goldMult * 100)}% Gold.`
+        : `Wave ${targetSector}. Hit the kegs and shamans first.`
     );
   };
 
@@ -794,11 +798,11 @@ export default function App() {
     const popupId = `${Date.now()}-${Math.random()}`;
     const luckyTag =
       result.stats.refundedCharge > 0
-        ? '⚡ +1 FREE VOLLEY! '
+        ? '+1 Shot! '
         : result.stats.luckyProcsCount > 0
-        ? `🎲 ${result.stats.luckyProcsCount}× LUCKY IGNITE! `
+        ? `Ignite ×${result.stats.luckyProcsCount}! `
         : result.stats.critHitsCount > 0
-        ? `⚡ ${result.stats.critHitsCount}× CRIT! `
+        ? `Crit ×${result.stats.critHitsCount}! `
         : '';
 
     const revealMs = playShotReveal(result, shotFrom, {
@@ -828,8 +832,8 @@ export default function App() {
             row,
             col,
             text: result.stats.isBoardClear
-              ? `${luckyTag}⚔️ SIEGE BROKEN! +${earned} Gold`
-              : `${luckyTag}-${result.stats.totalDamageDealt} HP (${result.stats.chainDepth}× Chain)`,
+              ? `${luckyTag}Cleared! +${earned} Gold`
+              : `${luckyTag}-${result.stats.totalDamageDealt} (Chain ×${result.stats.chainDepth})`,
           },
         ]);
         setTimeout(() => {
@@ -844,14 +848,14 @@ export default function App() {
       if (result.stats.isBoardClear) {
         if (tutorialStep < 3) {
           announce(
-            `HUZZAH! Every raider routed in a single volley! Click "Next Training Trial" below!`
+            `One shot, whole board. That's the game.`
           );
         } else {
           const rewardGold = save.tutorialCompleted ? 0 : 15;
           announce(
-            `🏆 Training Complete! You've mastered Powder-Kegs, Storm-Rune Shamans, and War-Banners${
-              rewardGold > 0 ? ` (+${rewardGold} Gold Crowns awarded)` : ''
-            }!`
+            `Training done. Kegs, shamans, banners: you know them all.${
+              rewardGold > 0 ? ` +${rewardGold} Gold` : ''
+            }`
           );
           setSave((prev) => {
             const grant = prev.tutorialCompleted ? 0 : 15;
@@ -865,7 +869,7 @@ export default function App() {
         }
       } else {
         announce(
-          `Close, Commander! Strike the glowing yellow-circled unit so its explosion chains to the entire courtyard!`
+          `Close. Hit the marked tile so the blast spreads.`
         );
       }
       return;
@@ -876,27 +880,27 @@ export default function App() {
       getNextAttemptGoldMult(saveRef.current.waveAttempts, live.sector) * 100
     );
     if (result.stats.isBoardClear) {
-      const goldText = isDaily && earned === 0 ? 'practice run, no Gold' : `+${earned} Gold`;
+      const goldText = isDaily && earned === 0 ? 'Practice run, no Gold.' : `+${earned} Gold`;
       announce(
         latestLuckyEvent
-          ? `${latestLuckyEvent.text} ⚔️ TOTAL VICTORY (${goldText})!`
-          : `⚔️ TOTAL VICTORY! ${result.stats.chainDepth}× Chain Reaction routed the siege (${goldText})!`
+          ? `${latestLuckyEvent.text} Wave cleared! ${goldText}`
+          : `Wave cleared! Chain ×${result.stats.chainDepth}. ${goldText}`
       );
     } else if (latestLuckyEvent) {
       announce(
-        `${latestLuckyEvent.text} (${result.stats.remainingNodes} foes remain, ${nextCharges} volleys left!)`
+        `${latestLuckyEvent.text} ${result.stats.remainingNodes} left, ${nextCharges} ${nextCharges === 1 ? 'shot' : 'shots'} to go.`
       );
     } else if (nextCharges > 0) {
       announce(
-        `Direct hit! ${result.stats.remainingNodes} raiders remain and you have ${nextCharges} attack left—finish them!`
+        `${result.stats.remainingNodes} left, ${nextCharges} ${nextCharges === 1 ? 'shot' : 'shots'} to go.`
       );
     } else if (isDaily) {
       announce(
-        `Volley spent! The Daily Decree holds. Retry it — Gold is paid only when you win.`
+        `Out of shots. The daily board holds. Try again; Gold comes when you win.`
       );
     } else {
       announce(
-        `Volley spent! Wave ${live.sector} holds (+${earned} Gold looted). A retry pays ${nextRetryPct}% Gold—upgrade in the Royal Forge and try again!`
+        `Out of shots. +${earned} Gold. Upgrade in the Forge, then try again (${nextRetryPct}% Gold).`
       );
     }
   };
@@ -991,12 +995,12 @@ export default function App() {
     }
 
     const shareText = [
-      `🏰 LETHAL GRID: OVERCLOCK (${
-        gameMode === 'DAILY' ? `Daily Decree #${todaySeed}` : `Wave ${boardSector}`
+      `🏰 Lethal Grid (${
+        gameMode === 'DAILY' ? `Daily Siege #${todaySeed}` : `Wave ${boardSector}`
       })`,
-      `Courtyard: ${activeGridSize}×${activeGridSize} | Sieges Broken: ${save.lethalClears}`,
+      `Board ${activeGridSize}×${activeGridSize} | Waves cleared: ${save.lethalClears}`,
       ...emojiRows,
-      `Play Free: ${window.location.origin}`,
+      `Play free: ${window.location.origin}`,
     ].join('\n');
 
     navigator.clipboard?.writeText(shareText);
@@ -1011,7 +1015,7 @@ export default function App() {
       if (adBoostSeconds > 0) return;
       setRewardedModalConfig({
         isOpen: true,
-        rewardTitle: '2× Royal Gold Plunder Charter (3 Minutes)',
+        rewardTitle: '2× Gold for 3 minutes',
         onClaim: () => {
           setAdBoostSeconds((s) => (s > 0 ? s : 180));
           setSave((prev) => ({
@@ -1025,7 +1029,7 @@ export default function App() {
       if (battleRef.current.adVolleyUsed || battleRef.current.outcome !== 'DEFEAT') return;
       setRewardedModalConfig({
         isOpen: true,
-        rewardTitle: '+1 Emergency Siege Volley',
+        rewardTitle: '+1 Shot',
         onClaim: () => {
           const live = battleRef.current;
           if (live.adVolleyUsed || live.outcome !== 'DEFEAT') return;
@@ -1120,7 +1124,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="brand-title">
-                LETHAL GRID: OVERCLOCK <span className="badge-cyan">ROYAL EDITION</span>
+                Lethal Grid
               </h1>
             </div>
           </div>
@@ -1133,7 +1137,7 @@ export default function App() {
               onClick={() => setScreen('MENU')}
             >
               <Home size={15} />
-              <span>Title Screen</span>
+              <span>Home</span>
             </button>
 
             <button
@@ -1142,7 +1146,7 @@ export default function App() {
               onClick={() => startTutorial(1)}
             >
               <GraduationCap size={15} />
-              <span>Training Yard</span>
+              <span>Training</span>
             </button>
 
             <button
@@ -1151,7 +1155,7 @@ export default function App() {
               onClick={() => continueCampaign()}
             >
               <Play size={15} />
-              <span>Defend Courtyard</span>
+              <span>Play</span>
             </button>
 
             <button
@@ -1160,7 +1164,7 @@ export default function App() {
               onClick={() => setScreen('UPGRADES')}
             >
               <ShoppingBag size={15} />
-              <span>Royal Forge</span>
+              <span>Forge</span>
               {affordableUpgradesCount > 0 && (
                 <span className="nav-badge-count">{affordableUpgradesCount}</span>
               )}
@@ -1169,17 +1173,17 @@ export default function App() {
 
           {/* GOLD POUCH & TELEMETRY */}
           <div className="top-actions">
-            <div className="wallet-pill" title="Your Royal Gold Crowns">
-              <span className="gold-coin-dot">🪙</span>
+            <div className="wallet-pill" title="Gold">
+              <GoldCoin size={16} />
               <strong>{save.shards.toLocaleString()}</strong>
-              <span>GOLD</span>
+              <span>Gold</span>
             </div>
 
             <button
               type="button"
               className="btn-icon"
               onClick={() => setShowBestiaryModal(true)}
-              title="Open Bestiary & Field Manual"
+              title="Bestiary"
             >
               <BookOpen size={16} />
             </button>
@@ -1256,9 +1260,9 @@ export default function App() {
           <div className="title-corner-bar">
             <div className="title-corner-left">
               <div className="title-status-chip" title="Your Kingdom Save Progress">
-                <span>🪙 {save.shards.toLocaleString()} Gold</span>
+                <span><GoldCoin size={16} /> {save.shards.toLocaleString()}</span>
                 <span className="chip-sep">•</span>
-                <span>Wave {save.sector} ({campaignGridSize}×{campaignGridSize})</span>
+                <span>Wave {save.sector}</span>
               </div>
             </div>
 
@@ -1267,7 +1271,7 @@ export default function App() {
                 type="button"
                 className="title-utility-btn"
                 onClick={() => setShowBestiaryModal(true)}
-                title="View Raider Bestiary & Chain Rules"
+                title="Bestiary"
               >
                 <BookOpen size={15} />
                 <span>Bestiary</span>
@@ -1310,10 +1314,10 @@ export default function App() {
               </div>
             </div>
 
-            <span className="title-eyebrow-ribbon">ONE-TURN CHAIN-REACTION SIEGE TACTICS</span>
-            <h1 className="title-main-logo">LETHAL GRID: OVERCLOCK</h1>
+            <span className="title-eyebrow-ribbon">A chain-reaction siege puzzle</span>
+            <h1 className="title-main-logo">Lethal Grid</h1>
             <p className="title-tagline">
-              Command the battlements. Detonate the Goblin horde in a single volley.
+              One shot. One chain. No goblins left.
             </p>
 
             {/* FOCUSED VERTICAL INDIE MENU STACK */}
@@ -1324,9 +1328,9 @@ export default function App() {
                   className="indie-menu-btn primary"
                   onClick={() => startTutorial(1)}
                 >
-                  <span className="menu-sword-cursor">⚔️</span>
-                  <span className="menu-btn-label">Play Tutorial</span>
-                  <span className="menu-btn-tag gold">+15 🪙</span>
+                  <Sword size={18} className="menu-sword-cursor" />
+                  <span className="menu-btn-label">Learn to Play</span>
+                  <span className="menu-btn-tag gold">+15 <GoldCoin size={16} /></span>
                 </button>
               ) : (
                 <button
@@ -1334,8 +1338,8 @@ export default function App() {
                   className="indie-menu-btn primary"
                   onClick={() => continueCampaign()}
                 >
-                  <span className="menu-sword-cursor">⚔️</span>
-                  <span className="menu-btn-label">Continue Siege</span>
+                  <Sword size={18} className="menu-sword-cursor" />
+                  <span className="menu-btn-label">Continue</span>
                   <span className="menu-btn-tag gold">Wave {save.sector}</span>
                 </button>
               )}
@@ -1345,8 +1349,8 @@ export default function App() {
                 className="indie-menu-btn"
                 onClick={() => startGameSession('DAILY', 5)}
               >
-                <span className="menu-sword-cursor">⚔️</span>
-                <span className="menu-btn-label">Daily Royal Decree</span>
+                <Sword size={18} className="menu-sword-cursor" />
+                <span className="menu-btn-label">Daily Siege</span>
                 <span className="menu-btn-tag">#{getTodayDateSeed().slice(5)}</span>
               </button>
 
@@ -1355,12 +1359,12 @@ export default function App() {
                 className="indie-menu-btn"
                 onClick={() => setScreen('UPGRADES')}
               >
-                <span className="menu-sword-cursor">⚔️</span>
-                <span className="menu-btn-label">The Royal Forge</span>
+                <Sword size={18} className="menu-sword-cursor" />
+                <span className="menu-btn-label">Forge</span>
                 {affordableUpgradesCount > 0 ? (
-                  <span className="menu-btn-tag ready">{affordableUpgradesCount} Ready!</span>
+                  <span className="menu-btn-tag ready">{affordableUpgradesCount} ready</span>
                 ) : (
-                  <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize} Keep</span>
+                  <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize}</span>
                 )}
               </button>
 
@@ -1370,9 +1374,9 @@ export default function App() {
                   className="indie-menu-btn"
                   onClick={() => continueCampaign()}
                 >
-                  <span className="menu-sword-cursor">⚔️</span>
-                  <span className="menu-btn-label">Skip to Siege Wave {save.sector}</span>
-                  <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize}</span>
+                  <Sword size={18} className="menu-sword-cursor" />
+                  <span className="menu-btn-label">Skip Tutorial</span>
+                  <span className="menu-btn-tag">Wave {save.sector}</span>
                 </button>
               ) : (
                 <button
@@ -1380,8 +1384,8 @@ export default function App() {
                   className="indie-menu-btn"
                   onClick={() => startTutorial(1)}
                 >
-                  <span className="menu-sword-cursor">⚔️</span>
-                  <span className="menu-btn-label">Training Yard</span>
+                  <Sword size={18} className="menu-sword-cursor" />
+                  <span className="menu-btn-label">Training</span>
                   <span className="menu-btn-tag">Practice</span>
                 </button>
               )}
@@ -1409,24 +1413,24 @@ export default function App() {
           {/* STATUS STRIP: VOLLEY CHARGES + LUCK & RALLY BADGES + ACTIONS */}
           <div className="battle-hud-bar">
             <div className="charges-display">
-              <span className="charges-label">SIEGE VOLLEYS LEFT:</span>
+              <span className="charges-label">Shots</span>
               <div className="charge-pips">
                 {Array.from({ length: maxTurnCharges }).map((_, i) => (
                   <span
                     key={i}
                     className={`charge-pip ${i < chargesLeft ? 'active' : 'spent'}`}
-                    title="Available Weapon Attack"
+                    title="Shot"
                   >
-                    ⚔️
+                    <Sword size={18} />
                   </span>
                 ))}
               </div>
               {screen === 'PLAY' && (
                 <span
                   className="amp-pill"
-                  title="Fortune's Spark: Any hit has a chance to instantly detonate high-HP Powder-Kegs/Shamans or deal 3× Crit Damage!"
+                  title="Ignite: any hit can set off a keg or shaman instantly"
                 >
-                  🎲 {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}% Luck Ignite
+                  <Sparkles size={12} /> Ignite {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}%
                 </span>
               )}
               {screen === 'PLAY' && gameMode === 'CAMPAIGN' && boardGoldMult < 1 && (
@@ -1434,12 +1438,12 @@ export default function App() {
                   className="amp-pill"
                   title="Each retry of the same wave pays less Gold. Clear the wave to reset it."
                 >
-                  ↻ Retry: {Math.round(boardGoldMult * 100)}% Gold
+                  Retry: {Math.round(boardGoldMult * 100)}% Gold
                 </span>
               )}
               {turnAmplifierBonus > 1 && (
                 <span className="amp-pill">
-                  +{Math.round((turnAmplifierBonus - 1) * 100)}% RALLY DAMAGE
+                  Rally +{Math.round((turnAmplifierBonus - 1) * 100)}%
                 </span>
               )}
             </div>
@@ -1454,7 +1458,7 @@ export default function App() {
                 >
                   <Gift size={14} />
                   <span>
-                    {adBoostSeconds > 0 ? `2× Gold (${adBoostSeconds}s)` : '2× Gold Charter'}
+                    {adBoostSeconds > 0 ? `2× Gold (${adBoostSeconds}s)` : '2× Gold'}
                   </span>
                 </button>
               )}
@@ -1470,14 +1474,14 @@ export default function App() {
               >
                 <RotateCcw size={14} />
                 <span>
-                  {screen === 'TUTORIAL' ? 'Reset Trial' : gameMode === 'DAILY' ? 'Restart Decree' : 'Restart Wave'}
+                  Restart
                 </span>
               </button>
 
               {screen === 'PLAY' && (
                 <button type="button" className="btn-secondary btn-sm" onClick={handleShareScore}>
                   <Share2 size={14} />
-                  <span>{shareCopied ? 'Scroll Copied!' : 'Share'}</span>
+                  <span>{shareCopied ? 'Copied' : 'Share'}</span>
                 </button>
               )}
             </div>
@@ -1548,10 +1552,10 @@ export default function App() {
                       {cellPopup && <span className="floating-dmg-popup">{cellPopup.text}</span>}
 
                       {isArmed ? (
-                        <span className="tutorial-click-tag">TAP AGAIN TO FIRE</span>
+                        <span className="tutorial-click-tag">Tap again to fire</span>
                       ) : (
                         isTutorialTarget && (
-                          <span className="tutorial-click-tag">👇 STRIKE HERE!</span>
+                          <span className="tutorial-click-tag">Shoot here</span>
                         )
                       )}
 
@@ -1560,7 +1564,7 @@ export default function App() {
                           <div className="tile-top-row">
                             <span className="tile-type-tag">{meta.short}</span>
                             <span className="tile-hp-pill">
-                              <span className="tile-hp-heart" aria-hidden="true">❤️ </span>
+                              <Heart size={12} className="tile-hp-heart" />
                               {cell.hp}
                             </span>
                           </div>
@@ -1582,9 +1586,11 @@ export default function App() {
                       ) : (
                         <div className="tile-wreckage">
                           {cell.destroyedByChain ? (
-                            <span className="explosion-burst">💥</span>
+                            <Flame size={24} className="explosion-burst" />
                           ) : (
-                            <span className="tile-cleared-mark">🪨</span>
+                            cell.type !== NODE_TYPES.EMPTY && (
+                              <Skull size={18} className="tile-cleared-mark" />
+                            )
                           )}
                         </div>
                       )}
@@ -1600,21 +1606,21 @@ export default function App() {
                 <div>
                   <strong>
                     {isBoardCleared
-                      ? '🎺 SIEGE BROKEN! 100% COURTYARD CLEARED!'
-                      : `Volley Expended • ${remainingAliveNodes} Raiders Still Standing`}
+                      ? 'Wave cleared!'
+                      : `Out of shots. ${remainingAliveNodes} still standing.`}
                   </strong>
                   <p>
                     {screen === 'TUTORIAL'
                       ? isBoardCleared
-                        ? 'Glorious chain reaction, Commander!'
-                        : 'Click Reset Trial and strike the highlighted target!'
+                        ? 'Lovely chain.'
+                        : 'Restart and hit the marked tile.'
                       : isBoardCleared
                       ? gameMode === 'DAILY' && !lastTurnStats?.shardsEarned
-                        ? "Today's decree is already won, so this run was practice (no Gold)."
-                        : `Looted +${lastTurnStats?.shardsEarned || 0} Gold Crowns (includes +25% Clear Bounty!)`
+                        ? "You already won today, so this was practice."
+                        : `+${lastTurnStats?.shardsEarned || 0} Gold, clear bonus included`
                       : gameMode === 'DAILY'
-                      ? 'The decree holds. Gold is paid only when you win it, once per day.'
-                      : `Wave ${boardSector} holds. A retry pays ${nextRetryGoldPct}% Gold, so upgrade in the Royal Forge before trying again.`}
+                      ? 'The daily board holds. Win it once for Gold.'
+                      : `Upgrade in the Forge, then try again. A retry pays ${nextRetryGoldPct}% Gold.`}
                   </p>
                 </div>
 
@@ -1628,7 +1634,7 @@ export default function App() {
                           onClick={() => startTutorial(tutorialStep + 1)}
                         >
                           <FastForward size={16} />
-                          <span>Next Training Trial ({tutorialStep + 1}/3)</span>
+                          <span>Next lesson ({tutorialStep + 1}/3)</span>
                         </button>
                       ) : (
                         <button
@@ -1637,7 +1643,7 @@ export default function App() {
                           onClick={() => startGameSession('CAMPAIGN', save.sector)}
                         >
                           <Play size={16} />
-                          <span>March to Wave {save.sector}!</span>
+                          <span>Start Wave {save.sector}</span>
                         </button>
                       )
                     ) : (
@@ -1647,7 +1653,7 @@ export default function App() {
                         onClick={() => startTutorial(tutorialStep)}
                       >
                         <RotateCcw size={16} />
-                        <span>Reset Trial</span>
+                        <span>Restart</span>
                       </button>
                     )
                   ) : (
@@ -1658,7 +1664,7 @@ export default function App() {
                           className="btn-reward-inline"
                           onClick={() => triggerRewardedAd('EXTRA_CHARGE')}
                         >
-                          📺 +1 Volley (Ad)
+                          <Tv size={12} /> +1 Shot (ad)
                         </button>
                       )}
                       {affordableUpgradesCount > 0 && (
@@ -1668,7 +1674,7 @@ export default function App() {
                           onClick={() => setScreen('UPGRADES')}
                         >
                           <ShoppingBag size={15} />
-                          <span>Royal Forge ({affordableUpgradesCount})</span>
+                          <span>Forge ({affordableUpgradesCount})</span>
                         </button>
                       )}
                       <button
@@ -1680,11 +1686,11 @@ export default function App() {
                         <span>
                           {gameMode === 'DAILY'
                             ? isBoardCleared
-                              ? 'Replay Decree (Practice)'
-                              : 'Retry Decree'
+                              ? 'Play again (practice)'
+                              : 'Retry'
                             : isBoardCleared
-                            ? `March to Wave ${save.sector}`
-                            : `Retry Wave ${boardSector} (${nextRetryGoldPct}% Gold)`}
+                            ? `Next: Wave ${save.sector}`
+                            : `Retry (${nextRetryGoldPct}% Gold)`}
                         </span>
                       </button>
                     </>
@@ -1695,7 +1701,7 @@ export default function App() {
           </div>
 
           {/* TACTILE WOODEN & IRON WEAPON DOCK */}
-          <div className="weapon-dock" role="radiogroup" aria-label="Select Siege Weapon">
+          <div className="weapon-dock" role="radiogroup" aria-label="Weapons">
             {ABILITIES.map((ab, idx) => {
               const unlocked = isWeaponUnlocked(ab.id);
               const lvl =
@@ -1732,16 +1738,16 @@ export default function App() {
                 >
                   <div className={`ability-icon bg-${ab.color}`}>
                     <WeaponIllustration id={ab.id} />
-                    <span className="hotkey-badge">{unlocked ? ab.hotkey : '🔒'}</span>
+                    <span className="hotkey-badge">{unlocked ? ab.hotkey : <Lock size={12} />}</span>
                   </div>
                   <div className="weapon-dock-text">
                     <div className="weapon-dock-top">
                       <strong>{ab.name}</strong>
                       {unlocked ? (
-                        <span className="weapon-dmg-badge">{stats.damage} DMG</span>
+                        <span className="weapon-dmg-badge">{stats.damage} dmg</span>
                       ) : (
                         <span className="weapon-dmg-badge">
-                          Wave {ab.minSector} • {ab.unlockCost} 🪙
+                          Wave {ab.minSector} · {ab.unlockCost} <GoldCoin size={12} />
                         </span>
                       )}
                     </div>
@@ -1749,8 +1755,8 @@ export default function App() {
                       {unlocked
                         ? ab.baseDesc
                         : idx > 0 && screen === 'TUTORIAL'
-                        ? 'Unlocks after Training Yard'
-                        : `Locked — Click to unlock in the Royal Forge!`}
+                        ? 'Unlocks after training'
+                        : 'Unlock in the Forge'}
                     </span>
                   </div>
                 </button>
@@ -1783,7 +1789,7 @@ export default function App() {
           className="btn-link"
           onClick={() => setShowGuideDrawer((v) => !v)}
         >
-          <BookOpen size={14} /> {showGuideDrawer ? 'Close Field Manual' : 'Siege Field Manual & Rules'}
+          <BookOpen size={14} /> {showGuideDrawer ? 'Close guide' : 'How to play'}
         </button>
         <span>•</span>
         <button
@@ -1791,20 +1797,20 @@ export default function App() {
           className="btn-link"
           onClick={() => setShowPrivacyModal(true)}
         >
-          <Shield size={14} /> Privacy Charter & AdSense Disclosure
+          <Shield size={14} /> Privacy
         </button>
         <span>•</span>
         <button
           type="button"
           className="btn-link"
           onClick={() => {
-            if (window.confirm('Reset all local Kingdom save progress?')) {
+            if (window.confirm('Reset all progress? This cannot be undone.')) {
               localStorage.removeItem(STORAGE_KEY);
               window.location.reload();
             }
           }}
         >
-          Reset Kingdom Save
+          Reset progress
         </button>
       </footer>
 
@@ -1813,36 +1819,34 @@ export default function App() {
           <div className="seo-grid">
             <article className="seo-card">
               <h3>
-                <BookOpen size={18} className="text-amber" /> How to Play Lethal Grid: Overclock
+                <BookOpen size={18} className="text-amber" /> How to play Lethal Grid
               </h3>
               <p>
-                <strong>Lethal Grid: Overclock</strong> blends tactical one-turn medieval puzzle warfare
-                (&ldquo;Find Lethal&rdquo;) with incremental stronghold progression. Rout 100% of the
-                invading raiders in the courtyard in a single turn using your Siege Volleys!
+                <strong>Lethal Grid</strong> is a one-turn medieval puzzle with upgrades between waves.
+                Clear every raider on the board with the shots you have. Hit the right one and
+                the chain does the rest.
               </p>
               <ul>
                 <li>
-                  <strong>Powder-Keg Sappers (Red Barrel):</strong> Explode in a 3×3 fireball when
-                  slain.
+                  <strong>Sapper (red keg):</strong> explodes 3×3 when it falls.
                 </li>
                 <li>
-                  <strong>Storm-Rune Shamans (Blue Hood):</strong> Unleash a lightning bolt across
-                  their row or column when slain.
+                  <strong>Shaman (blue hood):</strong> throws lightning down its row or column when
+                  it falls.
                 </li>
                 <li>
-                  <strong>War-Banner Heralds (Emerald Flag):</strong> Rally your siege weapons for
-                  +50% turn damage when shattered.
+                  <strong>Herald (green banner):</strong> Rally: +50% damage for the rest of the turn.
                 </li>
               </ul>
             </article>
             <article className="seo-card">
               <h3>
-                <HelpCircle size={18} className="text-amber" /> The Royal Forge & Daily Decrees
+                <HelpCircle size={18} className="text-amber" /> The Forge and the Daily Siege
               </h3>
               <p>
-                Visit the <strong>Royal Forge</strong> anytime to expand your castle courtyard from a
-                3×3 grid up to an 8×8 grand citadel, hire Battlement Archers for passive Gold Crowns,
-                and temper your 4 siege weapons.
+                Spend Gold in the <strong>Forge</strong> to grow the board from 3×3 to 8×8, hire
+                archers, and upgrade your four weapons. The <strong>Daily Siege</strong> is the same
+                board for everyone, and pays Gold once a day.
               </p>
             </article>
           </div>
@@ -1869,45 +1873,45 @@ export default function App() {
           >
             <div className="bestiary-modal-header">
               <h3>
-                <BookOpen size={18} className="text-amber" /> Royal Bestiary & Chain-Reaction Guide
+                <BookOpen size={18} className="text-amber" /> Bestiary
               </h3>
-              <p>Strike volatile units first so their death blasts wipe out the entire courtyard!</p>
+              <p>Hit the volatile ones first and let the blasts do the work.</p>
             </div>
 
             <div className="bestiary-modal-grid">
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.STANDARD} />
                 <div>
-                  <strong className="text-amber">Goblin Footpad</strong>
-                  <span>Standard raider. Drops Gold Crowns when slain.</span>
+                  <strong className="text-amber">Goblin</strong>
+                  <span>Plain raider. Drops Gold.</span>
                 </div>
               </div>
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.BOMB} />
                 <div>
-                  <strong className="text-rose">Powder-Keg Sapper</strong>
-                  <span>Explodes in a 3×3 fireball on death, chaining to nearby foes!</span>
+                  <strong className="text-rose">Sapper</strong>
+                  <span>Explodes 3×3 when it falls.</span>
                 </div>
               </div>
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.CONDUIT} />
                 <div>
-                  <strong className="text-cyan">Storm-Rune Shaman</strong>
-                  <span>Fires a lightning beam across its Row or Column when slain!</span>
+                  <strong className="text-cyan">Shaman</strong>
+                  <span>Throws lightning down its row or column when it falls.</span>
                 </div>
               </div>
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.AMPLIFIER} />
                 <div>
-                  <strong className="text-emerald">War-Banner Herald</strong>
-                  <span>Grants +50% bonus turn damage to all subsequent blasts when slain!</span>
+                  <strong className="text-emerald">Herald</strong>
+                  <span>Rally: +50% damage for the rest of the turn.</span>
                 </div>
               </div>
               <div className="bestiary-item">
                 <CreatureSprite type={NODE_TYPES.BOSS} />
                 <div>
-                  <strong className="text-violet">Ironclad Siege Ogre</strong>
-                  <span>Heavily armored warlord. Use chained explosions to bring him down!</span>
+                  <strong className="text-violet">Ogre</strong>
+                  <span>Lots of HP. Shakes 5×5 when it falls. Bring it down with chains.</span>
                 </div>
               </div>
             </div>
@@ -1918,7 +1922,7 @@ export default function App() {
                 className="btn-primary"
                 onClick={() => setShowBestiaryModal(false)}
               >
-                Close Bestiary
+                Close
               </button>
             </div>
           </div>
@@ -1928,9 +1932,9 @@ export default function App() {
       {showPrivacyModal && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal-card privacy-modal-card">
-            <h3>Privacy Charter & Google AdSense / Analytics Disclosure</h3>
+            <h3>Privacy</h3>
             <p>
-              <strong>1. Local Browser Storage:</strong> Lethal Grid: Overclock stores your Kingdom
+              <strong>1. Local storage:</strong> Lethal Grid stores your
               progress locally in your browser&apos;s <code>localStorage</code>.
             </p>
             <p>
@@ -1948,7 +1952,7 @@ export default function App() {
                 className="btn-primary"
                 onClick={() => setShowPrivacyModal(false)}
               >
-                Close Scroll
+                Close
               </button>
             </div>
           </div>

@@ -1,5 +1,9 @@
 :root {
   color-scheme: dark;
+  /* Pixel display face for UI, logo and numbers; one readable face for longer text */
+  --font-display: 'Pixelify Sans', 'Courier New', monospace;
+  --font-body: 'Alegreya Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
   /* Warm Candlelit Tavern Oak, Hammered Iron & Aged Parchment Palette */
   --bg-base: #130d09;
   --bg-panel: #1f1610;
@@ -41,7 +45,7 @@
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-body);
   background-color: var(--bg-base);
   /* Warm torchlight glow at the top battlements */
   background-image: radial-gradient(
@@ -68,7 +72,7 @@ h2,
 h3,
 .brand-title,
 .menu-headline {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
 }
 
 button {
@@ -151,7 +155,8 @@ button:disabled {
 
 .brand-title {
   font-size: 1.18rem;
-  font-weight: 800;
+  font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #fef3c7;
   display: flex;
@@ -161,7 +166,7 @@ button:disabled {
 }
 
 .badge-cyan {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-display);
   font-size: 0.65rem;
   font-weight: 800;
   padding: 2px 8px;
@@ -343,7 +348,7 @@ button:disabled {
 }
 
 .menu-subheadline {
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   max-width: 600px;
   font-size: 1.12rem;
   color: #e7d8c5;
@@ -387,7 +392,7 @@ button:disabled {
 }
 
 .btn-hero-primary strong {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   display: block;
   font-size: 1.08rem;
 }
@@ -534,14 +539,14 @@ button:disabled {
 }
 
 .commander-name-row strong {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   color: #fbbf24;
 }
 
 .commander-speech-box p {
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 1.05rem;
   font-style: italic;
   color: #fef3c7;
@@ -581,7 +586,7 @@ button:disabled {
 }
 
 .charges-label {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.74rem;
   font-weight: 800;
   color: #fde68a;
@@ -957,7 +962,7 @@ button:disabled {
 .weapon-dock-top strong {
   min-width: 0;
   max-width: 100%;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.78rem;
   color: #fef3c7;
   white-space: nowrap;
@@ -1248,7 +1253,7 @@ button:disabled {
 }
 
 .turn-result-banner strong {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.9rem;
   color: #fef3c7;
   display: block;
@@ -1820,7 +1825,7 @@ button:disabled {
   border: 2px solid #785233;
   padding: 3px 14px;
   border-radius: 6px;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -1912,7 +1917,7 @@ button:disabled {
 }
 
 .stage-speech-scroll p {
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.3;
@@ -2255,20 +2260,32 @@ body {
 }
 
 .title-main-logo {
-  font-family: 'Cinzel', Georgia, serif;
-  font-size: clamp(2.1rem, 5vw, 3.35rem);
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  line-height: 1.06;
-  background: linear-gradient(180deg, #fffbeb 0%, #fde68a 48%, #d97706 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 5px 14px rgba(0, 0, 0, 0.95));
-  margin-bottom: 10px;
+  font-family: var(--font-display);
+  font-size: clamp(2.6rem, 8vw, 4.5rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: #fde68a;
+  /* Hard-edged outline and drop, like a pixel sprite, instead of a soft gradient */
+  text-shadow:
+    3px 0 0 #3b2412,
+    -3px 0 0 #3b2412,
+    0 3px 0 #3b2412,
+    0 -3px 0 #3b2412,
+    3px 3px 0 #3b2412,
+    -3px 3px 0 #3b2412,
+    3px -3px 0 #3b2412,
+    -3px -3px 0 #3b2412,
+    0 6px 0 #d97706,
+    3px 6px 0 #3b2412,
+    -3px 6px 0 #3b2412,
+    0 9px 0 #3b2412;
+  margin-bottom: 18px;
 }
 
 .title-tagline {
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 1.14rem;
   color: #f3e5ab;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
@@ -2337,7 +2354,7 @@ body {
 .menu-btn-label {
   flex: 1;
   text-align: left;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.03em;
@@ -2578,7 +2595,7 @@ body {
 .world-branch-banner {
   position: absolute;
   transform: translate(-50%, -50%);
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.14em;
@@ -2725,7 +2742,7 @@ body {
 
 .medallion-caption {
   margin-top: 4px;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.78rem;
   font-weight: 800;
   color: #fef3c7;
@@ -2852,7 +2869,7 @@ body {
   background: #2b1f16;
   border: 2px solid #5c4028;
   border-bottom-width: 4px;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.92rem;
   font-weight: 800;
   color: #d6c3ad;
@@ -2959,7 +2976,7 @@ body {
 }
 
 .hover-tooltip-title-row h4 {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 0.95rem;
   font-weight: 900;
   color: #fef3c7;
@@ -3422,4 +3439,20 @@ body {
   .weapon-firing-recoil {
     animation: none !important;
   }
+}
+
+/* Pixel icons sit on the text baseline and keep their hard edges */
+.pixel-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+  image-rendering: pixelated;
+}
+
+.gold-coin {
+  vertical-align: -0.15em;
+}
+
+.tile-hp-heart {
+  color: #ef4444;
 }
