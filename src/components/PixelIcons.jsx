@@ -55,6 +55,7 @@ export const Heart = pixel(P.Heart);
 export const Castle = pixel(P.Castle);
 export const Crown = pixel(P.Crown);
 export const Check = pixel(P.Check);
+export const Settings = pixel(P.Gear);
 export const Skull = pixel(P.Skull);
 export const Fire = pixel(P.Fire);
 export const Bomb = pixel(P.Bomb);

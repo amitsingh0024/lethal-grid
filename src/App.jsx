@@ -23,11 +23,11 @@ import {
   Play,
   Home,
   ShoppingBag,
-  GraduationCap,
   Sword,
   Heart,
   Skull,
   Tv,
+  Settings,
   GoldCoin,
 } from './components/PixelIcons';
 import {
@@ -294,6 +294,7 @@ export default function App() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showBestiaryModal, setShowBestiaryModal] = useState(false);
   const [showGuideDrawer, setShowGuideDrawer] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [telemetryFeed, setTelemetryFeed] = useState([]);
   const [shareCopied, setShareCopied] = useState(false);
 
@@ -1109,84 +1110,50 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* IN-GAME HUD BAR (Hidden on the Title Screen for a clean, uncluttered landing view) */}
+      {/* IN-GAME HUD: home, logo, forge or play, gold, sound and settings */}
       {screen !== 'MENU' && (
-        <header className="top-nav">
-          <div
-            className="brand-group clickable"
-            onClick={() => setScreen('MENU')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === 'Enter' && setScreen('MENU')}
-          >
-            <div className="brand-logo">
-              <Shield size={20} className="text-amber" />
-            </div>
-            <div>
-              <h1 className="brand-title">
-                Lethal Grid
-              </h1>
-            </div>
-          </div>
-
-          {/* NAVIGATION PILLS */}
-          <nav className="mode-switcher" aria-label="Primary Navigation">
-            <button
-              type="button"
-              className="mode-tab"
-              onClick={() => setScreen('MENU')}
-            >
-              <Home size={15} />
-              <span>Home</span>
-            </button>
-
-            <button
-              type="button"
-              className={`mode-tab ${screen === 'TUTORIAL' ? 'active' : ''}`}
-              onClick={() => startTutorial(1)}
-            >
-              <GraduationCap size={15} />
-              <span>Training</span>
-            </button>
-
-            <button
-              type="button"
-              className={`mode-tab ${screen === 'PLAY' ? 'active' : ''}`}
-              onClick={() => continueCampaign()}
-            >
-              <Play size={15} />
-              <span>Play</span>
-            </button>
-
-            <button
-              type="button"
-              className={`mode-tab ${screen === 'UPGRADES' ? 'active' : ''}`}
-              onClick={() => setScreen('UPGRADES')}
-            >
-              <ShoppingBag size={15} />
-              <span>Forge</span>
-              {affordableUpgradesCount > 0 && (
-                <span className="nav-badge-count">{affordableUpgradesCount}</span>
-              )}
-            </button>
-          </nav>
-
-          {/* GOLD POUCH & TELEMETRY */}
-          <div className="top-actions">
-            <div className="wallet-pill" title="Gold">
-              <GoldCoin size={16} />
-              <strong>{save.shards.toLocaleString()}</strong>
-              <span>Gold</span>
-            </div>
-
+        <header className="top-nav game-hud">
+          <div className="hud-left">
             <button
               type="button"
               className="btn-icon"
-              onClick={() => setShowBestiaryModal(true)}
-              title="Bestiary"
+              onClick={() => setScreen('MENU')}
+              aria-label="Home"
+              title="Home"
             >
-              <BookOpen size={16} />
+              <Home size={18} />
             </button>
+            <img
+              className="hud-logo"
+              src="/logo.svg"
+              alt="Lethal Grid"
+              width="144"
+              height="28"
+            />
+          </div>
+
+          <div className="top-actions">
+            {screen === 'UPGRADES' ? (
+              <button type="button" className="btn-secondary hud-btn" onClick={() => continueCampaign()}>
+                <Play size={18} />
+                <span>Play</span>
+              </button>
+            ) : (
+              screen === 'PLAY' && (
+                <button type="button" className="btn-secondary hud-btn" onClick={() => setScreen('UPGRADES')}>
+                  <ShoppingBag size={18} />
+                  <span>Forge</span>
+                  {affordableUpgradesCount > 0 && (
+                    <span className="nav-badge-count">{affordableUpgradesCount}</span>
+                  )}
+                </button>
+              )
+            )}
+
+            <div className="wallet-pill" title="Gold">
+              <GoldCoin size={16} />
+              <strong>{save.shards.toLocaleString()}</strong>
+            </div>
 
             {SHOW_DEV_TOOLS && (
               <button
@@ -1206,7 +1173,17 @@ export default function App() {
               onClick={() => setMuted((m) => !m)}
               aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
             >
-              {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+              {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
+
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={() => setShowSettingsModal(true)}
+              aria-label="Settings"
+              title="Settings"
+            >
+              <Settings size={18} />
             </button>
           </div>
         </header>
@@ -1295,7 +1272,17 @@ export default function App() {
                 onClick={() => setMuted((m) => !m)}
                 aria-label={muted ? 'Unmute Audio' : 'Mute Audio'}
               >
-                {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              </button>
+
+              <button
+                type="button"
+                className="title-utility-btn icon-only"
+                onClick={() => setShowSettingsModal(true)}
+                aria-label="Settings"
+                title="Settings"
+              >
+                <Settings size={18} />
               </button>
             </div>
           </div>
@@ -1315,7 +1302,9 @@ export default function App() {
             </div>
 
             <span className="title-eyebrow-ribbon">A chain-reaction siege puzzle</span>
-            <h1 className="title-main-logo">Lethal Grid</h1>
+            <h1 className="title-main-logo">
+              <img src="/logo.svg" alt="Lethal Grid" width="576" height="112" />
+            </h1>
             <p className="title-tagline">
               One shot. One chain. No goblins left.
             </p>
@@ -1782,38 +1771,6 @@ export default function App() {
         </main>
       )}
 
-      {/* CLEAN FOOTER BAR */}
-      <footer className="clean-footer">
-        <button
-          type="button"
-          className="btn-link"
-          onClick={() => setShowGuideDrawer((v) => !v)}
-        >
-          <BookOpen size={14} /> {showGuideDrawer ? 'Close guide' : 'How to play'}
-        </button>
-        <span>•</span>
-        <button
-          type="button"
-          className="btn-link"
-          onClick={() => setShowPrivacyModal(true)}
-        >
-          <Shield size={14} /> Privacy
-        </button>
-        <span>•</span>
-        <button
-          type="button"
-          className="btn-link"
-          onClick={() => {
-            if (window.confirm('Reset all progress? This cannot be undone.')) {
-              localStorage.removeItem(STORAGE_KEY);
-              window.location.reload();
-            }
-          }}
-        >
-          Reset progress
-        </button>
-      </footer>
-
       {showGuideDrawer && (
         <section className="seo-guide-section" aria-label="Game Strategy Guide and Documentation">
           <div className="seo-grid">
@@ -1850,7 +1807,89 @@ export default function App() {
               </p>
             </article>
           </div>
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={() => setShowGuideDrawer(false)}>
+              Close guide
+            </button>
+          </div>
         </section>
+      )}
+
+      {showSettingsModal && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-title"
+          onClick={() => setShowSettingsModal(false)}
+        >
+          <div className="modal-card settings-modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 id="settings-title">
+              <Settings size={18} className="text-amber" /> Settings
+            </h3>
+            <div className="settings-list">
+              <button type="button" className="btn-secondary" onClick={() => setMuted((m) => !m)}>
+                {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                <span>Sound: {muted ? 'off' : 'on'}</span>
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setShowBestiaryModal(true);
+                }}
+              >
+                <BookOpen size={18} />
+                <span>Bestiary</span>
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setShowGuideDrawer(true);
+                  // The guide renders below the screen, so bring it into view
+                  setTimeout(() => {
+                    document.querySelector('.seo-guide-section')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 50);
+                }}
+              >
+                <HelpCircle size={18} />
+                <span>How to play</span>
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setShowPrivacyModal(true);
+                }}
+              >
+                <Shield size={18} />
+                <span>Privacy</span>
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() => {
+                  if (window.confirm('Reset all progress? This cannot be undone.')) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    window.location.reload();
+                  }
+                }}
+              >
+                <RotateCcw size={18} />
+                <span>Reset progress</span>
+              </button>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn-primary" onClick={() => setShowSettingsModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <RewardedAdModal
