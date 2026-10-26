@@ -1,6 +1,6 @@
-# ⚡ Lethal Grid: Overclock
+# Lethal Grid
 
-A one-turn tactical chain-reaction puzzle game built with **React + Vite**. Each turn you spend a limited number of volleys to set off chain reactions across a grid of enemies and clear the board.
+A medieval chain-reaction puzzle game built with **React + Vite**. Each stage you get a limited number of volleys to set off chain reactions across a courtyard of goblin raiders and clear the board.
 
 Ads are optional. Players can play ad-free, and watching a rewarded ad gives an extra reward.
 
@@ -81,7 +81,7 @@ Progress is stored in the browser's `localStorage` under one key. Each field is 
   ```bash
   cp .env.example .env
   ```
-- Set the real IDs in `.env` (or in the Cloudflare Pages Production variables):
+- Set the real IDs in `.env` (or in the Cloudflare Workers Builds variables for production):
   - `VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX`
   - `VITE_ADSENSE_CLIENT_ID=ca-pub-XXXXXXXXXXXXXXXX`
   - `VITE_ADSENSE_SIDEBAR_SLOT` and the other ad slot IDs
@@ -100,22 +100,22 @@ npm run preview  # serve the built dist/ locally
 
 ---
 
-## 🚀 Deployment (Cloudflare Pages)
+## 🚀 Deployment (Cloudflare Workers)
 
-The game is a static site, so it is hosted on **Cloudflare Pages**, deployed from GitHub.
+The game is a static site served as **Cloudflare Workers static assets** (`wrangler.jsonc`), built and deployed from GitHub by Workers Builds. There is no Worker script, so every request is a static asset request.
 
 | Setting | Value |
 | --- | --- |
-| Framework preset | Vite (or None) |
 | Build command | `npm run build` |
-| Output directory | `dist` |
-| Environment variable | `NODE_VERSION=20` |
+| Assets directory | `dist` |
+| Unknown paths | served `index.html` (`not_found_handling: single-page-application`) |
 
 - **Production** deploys from `main`.
-- **Preview** deploys build every branch and pull request. Leave the ad and analytics variables unset for Preview so previews stay in sandbox mode.
-- **Rollback:** open the Pages project, go to Deployments, and roll back to an earlier build.
+- **Preview** builds run for every other branch and pull request. They are marked `noindex` and their `robots.txt` disallows crawling, so only production shows up in search. Leave the ad and analytics variables unset for previews so they stay in sandbox mode.
+- **Rollback:** open the Worker in the Cloudflare dashboard, go to Deployments, and roll back to an earlier version.
 - **Caching:** `public/_headers` caches `/assets/*` for a year as immutable and adds security headers. Everything in `/assets/` has a content hash in its name, so put images in `src/assets/` and reference them from code or CSS, never from `public/assets/`.
-- **Crawlers:** `public/robots.txt` allows all crawlers.
+- **SEO:** `vite.config.js` writes the site address into the canonical link, social cards and structured data in `index.html`, and builds `robots.txt` and `sitemap.xml`. The address defaults to the `workers.dev` URL; set `VITE_SITE_URL` (for example `https://lethalgrid.com`) when the game moves to its own domain. The social preview image is `public/og-image.jpg` (1200×630).
+- **Privacy:** the full policy is the static page `public/privacy.html`, served at `/privacy`.
 
 ### Release workflow
 1. Create a branch for each change.
@@ -134,5 +134,5 @@ src/
   components/             battle effects, sprites, upgrade tree, ad units
   services/analytics.js   GA4, AdSense and local telemetry
   assets/                 images (WebP), hashed by Vite at build time
-public/                   static files: ads.txt, _headers, robots.txt, favicon
+public/                   static files: ads.txt, _headers, privacy page, icons, social image
 ```

@@ -174,7 +174,7 @@ function writeLastSeen() {
 // What the garrison farmed while the game was closed, or null
 function computeOfflineReward(save) {
   const lastSeen = readLastSeen();
-  if (!lastSeen || !save.tutorialCompleted || save.sector <= 1) return null;
+  if (!lastSeen || save.sector <= 1) return null;
   const garrisonLevel = save.upgrades.auto_drone || 0;
   return getOfflineReward({
     elapsedMs: Date.now() - lastSeen,
@@ -486,6 +486,30 @@ export default function App() {
     }
   }, [save]);
 
+  // With the game open in two tabs, each tab would overwrite the other's progress on its next
+  // save. Adopt whatever another tab writes, so the last tab played always holds the real save.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== STORAGE_KEY || e.storageArea !== localStorage) return;
+      if (e.newValue === null) {
+        // Another tab reset progress
+        window.location.reload();
+        return;
+      }
+      try {
+        const sanitized = sanitizeSave(JSON.parse(e.newValue));
+        if (sanitized) {
+          saveRef.current = sanitized;
+          setSave(sanitized);
+        }
+      } catch {
+        // Ignore a half-written or foreign value
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -498,6 +522,30 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [save.abilityLevels, screen, gameMode]);
+
+  // Escape closes the top open dialog
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (rewardedModalConfig.isOpen) setRewardedModalConfig((prev) => ({ ...prev, isOpen: false }));
+      else if (showSettingsModal) setShowSettingsModal(false);
+      else if (showBestiaryModal) setShowBestiaryModal(false);
+      else if (showPrivacyModal) setShowPrivacyModal(false);
+      else if (showStageMap) setShowStageMap(false);
+      else if (showCrestTree) setShowCrestTree(false);
+      else if (showGuideDrawer) setShowGuideDrawer(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [
+    rewardedModalConfig.isOpen,
+    showSettingsModal,
+    showBestiaryModal,
+    showPrivacyModal,
+    showStageMap,
+    showCrestTree,
+    showGuideDrawer,
+  ]);
 
   useEffect(() => {
     if (adBoostSeconds <= 0) return;
@@ -551,14 +599,15 @@ export default function App() {
     } else if (live.mode === 'DAILY') {
       // Daily gold is held until the decree is won, and only the first win each day pays
       live.dailyPending += result.stats.shardsEarned;
-      if (isVictory && saveRef.current.dailyClearedDate !== getTodayDateSeed()) {
+      // Judged against the day the board belongs to, so a run that crosses midnight
+      // can't claim the new day's daily with yesterday's board
+      if (isVictory && saveRef.current.dailyClearedDate !== live.dailySeed) {
         earned = live.dailyPending;
       }
     }
 
     if (live.mode === 'TUTORIAL') return earned;
 
-    const todaySeed = getTodayDateSeed();
     const clearedSector = live.sector;
     const starsEarned = live.starsEarned;
     setSave((prev) => {
@@ -579,7 +628,8 @@ export default function App() {
         maxSectorReached: Math.max(prev.maxSectorReached, nextSector),
         lethalClears: isVictory ? prev.lethalClears + 1 : prev.lethalClears,
         waveAttempts: advance ? { sector: nextSector, count: 0 } : prev.waveAttempts,
-        dailyClearedDate: live.mode === 'DAILY' && isVictory ? todaySeed : prev.dailyClearedDate,
+        dailyClearedDate:
+          live.mode === 'DAILY' && isVictory && earned > 0 ? live.dailySeed : prev.dailyClearedDate,
       };
     });
 
@@ -747,6 +797,7 @@ export default function App() {
       chestGold: 0,
       // Seeding crits and lucky procs makes the Daily play out the same for everyone
       rng: isDaily ? createSeededRandom(`DAILY-RNG-${todaySeed}`) : Math.random,
+      dailySeed: isDaily ? todaySeed : null,
       dailyPending: 0,
       adVolleyUsed: false,
       lockUntil: 0,
@@ -1249,10 +1300,28 @@ export default function App() {
       `Play free: ${window.location.origin}`,
     ].join('\n');
 
-    navigator.clipboard?.writeText(shareText);
-    setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2500);
-    trackEvent('share_score_copied', { mode: gameMode, sector: save.sector });
+    // The clipboard can be blocked (permissions, iframes, older browsers), so only say
+    // "Copied" when it worked and fall back to the system share sheet when there is one
+    const showShareState = (state) => {
+      setShareCopied(state);
+      setTimeout(() => setShareCopied(false), 2500);
+    };
+    const copy = navigator.clipboard?.writeText
+      ? navigator.clipboard.writeText(shareText)
+      : Promise.reject(new Error('Clipboard unavailable'));
+    copy
+      .then(() => {
+        showShareState('copied');
+        trackEvent('share_score_copied', { mode: gameMode, sector: save.sector });
+      })
+      .catch(() => {
+        if (navigator.share) {
+          navigator.share({ text: shareText }).catch(() => {});
+          trackEvent('share_score_sheet', { mode: gameMode, sector: save.sector });
+        } else {
+          showShareState('failed');
+        }
+      });
   };
 
   const triggerRewardedAd = (type) => {
@@ -1387,6 +1456,9 @@ export default function App() {
     }
     return false;
   }).length;
+
+  // A player who skipped the tutorial and has cleared a stage is past the first-run menu
+  const isNewPlayer = !save.tutorialCompleted && save.maxSectorReached <= 1;
 
   const activeTutorialLesson =
     screen === 'TUTORIAL' ? TUTORIAL_LESSONS[tutorialStep - 1] || TUTORIAL_LESSONS[0] : null;
@@ -1594,7 +1666,7 @@ export default function App() {
 
             {/* FOCUSED VERTICAL INDIE MENU STACK */}
             <nav className="indie-menu-stack" aria-label="Main Menu">
-              {!save.tutorialCompleted ? (
+              {isNewPlayer ? (
                 <button
                   type="button"
                   className="indie-menu-btn primary"
@@ -1616,7 +1688,7 @@ export default function App() {
                 </button>
               )}
 
-              {save.tutorialCompleted && save.sector > 1 && (
+              {save.sector > 1 && (
                 <button
                   type="button"
                   className="indie-menu-btn"
@@ -1666,7 +1738,7 @@ export default function App() {
                 )}
               </button>
 
-              {!save.tutorialCompleted ? (
+              {isNewPlayer ? (
                 <button
                   type="button"
                   className="indie-menu-btn"
@@ -1796,7 +1868,7 @@ export default function App() {
               {screen === 'PLAY' && (
                 <button type="button" className="btn-secondary btn-sm" onClick={handleShareScore}>
                   <Share2 size={14} />
-                  <span>{shareCopied ? 'Copied' : 'Share'}</span>
+                  <span>{shareCopied === 'copied' ? 'Copied' : shareCopied === 'failed' ? "Couldn't copy" : 'Share'}</span>
                 </button>
               )}
             </div>
@@ -2390,9 +2462,9 @@ export default function App() {
       )}
 
       {showPrivacyModal && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
           <div className="modal-card privacy-modal-card">
-            <h3>Privacy</h3>
+            <h3 id="privacy-title">Privacy</h3>
             <p>
               <strong>1. Local storage:</strong> Lethal Grid stores your
               progress locally in your browser&apos;s <code>localStorage</code>.
@@ -2405,6 +2477,11 @@ export default function App() {
               <strong>3. Google AdSense & Cookies:</strong> Third-party vendors, including Google, use
               cookies to serve ads based on a user&apos;s prior visits to this website or other
               websites.
+            </p>
+            <p>
+              <a href="/privacy" target="_blank" rel="noopener">
+                Read the full privacy policy
+              </a>
             </p>
             <div className="modal-actions">
               <button

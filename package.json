@@ -1,5 +1,5 @@
 {
-  "name": "lethal-grid-overclock",
+  "name": "lethal-grid",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,8 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/alegreya-sans": "^5.3.0",
+    "@fontsource/pixelify-sans": "^5.3.0",
     "canvas-confetti": "^1.9.4",
-    "framer-motion": "^14.5.0",
     "pixelarticons": "^2.4.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

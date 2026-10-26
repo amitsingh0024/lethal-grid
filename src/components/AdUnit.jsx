@@ -61,7 +61,7 @@ export function AdBannerSlot({ slotId = '1111111111', label = 'Top Leaderboard A
 
 /**
  * High-eCPM Rewarded Video Ad Modal Simulator / Trigger
- * Gives the player an immediate in-game reward (2x Overclock Shards or +1 Extra Charge)
+ * Gives the player an immediate in-game reward (2× Gold, +1 shot, or doubled garrison Gold)
  * after watching a short 3-second simulated ad (or real Google H5 Games Placement API ad).
  */
 export function RewardedAdModal({ isOpen, onClose, rewardTitle, onRewardClaimed }) {

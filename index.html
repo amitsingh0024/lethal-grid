@@ -6,29 +6,74 @@
     <title>Lethal Grid — Medieval Chain-Reaction Puzzle</title>
     <meta
       name="description"
-      content="A medieval puzzle where one well-placed shot can clear the board. Set off powder kegs, shaman lightning and war banners, then upgrade your siege between waves."
+      content="A free medieval puzzle game in your browser. Set off powder kegs, shaman lightning and war banners so one shot clears the board, then upgrade your siege between stages."
     />
-    <meta
-      name="keywords"
-      content="medieval strategy game, tactical puzzle game, incremental game, browser game, chain reaction game, siege game"
-    />
+    <link rel="canonical" href="%SITE_URL%/" />
+    <meta name="theme-color" content="#1a120b" />
+    <meta name="color-scheme" content="dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Lethal Grid" />
+    <meta property="og:url" content="%SITE_URL%/" />
     <meta property="og:title" content="Lethal Grid — Medieval Chain-Reaction Puzzle" />
     <meta
       property="og:description"
-      content="One shot. One chain. No goblins left. Grow your board from 3×3 to 8×8."
+      content="One shot. One chain. No goblins left. Free to play in your browser, on phone or desktop."
     />
-    <meta property="og:type" content="website" />
-    <meta name="theme-color" content="#1a120b" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap"
-      rel="stylesheet"
+    <meta property="og:image" content="%SITE_URL%/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Lethal Grid logo over a pixel-art castle and valley" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Lethal Grid — Medieval Chain-Reaction Puzzle" />
+    <meta
+      name="twitter:description"
+      content="One shot. One chain. No goblins left. Free to play in your browser."
     />
+    <meta name="twitter:image" content="%SITE_URL%/og-image.jpg" />
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "Lethal Grid",
+        "url": "%SITE_URL%/",
+        "image": "%SITE_URL%/og-image.jpg",
+        "description": "A medieval chain-reaction puzzle. Set off powder kegs, shaman lightning and war banners so one shot clears the board, then upgrade your siege between stages.",
+        "genre": ["Puzzle", "Strategy", "Incremental"],
+        "gamePlatform": ["Web browser", "Mobile web browser"],
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any",
+        "playMode": "SinglePlayer",
+        "isAccessibleForFree": true,
+        "inLanguage": "en",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main style="max-width: 640px; margin: 48px auto; padding: 0 16px; color: #f3e6cf; font-family: sans-serif">
+        <h1>Lethal Grid — Medieval Chain-Reaction Puzzle</h1>
+        <p>
+          Lethal Grid is a free puzzle game you play in your browser. Goblin raiders fill a castle
+          courtyard. You get a few shots per stage, and every raider you fell can set off the next:
+          powder-keg sappers explode, storm-rune shamans throw lightning down a row, and war-banner
+          heralds boost every hit. Plan one shot that chains across the whole board.
+        </p>
+        <p>
+          Between stages, spend gold in the Royal Forge to grow the courtyard from 3×3 to 8×8,
+          unlock new weapons and train an archer garrison. Replay cleared stages for stars and
+          chests, take on the Daily Siege, and earn Royal Crests for permanent upgrades.
+        </p>
+        <p>Please turn on JavaScript to play. <a href="/privacy" style="color: #f5b82e">Privacy</a></p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
