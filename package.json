@@ -8,6 +8,9 @@
     "build": "vite build",
     "build:portal": "vite build --mode portal",
     "zip:portal": "vite build --mode portal && node scripts/zip-portal.mjs",
+    "zip:crazygames": "vite build --mode crazygames && node scripts/zip-portal.mjs crazygames",
+    "zip:gamedistribution": "vite build --mode gamedistribution && node scripts/zip-portal.mjs gamedistribution",
+    "zip:poki": "vite build --mode poki && node scripts/zip-portal.mjs poki",
     "preview": "vite preview"
   },
   "dependencies": {

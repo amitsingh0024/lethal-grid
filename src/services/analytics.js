@@ -6,8 +6,11 @@
  * tracking scripts in their iframe.
  */
 
-// `vite build --mode portal`: the zip uploaded to CrazyGames, itch.io and other game portals
-export const IS_PORTAL_BUILD = import.meta.env.MODE === 'portal';
+// Builds for game portals: `portal` (itch.io, CrazyGames Basic Launch) and the SDK builds
+// `crazygames`, `gamedistribution` and `poki`
+export const IS_PORTAL_BUILD = ['portal', 'crazygames', 'gamedistribution', 'poki'].includes(
+  import.meta.env.MODE
+);
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-XXXXXXXXXX';
 const ADSENSE_CLIENT_ID = import.meta.env.VITE_ADSENSE_CLIENT_ID || 'ca-pub-0000000000000000';
