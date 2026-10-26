@@ -49,9 +49,12 @@ function seoPlugin(siteUrl) {
 // verification, the privacy page (the portal build shows its policy inline), and the PWA manifest
 const WEB_ONLY_PUBLIC_FILES = ['_headers', 'ads.txt', 'privacy.html', 'manifest.webmanifest', 'og-image.jpg'];
 
-// `vite build --mode portal` makes the zip for game portals (CrazyGames, itch.io, Poki,
-// GameDistribution). The game runs from a subfolder inside the portal's iframe, so it drops the
-// canonical link, social cards and manifest (marked web-only in index.html) and the files above.
+// `vite build --mode <portal>` makes a zip for game portals. `portal` has no SDK (itch.io,
+// CrazyGames Basic Launch); the others load that portal's SDK for ads (src/services/portalSdk.js).
+// The game runs from a subfolder inside the portal's iframe, so these builds drop the canonical
+// link, social cards and manifest (marked web-only in index.html) and the files above.
+const PORTAL_MODES = ['portal', 'crazygames', 'gamedistribution', 'poki'];
+
 function portalPlugin(outDir) {
   return {
     name: 'lethal-grid-portal',
@@ -68,8 +71,11 @@ function portalPlugin(outDir) {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const siteUrl = (env.VITE_SITE_URL || DEFAULT_SITE_URL).replace(/\/+$/, '');
-  if (mode === 'portal') {
-    const outDir = 'dist-portal';
+  if (PORTAL_MODES.includes(mode)) {
+    if (mode === 'gamedistribution' && !env.VITE_GD_GAME_ID) {
+      throw new Error('Set VITE_GD_GAME_ID (the game ID from the GameDistribution dashboard) in .env');
+    }
+    const outDir = `dist-${mode}`;
     return {
       // Relative paths, so the build loads from any subfolder a portal hosts it under
       base: './',

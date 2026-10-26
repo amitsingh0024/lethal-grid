@@ -74,6 +74,14 @@ import { CrestTreeModal } from './components/CrestTreeModal';
 import { shake, squash, popIn } from './services/juice';
 import { RewardedAdModal } from './components/AdUnit';
 import { useRewardedAd, isRewardedAdPlaying } from './services/rewardedAds';
+import {
+  initPortalSdk,
+  portalCommercialBreak,
+  portalGameplayStart,
+  portalGameplayStop,
+  portalHappyTime,
+  portalLoadingFinished,
+} from './services/portalSdk';
 import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 import { DungeonStageBanner } from './components/DungeonStageBanner';
@@ -459,6 +467,8 @@ export default function App() {
 
   useEffect(() => {
     initAnalyticsAndAds();
+    initPortalSdk();
+    portalLoadingFinished();
     const unsub = subscribeToTelemetry((entries) => {
       setTelemetryFeed(entries);
     });
@@ -1437,6 +1447,29 @@ export default function App() {
     }, AUTO_BEAT_MS);
     return () => clearInterval(timer);
   }, [autoSector, screen, gameMode]);
+
+  // Game portals time play and place their ads around it. A wave being played is gameplay;
+  // entering one is the natural break for an ad, except in training and on auto replays.
+  const inGameplay = (screen === 'PLAY' || screen === 'TUTORIAL') && isWaveLive;
+  useEffect(() => {
+    if (!inGameplay) {
+      portalGameplayStop();
+      return undefined;
+    }
+    let active = true;
+    const skipBreak = screen === 'TUTORIAL' || autoSector !== null;
+    (skipBreak ? Promise.resolve() : portalCommercialBreak()).then(() => {
+      if (active) portalGameplayStart();
+    });
+    return () => {
+      active = false;
+    };
+  }, [inGameplay]);
+
+  // A boss stage cleared is the portal's "happy time"
+  useEffect(() => {
+    if (screen === 'PLAY' && isBoardCleared && boardSector % 5 === 0) portalHappyTime();
+  }, [screen, isBoardCleared, boardSector]);
 
   // Auto plays only stages already cleared with 3 stars, so it farms and never pushes
   const canAutoSiege =

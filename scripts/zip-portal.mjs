@@ -1,15 +1,17 @@
-// Packs dist-portal/ into lethal-grid-portal.zip for upload to game portals. index.html sits at
-// the root of the zip, which is what CrazyGames, itch.io and GameDistribution expect.
+// Packs a portal build into a zip for upload: `node scripts/zip-portal.mjs [mode]` turns
+// dist-<mode>/ into lethal-grid-<mode>.zip (mode defaults to portal). index.html sits at the
+// root of the zip, which is what every portal expects.
 // Uses only Node's zlib, so it runs the same on macOS, Windows and Linux.
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 
-const SRC_DIR = 'dist-portal';
-const OUT_FILE = 'lethal-grid-portal.zip';
-// CrazyGames allows at most 1,500 files and 50 MB at first load
-const MAX_FILES = 1500;
-const MAX_BYTES = 50 * 1024 * 1024;
+const MODE = process.argv[2] || 'portal';
+const SRC_DIR = `dist-${MODE}`;
+const OUT_FILE = `lethal-grid-${MODE}.zip`;
+// The strictest portal limits: itch.io takes at most 1,000 files, Poki wants under 8 MB
+const MAX_FILES = 1000;
+const MAX_BYTES = 8 * 1024 * 1024;
 
 const CRC_TABLE = new Uint32Array(256).map((_, n) => {
   let c = n;
@@ -41,11 +43,11 @@ let files;
 try {
   files = listFiles(SRC_DIR).sort();
 } catch {
-  console.error(`No ${SRC_DIR}/ folder. Run "npm run build:portal" first.`);
+  console.error(`No ${SRC_DIR}/ folder. Run "npm run zip:${MODE}".`);
   process.exit(1);
 }
 if (!files.includes(join(SRC_DIR, 'index.html'))) {
-  console.error(`${SRC_DIR}/index.html is missing. Run "npm run build:portal" first.`);
+  console.error(`${SRC_DIR}/index.html is missing. Run "npm run zip:${MODE}".`);
   process.exit(1);
 }
 

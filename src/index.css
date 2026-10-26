@@ -3804,7 +3804,7 @@ a:focus-visible,
    scroll, as game portals require for their 16:9 iframes. The board takes the full
    height between a side column (stage scene and shots) and the weapon column.
    ============================================================================ */
-@media (min-width: 721px) and (min-aspect-ratio: 5/4) {
+@media (min-width: 560px) and (min-aspect-ratio: 5/4) {
   .app-shell {
     max-width: 1480px;
     min-height: 100vh;
@@ -4014,7 +4014,7 @@ a:focus-visible,
 }
 
 /* Short landscape screens (small iframes, phones on their side) */
-@media (min-width: 721px) and (min-aspect-ratio: 5/4) and (max-height: 620px) {
+@media (min-width: 560px) and (min-aspect-ratio: 5/4) and (max-height: 620px) {
   .top-nav.game-hud {
     border-width: 8px;
     padding: 0 4px;
@@ -4063,8 +4063,8 @@ a:focus-visible,
   }
 }
 
-/* Phones on their side: drop the scene's figures so the board keeps its size */
-@media (min-width: 721px) and (min-aspect-ratio: 5/4) and (max-height: 460px) {
+/* Phones on their side and small embeds: drop the scene's figures so the board keeps its size */
+@media (min-width: 560px) and (min-aspect-ratio: 5/4) and (max-height: 520px) {
   .arena-focused-stage .hero-stage-side,
   .arena-focused-stage .horde-stage-side {
     display: none;
@@ -4088,6 +4088,27 @@ a:focus-visible,
     padding-bottom: 0;
   }
 
+  /* The Forge's camera controls shrink to a small corner strip */
+  .tree-camera-controls {
+    top: 6px;
+    right: 6px;
+    gap: 2px;
+    padding: 0 2px;
+    border-width: 4px;
+    border-image-width: 4px;
+  }
+
+  .tree-cam-btn {
+    padding: 0 2px;
+    border-width: 4px 4px 6px;
+    border-image-width: 4px 4px 6px;
+  }
+
+  .tree-cam-btn span,
+  .tree-drag-hint {
+    display: none;
+  }
+
   /* Restart and Share keep only their icons so all actions share one row */
   .arena-focused-stage .arena-actions {
     flex-wrap: nowrap;
@@ -4099,5 +4120,145 @@ a:focus-visible,
 
   .arena-focused-stage .arena-actions > .btn-sm span {
     display: none;
+  }
+}
+
+/* Small landscape embeds (Poki's 640x360 frame): narrower side columns give the board more room */
+@media (min-width: 560px) and (max-width: 720px) and (min-aspect-ratio: 5/4) {
+  .arena-focused-stage {
+    grid-template-columns: 24vw minmax(0, 1fr) 21vw;
+    gap: 8px 10px;
+  }
+
+  .hud-logo {
+    height: 20px;
+  }
+}
+
+@media (min-width: 560px) and (max-width: 620px) and (min-aspect-ratio: 5/4) {
+  .hud-logo {
+    display: none;
+  }
+
+  .arena-focused-stage {
+    grid-template-columns: 28vw minmax(0, 1fr) 19vw;
+  }
+
+  .arena-focused-stage .arena-actions {
+    gap: 4px;
+  }
+
+  .arena-focused-stage .btn-reward-chip svg {
+    display: none;
+  }
+}
+
+@media (min-width: 560px) and (min-aspect-ratio: 5/4) and (max-height: 340px) {
+  .app-shell {
+    padding: 4px 10px;
+    gap: 4px;
+  }
+
+  .arena-focused-stage {
+    gap: 6px 10px;
+  }
+
+  .arena-focused-stage .arena-actions > * {
+    white-space: nowrap;
+    font-size: 0.75rem;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .arena-focused-stage .stage-speech-scroll p {
+    font-size: 0.72rem;
+    line-height: 1.2;
+  }
+}
+
+/* Portrait screens: the battle fills the window and the board takes the height that is left */
+@media (max-aspect-ratio: 5/4) {
+  .app-shell:has(.arena-focused-stage) {
+    height: 100vh;
+    height: 100dvh;
+    padding-bottom: 8px;
+  }
+
+  .app-shell:has(.arena-focused-stage) > main {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .arena-focused-stage {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* The board is the largest square that fits what is left */
+  .arena-focused-stage .grid-stage {
+    flex: 1 1 0;
+    min-height: 0;
+    container-type: size;
+    padding: 0;
+  }
+
+  .arena-focused-stage .courtyard-board-wrap {
+    width: min(100cqw, 100cqh);
+  }
+}
+
+/* Portrait phones: the four weapons share one row of compact tiles */
+@media (max-width: 720px) and (max-aspect-ratio: 5/4) {
+  .weapon-dock {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .weapon-dock-btn {
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px 2px 2px;
+    text-align: center;
+  }
+
+  .weapon-dock-text,
+  .weapon-dock-top {
+    align-items: center;
+    justify-content: center;
+  }
+
+  .weapon-dock-top strong {
+    font-size: 0.68rem;
+  }
+
+  .weapon-dock-text > span {
+    display: none;
+  }
+}
+
+/* Short portrait phones: drop decoration so the menu and the board keep their room */
+@media (max-width: 720px) and (max-aspect-ratio: 5/4) and (max-height: 760px) {
+  .title-crest-diorama,
+  .arena-focused-stage .hero-stage-side,
+  .arena-focused-stage .horde-stage-side {
+    display: none;
+  }
+
+  .arena-focused-stage .dungeon-actors-row {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .indie-menu-stack {
+    gap: 6px;
+  }
+
+  .indie-menu-btn {
+    padding-top: 8px;
+    padding-bottom: 6px;
   }
 }

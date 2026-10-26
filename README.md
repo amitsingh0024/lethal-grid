@@ -98,7 +98,8 @@ npm install
 npm run dev      # local dev server
 npm run build    # production build into dist/
 npm run preview  # serve the built dist/ locally
-npm run zip:portal  # portal build into dist-portal/, packed as lethal-grid-portal.zip
+npm run zip:portal  # SDK-free portal build, packed as lethal-grid-portal.zip
+npm run zip:poki    # same with the Poki SDK (also zip:crazygames, zip:gamedistribution)
 ```
 
 ---
@@ -115,6 +116,18 @@ The portal build differs from the website build in these ways:
 - **Space, arrow and Page keys** don't scroll the portal's page behind the game.
 
 Both builds go silent while the tab is hidden, which portal QA checks by switching tabs.
+
+### Portal SDK builds
+`npm run zip:<portal>` makes `lethal-grid-<portal>.zip` with that portal's SDK for ads and play tracking (`src/services/portalSdk.js`). Use the SDK-free `zip:portal` for itch.io and CrazyGames Basic Launch.
+
+| Command | For | Notes |
+| --- | --- | --- |
+| `zip:portal` | itch.io, CrazyGames Basic Launch | No SDK, no ads |
+| `zip:crazygames` | CrazyGames Full Launch | SDK v3: midgame and rewarded ads, gameplay start/stop, happy time on boss clears |
+| `zip:gamedistribution` | GameDistribution | Needs `VITE_GD_GAME_ID` from the GD dashboard. Interstitial and rewarded ads |
+| `zip:poki` | Poki | Commercial and rewarded breaks, gameplay start/stop |
+
+In the SDK builds a commercial break plays as the player enters a wave (not in training, on auto replays, or within 30 seconds of another ad), and the existing reward buttons (2× Gold, +1 Shot, 2× Garrison) play the portal's rewarded ad. Sound and the game's timers pause while an ad shows.
 
 ---
 
