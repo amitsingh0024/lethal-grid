@@ -510,19 +510,6 @@ button:disabled {
   gap: 14px;
 }
 
-.commander-avatar {
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-  animation: commanderFloat 3s ease-in-out infinite;
-}
-
-.commander-svg {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
-}
-
 .commander-speech-box {
   flex: 1;
   display: flex;
@@ -1074,16 +1061,6 @@ button:disabled {
   }
 }
 
-@keyframes commanderFloat {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
 .bomb-aura {
   fill: rgba(234, 88, 12, 0.25);
   animation: auraPulse 1.2s ease-in-out infinite;
@@ -1468,60 +1445,8 @@ button:disabled {
 }
 
 /* ============================================================================
-   ADSENSE SLOTS, TELEMETRY & MODALS
+   TELEMETRY & MODALS
    ============================================================================ */
-.ad-slot-wrapper {
-  background: rgba(24, 17, 11, 0.85);
-  border: 1px dashed rgba(217, 160, 91, 0.35);
-  border-radius: 12px;
-  padding: 8px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ad-slot-badge {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.64rem;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-
-.ad-slot-status {
-  color: #34d399;
-  font-weight: 700;
-}
-
-.ad-sandbox-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 0.78rem;
-}
-
-.ad-sandbox-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ad-sandbox-left p {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
-.ad-sandbox-pill {
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.72rem;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(16, 185, 129, 0.16);
-  color: #6ee7b7;
-  white-space: nowrap;
-}
-
 .owner-telemetry-panel {
   background: #140e09;
   border: 1px solid #10b981;
@@ -3428,7 +3353,6 @@ body {
    ============================================================================ */
 @media (prefers-reduced-motion: reduce) {
   .creature-panicked,
-  .commander-avatar,
   .torch-flame,
   .bomb-aura,
   .bomb-belly-pulse,

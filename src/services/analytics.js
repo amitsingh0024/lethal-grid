@@ -1,13 +1,7 @@
 /**
- * Google Analytics 4 (GA4) & Google AdSense Monetization Service
- *
- * Works in TWO modes automatically:
- * 1. SANDBOX / LOCAL MODE (Default while developing or before AdSense approval):
- *    Logs all GA4 events and simulated ad revenue ($ eCPM) into an in-app telemetry feed
- *    so you can test your ad triggers and see exactly how money & analytics flow.
- * 2. PRODUCTION MODE:
- *    When you set VITE_GA_MEASUREMENT_ID and VITE_ADSENSE_CLIENT_ID in `.env`,
- *    it automatically injects the official Google scripts and sends real events/ads.
+ * GA4 and AdSense. With VITE_GA_MEASUREMENT_ID and VITE_ADSENSE_CLIENT_ID set, the Google
+ * scripts are loaded and events go to GA4. Without them nothing is sent, and events and
+ * estimated ad revenue only land in the in-game telemetry feed (see SHOW_DEV_TOOLS).
  */
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-XXXXXXXXXX';
@@ -28,7 +22,7 @@ export const SHOW_DEV_TOOLS =
   import.meta.env.DEV ||
   (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug'));
 
-// In-memory listener list so the in-game Revenue & Analytics Inspector can show live events
+// Recent events, kept in memory for the owner's telemetry panel
 const eventListeners = new Set();
 const eventLog = [];
 
@@ -49,13 +43,9 @@ function pushTelemetryEntry(entry) {
   eventListeners.forEach((cb) => cb([...eventLog]));
 }
 
-/**
- * Initialize Google Analytics 4 (gtag.js) and Google AdSense scripts if configured
- */
 export function initAnalyticsAndAds() {
   if (typeof window === 'undefined') return;
 
-  // 1. Setup Google Analytics 4
   if (isRealGAConfigured() && !window.__gaInitialized) {
     window.__gaInitialized = true;
     const script = document.createElement('script');
@@ -89,7 +79,6 @@ export function initAnalyticsAndAds() {
     });
   }
 
-  // 2. Setup Google AdSense Script
   if (isRealAdSenseConfigured() && !window.__adsenseInitialized) {
     window.__adsenseInitialized = true;
     const adScript = document.createElement('script');
@@ -114,9 +103,6 @@ function initAdPlacementApi() {
   window.adConfig({ preloadAdBreaks: 'on', sound: 'on' });
 }
 
-/**
- * Track a custom Google Analytics 4 event
- */
 export function trackEvent(eventName, params = {}) {
   if (typeof window !== 'undefined' && typeof window.gtag === 'function' && isRealGAConfigured()) {
     window.gtag('event', eventName, params);
@@ -132,12 +118,8 @@ export function trackEvent(eventName, params = {}) {
   });
 }
 
-/**
- * Record an ad impression or rewarded ad completion
- */
 export function recordAdEvent(placement, isRewarded = false) {
-  // Average web game eCPM estimates:
-  // Display banner impression ~$0.002 ($2.00 CPM), Rewarded Video completion ~$0.025 ($25.00 CPM)
+  // Rough web game rates: $2 CPM for a banner, $25 CPM for a rewarded video
   const estRevenue = isRewarded ? 0.025 : 0.002;
 
   trackEvent(isRewarded ? 'rewarded_ad_complete' : 'ad_impression', {

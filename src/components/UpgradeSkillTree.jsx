@@ -34,18 +34,15 @@ import {
 } from '../game/engine';
 import { WeaponPixelIcon } from './CreatureSprite';
 
-/**
- * Spacious 1800x1200 Virtual World Coordinate Space (Center = 900, 600)
- * Every node is 240px–320px apart so the tree never feels cramped or cluttered,
- * and supports smooth Click-and-Drag Panning + Scroll/Button Zooming!
- */
-export const WORLD_WIDTH = 1800;
-export const WORLD_HEIGHT = 1200;
-export const WORLD_CENTER_X = 900;
-export const WORLD_CENTER_Y = 600;
+// Node positions are in a fixed 1800x1200 world with the Ballista at the center; the
+// viewport pans and zooms over it
+const WORLD_WIDTH = 1800;
+const WORLD_HEIGHT = 1200;
+const WORLD_CENTER_X = 900;
+const WORLD_CENTER_Y = 600;
 
 export const SKILL_TREE_NODES = [
-  // CENTER ROOT NODE: Heavy Ballista (900, 600)
+  // Root
   {
     id: 'rail_beam',
     kind: 'ABILITY',
@@ -58,7 +55,7 @@ export const SKILL_TREE_NODES = [
     parentReqLevel: 0,
   },
 
-  // NORTH BRANCH: Citadel Courtyard & Volleys
+  // North: courtyard size and volleys
   {
     id: 'grid_size',
     kind: 'UPGRADE',
@@ -90,7 +87,7 @@ export const SKILL_TREE_NODES = [
     parentReqLevel: 1,
   },
 
-  // WEST BRANCH: Black Powder, Traps, Wildfire Flask & Contagion
+  // West: chain damage, traps, Wildfire Flask and contagion
   {
     id: 'chain_amp',
     kind: 'UPGRADE',
@@ -133,7 +130,7 @@ export const SKILL_TREE_NODES = [
     parentReqLevel: 1,
   },
 
-  // EAST BRANCH: Luck / Instant-Ignite, Thunder-Hammer & Greatsword
+  // East: luck, Thunder-Hammer and Greatsword
   {
     id: 'lucky_spark',
     kind: 'UPGRADE',
@@ -167,7 +164,7 @@ export const SKILL_TREE_NODES = [
     parentReqLevel: 1,
   },
 
-  // SOUTH BRANCH: Royal Treasury & Battlement Auto-Archers
+  // South: gold and archers
   {
     id: 'shard_mult',
     kind: 'UPGRADE',
@@ -434,7 +431,6 @@ export function UpgradeSkillTree({
 
   return (
     <div className="skill-tree-wrapper">
-      {/* HEADER BAR */}
       <div className="skill-tree-header">
         <div>
           <h2>
@@ -456,7 +452,6 @@ export function UpgradeSkillTree({
         </div>
       </div>
 
-      {/* FULL-WIDTH PANNABLE & ZOOMABLE SKILL TREE VIEWPORT */}
       <div
         className={`skill-tree-viewport ${isDragging ? 'is-dragging' : ''}`}
         ref={viewportRef}
@@ -465,7 +460,6 @@ export function UpgradeSkillTree({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
-        {/* FLOATING ZOOM & CAMERA CONTROLS */}
         <div
           className="tree-camera-controls"
           onPointerDown={(e) => e.stopPropagation()}
@@ -502,7 +496,6 @@ export function UpgradeSkillTree({
           <Move size={12} /> Drag to move
         </div>
 
-        {/* TRANSFORMABLE 1800x1200 WORLD PLANE */}
         <div
           className="skill-tree-world-plane"
           style={{
@@ -511,7 +504,6 @@ export function UpgradeSkillTree({
             transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px)) scale(${zoom})`,
           }}
         >
-          {/* QUADRANT BANNERS IN WORLD SPACE */}
           <div className="world-branch-banner" style={{ left: '900px', top: '55px' }}>
             Walls
           </div>
@@ -525,7 +517,6 @@ export function UpgradeSkillTree({
             Treasury
           </div>
 
-          {/* 1:1 PIXEL SVG DEPENDENCY LINES */}
           <svg
             className="skill-tree-svg-lines"
             width={WORLD_WIDTH}
@@ -559,7 +550,6 @@ export function UpgradeSkillTree({
             })}
           </svg>
 
-          {/* SPACIOUS MEDALLION NODES */}
           {SKILL_TREE_NODES.map((node) => {
             const details = getNodeDetails(node);
             const isSelected = selectedNodeId === node.id;
@@ -643,7 +633,6 @@ export function UpgradeSkillTree({
             );
           })}
 
-          {/* FLOATING HOVER TOOLTIP CARD IN WORLD SPACE */}
           {hoveredNode && hoveredDetails && !isDragging && (
             <div
               className={[
@@ -691,7 +680,6 @@ export function UpgradeSkillTree({
 
               <p className="hover-tooltip-desc">{hoveredDetails.description}</p>
 
-              {/* PREREQUISITES & MILESTONE CHECKLIST */}
               {(hoveredNode.parentId || hoveredDetails.reqSector > 1) && (
                 <div className="hover-tooltip-reqs">
                   {hoveredNode.parentId && (
@@ -723,7 +711,6 @@ export function UpgradeSkillTree({
                 </div>
               )}
 
-              {/* FOOTER: COST & CLICK-TO-FORGE HINT */}
               <div className="hover-tooltip-footer">
                 {!hoveredDetails.isMax && hoveredDetails.cost > 0 ? (
                   <span
@@ -760,7 +747,6 @@ export function UpgradeSkillTree({
         </div>
       </div>
 
-      {/* BOTTOM HORIZONTAL BLACKSMITH INSPECTOR BAR */}
       <aside className="skill-tree-bottom-dock">
         <div className="dock-node-summary">
           <div className="inspector-icon-box">

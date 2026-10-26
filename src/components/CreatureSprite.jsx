@@ -1,16 +1,12 @@
 import React from 'react';
 import { NODE_TYPES } from '../game/engine';
 
-/**
- * 16x16 & 24x24 Authentic Pixel-Art Renderer (Inspired by Backpack Hero, Peglin & 0x72 DungeonTileset)
- *
- * Uses crisp nearest-neighbor pixel palettes and 4-frame animation loops so every hero,
- * goblin, barrel, shaman, banner, ogre, and weapon item looks like a real indie pixel-art game!
- */
+// Pixel-art sprites for the hero, raiders and weapons. Each sprite is a grid of palette keys,
+// one row per string, with one or two frames for the idle animation.
 
 const PALETTE = {
   '.': null,
-  K: '#141013', // Crisp dark pixel outline
+  K: '#141013', // Outline
   W: '#fffdf7', // Highlight white
   S: '#d4dce6', // Steel blade light
   s: '#8b9bb4', // Steel blade shadow
@@ -34,9 +30,8 @@ const PALETTE = {
   P: '#a855f7', // Royal purple
 };
 
-// 16x16 Pixel Art Matrices
 const PIXEL_MATRICES = {
-  // HERO KNIGHT (Sir Aldric / Player Character standing in the top Dungeon Scene)
+  // Sir Aldric, the knight in the stage banner
   HERO_IDLE_0: [
     '.....KKKKKK.....',
     '....KRRRRRRK....',
@@ -74,7 +69,7 @@ const PIXEL_MATRICES = {
     '....KKKKKKKK....',
   ],
 
-  // 1. GOBLIN FOOTPAD (Kettle helm, pointy green ears, dagger & wooden buckler)
+  // Goblin
   GOBLIN_0: [
     '.....KKKKKK.....',
     '....KssssssK....',
@@ -112,7 +107,7 @@ const PIXEL_MATRICES = {
     '...KKKKKKKKKK...',
   ],
 
-  // 2. POWDER-KEG SAPPER (Explosive Oak Barrel with Iron Bands & Sparking Fuse!)
+  // Sapper (powder keg)
   BOMB_0: [
     '........KKYOY...',
     '.......KbbYWOY..',
@@ -150,7 +145,7 @@ const PIXEL_MATRICES = {
     '................',
   ],
 
-  // 3. STORM-RUNE SHAMAN (Blue Battle-Mage with Crackling Lightning Staff)
+  // Shaman
   CONDUIT_0: [
     '.....KKKKKK.....',
     '....KccccccK...Y',
@@ -188,7 +183,7 @@ const PIXEL_MATRICES = {
     '....KKKKKKKK..K.',
   ],
 
-  // 4. WAR-BANNER HERALD (Golden & Emerald Rally Standard)
+  // Herald
   AMPLIFIER_0: [
     '...KKK..........',
     '..KGGGK.........',
@@ -226,7 +221,7 @@ const PIXEL_MATRICES = {
     '.KKKKKKK........',
   ],
 
-  // 5. IRONCLAD SIEGE OGRE BOSS (Horned Warlord in Heavy Plate)
+  // Ogre
   BOSS_0: [
     '.KK..KKKKKK..KK.',
     'KWWKKGGGGGGKKWWK',
@@ -264,7 +259,7 @@ const PIXEL_MATRICES = {
     '..KKKKKKKKKKKK..',
   ],
 
-  // WEAPON 1: HEAVY BALLISTA / CROSSBOW
+  // Weapons
   WEAPON_BALLISTA: [
     '.......KK.......',
     '......KWWK......',
@@ -284,7 +279,6 @@ const PIXEL_MATRICES = {
     '................',
   ],
 
-  // WEAPON 2: ALCHEMIST WILDFIRE FLASK
   WEAPON_FLASK: [
     '......KKKK......',
     '.....KBBBBK.....',
@@ -304,7 +298,6 @@ const PIXEL_MATRICES = {
     '................',
   ],
 
-  // WEAPON 3: DWARVEN THUNDER-HAMMER
   WEAPON_HAMMER: [
     '....KKKKKKKK....',
     '..KKSSSSSSSSKK..',
@@ -324,7 +317,6 @@ const PIXEL_MATRICES = {
     '................',
   ],
 
-  // WEAPON 4: EXECUTIONER'S GREATSWORD
   WEAPON_SWORD: [
     '............KKK.',
     '...........KWWWK',
@@ -405,9 +397,6 @@ function ensureSpriteClock() {
   }, 1000 / SPRITE_FPS);
 }
 
-/**
- * Crisp Nearest-Neighbor Pixel Sprite with 2-Frame Idle Bounce
- */
 export function PixelSprite({
   frame0,
   frame1,
@@ -434,44 +423,23 @@ export function PixelSprite({
   );
 }
 
-export function CreatureSprite({ type, conduitAxis = 'ROW', isTargeted = false }) {
-  const pulseClass = isTargeted ? 'creature-panicked' : 'creature-idle';
+const CREATURE_SPRITES = {
+  [NODE_TYPES.BOMB]: 'BOMB',
+  [NODE_TYPES.CONDUIT]: 'CONDUIT',
+  [NODE_TYPES.AMPLIFIER]: 'AMPLIFIER',
+  [NODE_TYPES.BOSS]: 'BOSS',
+};
 
-  if (type === NODE_TYPES.BOMB) {
-    return (
-      <div className={`creature-wrap ${pulseClass}`}>
-        <PixelSprite frame0="BOMB_0" frame1="BOMB_1" size="100%" />
-      </div>
-    );
-  }
-  if (type === NODE_TYPES.CONDUIT) {
-    return (
-      <div className={`creature-wrap ${pulseClass}`}>
+export function CreatureSprite({ type, conduitAxis = 'ROW', isTargeted = false }) {
+  const sprite = CREATURE_SPRITES[type] || 'GOBLIN';
+  return (
+    <div className={`creature-wrap ${isTargeted ? 'creature-panicked' : 'creature-idle'}`}>
+      {type === NODE_TYPES.CONDUIT && (
         <span className={`conduit-dir-tag dir-${conduitAxis}`}>
           {conduitAxis === 'ROW' ? '↔' : '↕'}
         </span>
-        <PixelSprite frame0="CONDUIT_0" frame1="CONDUIT_1" size="100%" />
-      </div>
-    );
-  }
-  if (type === NODE_TYPES.AMPLIFIER) {
-    return (
-      <div className={`creature-wrap ${pulseClass}`}>
-        <PixelSprite frame0="AMPLIFIER_0" frame1="AMPLIFIER_1" size="100%" />
-      </div>
-    );
-  }
-  if (type === NODE_TYPES.BOSS) {
-    return (
-      <div className={`creature-wrap ${pulseClass}`}>
-        <PixelSprite frame0="BOSS_0" frame1="BOSS_1" size="100%" />
-      </div>
-    );
-  }
-
-  return (
-    <div className={`creature-wrap ${pulseClass}`}>
-      <PixelSprite frame0="GOBLIN_0" frame1="GOBLIN_1" size="100%" />
+      )}
+      <PixelSprite frame0={`${sprite}_0`} frame1={`${sprite}_1`} size="100%" />
     </div>
   );
 }
@@ -484,12 +452,4 @@ export function WeaponPixelIcon({ id, size = 40 }) {
     overclock_pulse: 'WEAPON_SWORD',
   };
   return <PixelSprite frame0={map[id] || 'WEAPON_SWORD'} size={size} />;
-}
-
-export function CommanderAvatar() {
-  return (
-    <div className="commander-avatar">
-      <PixelSprite frame0="HERO_IDLE_0" frame1="HERO_IDLE_1" size={52} />
-    </div>
-  );
 }

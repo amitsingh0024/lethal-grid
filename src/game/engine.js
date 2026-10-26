@@ -1,15 +1,6 @@
-/**
- * LETHAL GRID — Medieval Tactical Chain-Reaction & Snowball Incremental Engine
- *
- * Implements:
- * - Mulberry32 deterministic PRNG for 100% client-side Daily Siege seeds
- * - Dynamic Courtyard Scaling (3x3 -> 4x4 -> 5x5 -> 6x6 -> 7x7 -> 8x8) with Wave + Gold Milestones
- * - Progressive Weapon Unlocks (Start with Ballista; unlock Wildfire Flask, Thunder-Hammer & Greatsword)
- * - Luck / "One-Hit Miracle" Jackpot System:
- *   - Lucky Fuse Ignition: Any hit (even 1 DMG vs 500 HP) can spark a Powder-Keg or Shaman fuse for an instant detonation!
- *   - Critical Cascades (3x Damage) + % Max-HP Chain Shred so chain reactions scale against high-HP waves
- *   - Goblin Barrel Contagion (Standard Goblins can explode on death) & Momentum Volley Refunds
- */
+// Game rules with no React in them: board generation, weapons, shot resolution, economy,
+// the offline garrison and Royal Crests. Daily boards and rolls take a seeded generator,
+// so every player gets the same Daily.
 
 export const NODE_TYPES = {
   EMPTY: 'EMPTY',
@@ -286,7 +277,7 @@ export function getUpgradeRequiredSector(upgradeDef, currentLevel) {
 // Pacing was tuned with a bot playing the real engine (see README, "Economy").
 export const FIRST_CLEAR_GOLD_MULT = 3;
 // One knob for every Forge price, so the cost curve can be retuned without touching each upgrade
-export const UPGRADE_PRICE_SCALE = 4;
+const UPGRADE_PRICE_SCALE = 4;
 export const STAGES_PER_CHAPTER = 5;
 
 // Waves are shown as chapter stages: waves 1-5 are 1-1 to 1-5 (boss on 1-5), wave 6 is 2-1
@@ -300,7 +291,7 @@ export function getStageLabel(sector) {
 const DAILY_BASE_HP = 6;
 
 // Base raider HP for a wave; individual raiders roll around this value
-export function getWaveBaseHp(sector, isDaily = false) {
+function getWaveBaseHp(sector, isDaily = false) {
   if (isDaily) return DAILY_BASE_HP;
   return Math.max(3, Math.floor(2 + (sector - 1) * 2.1 + Math.pow(sector, 1.38) * 0.65));
 }
@@ -328,7 +319,7 @@ export function getChapterChestGold(chapter, tier) {
 
 // Gold for each raider slain: about a sixth of the wave's base HP, so harder stages pay more.
 // The Daily is priced as wave 5 (stage 1-5), the sector it is played at.
-export function getGoldPerKill(sector) {
+function getGoldPerKill(sector) {
   return Math.max(1, Math.round(getWaveBaseHp(sector) / 6));
 }
 
@@ -435,8 +426,6 @@ export function generateBoard({
   const totalCells = gridSize * gridSize;
   const cells = [];
 
-  // Steep enemy HP scaling on higher waves so flat attack alone struggles,
-  // making Chain Synergies, % Max-HP Shred, and Lucky Fuse Ignitions thrilling!
   const baseHp = getWaveBaseHp(sector, isDaily);
 
   const specialChanceBonus = volatileBonusLevel * 0.025;
@@ -609,20 +598,20 @@ export function executeAbilityAndResolveChains({
   const chainExplosionQueue = [];
   const triggeredIndices = new Set();
 
-  // Flat chain damage + % of target's Max HP so chain explosions stay lethal on high-HP waves!
+  // Chain hits add a share of the target's max HP, so chains keep up with late-wave HP
   const baseChainDamage = Math.max(
     2,
     Math.floor((2 + sector * 0.95) * (1 + chainAmpLevel * 0.2))
   );
   const maxHpShredRatio = isTutorial ? 1.0 : 0.18 + chainAmpLevel * 0.015;
 
-  // Luck & Crit Probabilities (disabled during Tutorial so tutorial is 100% deterministic)
+  // No luck in the tutorial, so it plays out the same every time
   const critChance = isTutorial ? 0 : 0.08 + luckySparkLevel * 0.015;
   const luckyFuseIgniteChance = isTutorial ? 0 : 0.08 + luckySparkLevel * 0.018;
   const luckyExecuteChance = isTutorial ? 0 : 0.04 + luckySparkLevel * 0.01;
   const contagionExplodeChance = isTutorial ? 0 : contagionLevel * 0.04;
 
-  // Enqueue Primary Weapon Animation for the 60FPS Canvas VFX Layer
+  // Thunder-Hammer bounces go to the toughest raiders left on the board
   const bounceTargets = [];
   if (!isAutoArcherShot && abilityId === 'arc_chain') {
     const { bounces } = ABILITIES[2].getStats(abilityLevel);
@@ -653,7 +642,6 @@ export function executeAbilityAndResolveChains({
     const cell = nextCells[idx];
     if (!cell || cell.type === NODE_TYPES.EMPTY || cell.hp <= 0) return;
 
-    // 1. Roll for Critical Strike (3x Damage!)
     const isCrit = !isTutorial && rng() < critChance;
     const critMult = isCrit ? 3.0 : 1.0;
     if (isCrit) {
@@ -661,7 +649,6 @@ export function executeAbilityAndResolveChains({
       critHitsCount += 1;
     }
 
-    // 2. Add % Max-HP Shred on Chain Reactions so explosions can topple high-HP waves!
     const hpShredBonus = isChainReaction ? Math.ceil(cell.maxHp * maxHpShredRatio) : 0;
 
     let effectiveDamage = Math.max(
@@ -669,7 +656,7 @@ export function executeAbilityAndResolveChains({
       Math.ceil((rawDamage * critMult + hpShredBonus) * dynamicAmp * (cell.vulnerable || 1))
     );
 
-    // 3. Roll for "LUCKY FUSE IGNITION / INSTANT EXECUTE" if the hit wouldn't normally kill the unit!
+    // Lucky procs only matter on hits that wouldn't kill anyway
     let triggeredLuckyProc = false;
     if (!isTutorial && cell.hp > effectiveDamage) {
       const isVolatileUnit =
@@ -761,7 +748,7 @@ export function executeAbilityAndResolveChains({
           contagionExplodeChance > 0 &&
           rng() < contagionExplodeChance
         ) {
-          // GOBLIN BARREL CONTAGION SYNERGY: Slain standard Goblin explodes like a Powder-Keg!
+          // Contagion: a slain goblin can blow up like a keg
           luckyProcsCount += 1;
           events.push({
             type: 'LUCKY_PROC',
@@ -780,7 +767,7 @@ export function executeAbilityAndResolveChains({
     }
   }
 
-  // 1. Apply Primary Weapon Strike (or Single-Tile Battlement Archer Arrow)
+  // Archer arrows hit a single tile; weapons hit their pattern
   if (isAutoArcherShot) {
     const archerIdx = targetRow * gridSize + targetCol;
     const archerDmg = Math.max(2, 2 + abilityLevel * 2);
@@ -810,7 +797,7 @@ export function executeAbilityAndResolveChains({
     });
   }
 
-  // 2. Resolve Recursive Chain Reactions (Powder-Kegs, Storm-Rune Shamans, Ogre Boss, Contagion)
+  // Each pass resolves one depth of the chain; the cap guards against runaway loops
   while (chainExplosionQueue.length > 0 && chainDepth < 25) {
     chainDepth += 1;
     const currentWave = [...chainExplosionQueue];
@@ -879,7 +866,7 @@ export function executeAbilityAndResolveChains({
   const remainingNodes = nextCells.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0).length;
   const isBoardClear = remainingNodes === 0;
 
-  // Momentum Volley Refund Roll: If player kills >= 5 enemies in a single shot!
+  // A shot that fells 5 or more can refund its volley
   let refundedCharge = 0;
   if (!isTutorial && !isAutoArcherShot && !isBoardClear && nodesDestroyed >= 5) {
     const refundChance = 0.12 + contagionLevel * 0.03;
@@ -933,20 +920,20 @@ export function executeAbilityAndResolveChains({
 // Offline garrison: while the player is away, the Archer Garrison farms the
 // best cleared stage at one clear's worth of gold every OFFLINE_MINUTES_PER_CLEAR.
 // ---------------------------------------------------------------------------
-export const OFFLINE_MINUTES_PER_CLEAR = 10;
-export const OFFLINE_MIN_MINUTES = 1;
+const OFFLINE_MINUTES_PER_CLEAR = 10;
+const OFFLINE_MIN_MINUTES = 1;
 
 // Hours of absence the garrison counts: 2 at base, longer with Garrison levels and the Crest tree
-export function getOfflineCapHours(garrisonLevel, crestOfflineLevel = 0) {
+function getOfflineCapHours(garrisonLevel, crestOfflineLevel = 0) {
   return Math.min(8, 2 + garrisonLevel * 0.25) + crestOfflineLevel * 2;
 }
 
-export function getOfflineRateMult(garrisonLevel) {
+function getOfflineRateMult(garrisonLevel) {
   return 1 + garrisonLevel * 0.1;
 }
 
 // Rough gold for one full clear of a stage: about 14% of tiles are empty on boards above 3x3
-export function estimateClearGold({ sector, gridSize, shardMultLevel = 0 }) {
+function estimateClearGold({ sector, gridSize, shardMultLevel = 0 }) {
   const cells = gridSize * gridSize;
   const raiders = cells > 9 ? Math.round(cells * 0.86) : cells;
   const bounty = 2 + Math.floor(sector * 0.5);

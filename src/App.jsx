@@ -2,14 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import confetti from 'canvas-confetti';
 import {
-  Crosshair,
   Flame,
-  Zap,
   Sparkles,
-  TrendingUp,
-  Cpu,
   Shield,
-  Award,
   RotateCcw,
   Share2,
   Gift,
@@ -113,7 +108,7 @@ function buildHitVfx(hit, atMs, stackIndex = 0) {
 
 const DEFAULT_SAVE = {
   tutorialCompleted: false,
-  shards: 0, // Start at 0 Gold Crowns so players earn every upgrade
+  shards: 0, // Gold
   totalShardsEarned: 0,
   sector: 1,
   maxSectorReached: 1,
@@ -129,7 +124,7 @@ const DEFAULT_SAVE = {
     volatile_spawn: 0,
     auto_drone: 0,
   },
-  // Start with only Heavy Ballista unlocked (Lv.1); other 3 weapons unlock in Royal Forge!
+  // Only the Ballista starts unlocked; the rest are bought in the Forge
   abilityLevels: {
     rail_beam: 1,
     nova_bomb: 0,
@@ -667,9 +662,8 @@ export default function App() {
     return earned;
   };
 
-  // PHYSICAL BATTLEMENT ARCHERS LOOP: Physically shoots living enemies on the board every 2.2s!
-  // Archers only fight while the wave is live and the player still has volleys, so they can
-  // help win a wave but never finish one the player already lost.
+  // Battlement archers shoot a living raider every 2.2s. They only fight while the wave is live
+  // and the player still has volleys, so they can help win a wave but never finish a lost one.
   const droneLevel = save.upgrades.auto_drone || 0;
   useEffect(() => {
     if (droneLevel <= 0) return;
@@ -1004,7 +998,6 @@ export default function App() {
     if (isClearBeat) playSfx('clear', muted);
   };
 
-  // Execute Weapon Strike + Trigger 60fps Canvas Weapon Animation
   const handleCellClick = (cell) => {
     const live = battleRef.current;
     if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) return;
@@ -1024,7 +1017,7 @@ export default function App() {
     registerCampaignAttempt();
     live.volleysFired += 1;
 
-    // Trigger physical recoil/use animation on the weapon card in the dock
+    // Recoil on the weapon card in the dock
     setFiringWeaponId(selectedAbilityId);
     setTimeout(() => setFiringWeaponId(null), 420);
 
@@ -1086,7 +1079,6 @@ export default function App() {
     const revealMs = playShotReveal(result, shotFrom, {
       weaponId: selectedAbilityId,
       onFinish: () => {
-        // Celebrate 100% Lethal Siege Clear or Lucky Jackpot with Golden Confetti!
         if (result.stats.isBoardClear) {
           try {
             confetti({
@@ -1495,7 +1487,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* IN-GAME HUD: home, logo, forge or play, gold, sound and settings */}
+      {/* HUD: home, logo, forge or play, gold, sound and settings */}
       {screen !== 'MENU' && (
         <header className="top-nav game-hud">
           <div className="hud-left">
@@ -1574,7 +1566,6 @@ export default function App() {
         </header>
       )}
 
-      {/* COLLAPSIBLE GA4 & AD REVENUE OWNER INSPECTOR */}
       {SHOW_DEV_TOOLS && showRevenueDashboard && (
         <section className="owner-telemetry-panel" aria-label="Analytics and Ad Revenue Dashboard">
           <div className="telemetry-header">
@@ -1613,12 +1604,9 @@ export default function App() {
         </section>
       )}
 
-      {/* =====================================================================
-          SCREEN 1: MODERN INDIE TITLE SCREEN (SLAY THE SPIRE / SEA OF STARS STYLE)
-          ===================================================================== */}
+      {/* Title screen */}
       {screen === 'MENU' && (
         <main className="indie-title-screen">
-          {/* MINIMAL CORNER MICRO-HUD */}
           <div className="title-corner-bar">
             <div className="title-corner-left">
               <div className="title-status-chip" title="Your Kingdom Save Progress">
@@ -1672,7 +1660,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* CENTER STAGE: HERALDIC CREST, TITLE LOCKUP & VERTICAL MENU STACK */}
           <div className="title-center-stage">
             <div className="title-crest-diorama">
               <div className="diorama-pedestal">
@@ -1694,7 +1681,6 @@ export default function App() {
               One shot. One chain. No goblins left.
             </p>
 
-            {/* FOCUSED VERTICAL INDIE MENU STACK */}
             <nav className="indie-menu-stack" aria-label="Main Menu">
               {isNewPlayer ? (
                 <button
@@ -1794,12 +1780,9 @@ export default function App() {
         </main>
       )}
 
-      {/* =====================================================================
-          SCREEN 2: STONE COURTYARD BATTLEFIELD & INTERACTIVE TRAINING YARD
-          ===================================================================== */}
+      {/* Battle (campaign, Daily and tutorial) */}
       {(screen === 'PLAY' || screen === 'TUTORIAL') && (
         <main className="arena-focused-stage">
-          {/* BACKPACK HERO / PEGLIN STYLE TOP DUNGEON STAGE SCENE */}
           <DungeonStageBanner
             waveNumber={screen === 'TUTORIAL' ? tutorialStep : boardSector}
             stageTitle={
@@ -1817,7 +1800,6 @@ export default function App() {
             selectedWeaponId={selectedAbilityId}
           />
 
-          {/* STATUS STRIP: VOLLEY CHARGES + LUCK & RALLY BADGES + ACTIONS */}
           <div className="battle-hud-bar">
             <div className="charges-display">
               <span className="charges-label">Shots</span>
@@ -1904,10 +1886,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* COBBLESTONE COURTYARD GRID + 60FPS CANVAS WEAPON VFX OVERLAY */}
           <div className="grid-stage" ref={gridStageRef}>
             <div className="courtyard-board-wrap">
-              {/* 60FPS WEAPON TRAJECTORY & EXPLOSION CANVAS */}
               <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} gridRef={gridRef} />
 
               <div
@@ -2017,7 +1997,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* WAVE VICTORY OR RETRY BANNER */}
             {!isWaveLive && !isRevealing && (
               <div className={`turn-result-banner ${isBoardCleared ? 'win' : 'retry'}`}>
                 <div>
@@ -2169,7 +2148,6 @@ export default function App() {
             )}
           </div>
 
-          {/* TACTILE WOODEN & IRON WEAPON DOCK */}
           <div className="weapon-dock" role="radiogroup" aria-label="Weapons">
             {ABILITIES.map((ab, idx) => {
               const unlocked = isWeaponUnlocked(ab.id);
@@ -2235,9 +2213,7 @@ export default function App() {
         </main>
       )}
 
-      {/* =====================================================================
-          SCREEN 3: THE ROYAL FORGE INTERACTIVE SKILL TREE
-          ===================================================================== */}
+      {/* Royal Forge */}
       {screen === 'UPGRADES' && (
         <main className="upgrade-lab-screen">
           <UpgradeSkillTree

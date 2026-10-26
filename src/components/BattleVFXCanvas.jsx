@@ -1,24 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 
 /**
- * 60FPS HTML5 Canvas Medieval Weapon & Chain-Reaction VFX Engine
- *
- * Renders tangible, physical weapon animations whenever the player uses an item:
- * 1. `rail_beam` (Heavy Ballista Volley):
- *    Launches giant iron-tipped wooden bolts from the edges of the courtyard across the target Row & Column,
- *    leaving wind-streaks, wood splinters, and impact sparks.
- * 2. `nova_bomb` (Alchemist Wildfire Flask):
- *    Throws a spinning emerald/amber glass potion in a high parabolic arc from the bottom weapon dock
- *    onto the target stone tile, shattering into roaring wildfire embers & smoke!
- * 3. `arc_chain` (Dwarven Thunder-Hammer):
- *    Hurls a spinning runic warhammer that physically leaps from the primary target to each ricochet target,
- *    crackling with golden storm lightning.
- * 4. `overclock_pulse` (Executioner's Greatsword):
- *    Carves two sweeping, gleaming steel sword arcs in an X-pattern across the diagonals with iron sparks.
- * 5. Chain Explosions (Powder-Keg Barrel Blast & Storm-Rune Bolts):
- *    Spawns expanding shockwaves, flying wooden barrel staves, fireballs, and runic lightning bolts!
- * 6. Hit feedback: a white flash and a popping damage number on every tile hit, debris on kills,
- *    a board flash on clears, and HITSTOP items that freeze the whole layer for a few frames.
+ * Canvas layer over the grid for weapon, chain and hit effects. Each item in vfxQueue is one
+ * effect: a weapon type (rail_beam, nova_bomb, arc_chain, overclock_pulse), a chain blast
+ * (BARREL_EXPLOSION, RUNE_LIGHTNING), a HIT flash with its damage number, a board-clear FLASH,
+ * or a HITSTOP that freezes the layer for a few frames.
  *
  * Effects are drawn in a fixed 520x520 space scaled to the device's pixel density, and run on
  * their own clock so they play at the same speed on 60Hz and 120Hz screens and pause for hit-stop.
@@ -61,7 +47,6 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
     });
   };
 
-  // Enqueue new weapon & chain-reaction animations
   useEffect(() => {
     if (!vfxQueue || vfxQueue.length === 0) return;
 
@@ -167,7 +152,6 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
       if (!layoutRef.current) measureLayout();
       let freezeMs = 0;
 
-      // 1. Render Active Weapon Trajectories & Chain Bursts
       const remainingAnims = [];
       for (const anim of activeAnimsRef.current) {
         if (now < anim.startTime) {
@@ -187,7 +171,7 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
         const targetPos = getCellCenter(anim.row, anim.col, width, height);
         const impactMs = anim.impactMs ?? duration * (anim.impactAt ?? 0.55);
 
-        // Trigger impact particles when trajectory finishes (or immediately for explosions)
+        // Impact particles spawn once, when the projectile lands
         if (!anim.hasSpawnedImpact && elapsed >= impactMs) {
           anim.hasSpawnedImpact = true;
           if (anim.type === 'nova_bomb' || anim.type === 'BARREL_EXPLOSION') {
@@ -227,26 +211,21 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           }
         }
 
-        // --- HIT FEEDBACK: white flash over the tile + popping damage number ---
         if (anim.type === 'HIT') {
           drawHit(ctx, anim, elapsed, targetPos);
-        }
-
-        // --- BOARD CLEAR: one bright flash over the whole courtyard ---
-        else if (anim.type === 'FLASH') {
+        } else if (anim.type === 'FLASH') {
           ctx.save();
           ctx.fillStyle = `rgba(255, 244, 214, ${0.55 * (1 - progress) ** 2})`;
           ctx.fillRect(0, 0, width, height);
           ctx.restore();
         }
 
-        // --- DRAW WEAPON 1: HEAVY BALLISTA VOLLEY (Row & Col Piercing Bolts) ---
+        // Ballista: bolts along the row and column
         if (anim.type === 'rail_beam') {
           ctx.save();
           const boltX = progress * width * 1.15;
           const boltY = progress * height * 1.15;
 
-          // Golden wind streak along Row & Column
           ctx.strokeStyle = `rgba(251, 191, 36, ${(1 - progress) * 0.85})`;
           ctx.lineWidth = 10 * (1 - progress * 0.5);
           ctx.beginPath();
@@ -256,7 +235,7 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           ctx.lineTo(targetPos.x, boltY);
           ctx.stroke();
 
-          // Draw Horizontal Ballista Bolt Head
+          // Horizontal bolt
           ctx.fillStyle = '#fde68a';
           ctx.beginPath();
           ctx.moveTo(boltX + 14, targetPos.y);
@@ -265,7 +244,7 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           ctx.closePath();
           ctx.fill();
 
-          // Draw Vertical Ballista Bolt Head
+          // Vertical bolt
           ctx.beginPath();
           ctx.moveTo(targetPos.x, boltY + 14);
           ctx.lineTo(targetPos.x - 7, boltY - 12);
@@ -275,11 +254,10 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           ctx.restore();
         }
 
-        // --- DRAW WEAPON 2: ALCHEMIST WILDFIRE FLASK (Arcing Bottle Throw -> Firestorm) ---
+        // Wildfire Flask: thrown in an arc, then a 3x3 fire ring
         else if (anim.type === 'nova_bomb') {
           ctx.save();
           if (progress < 0.55) {
-            // Parabolic throw from bottom center to target tile
             const t = progress / 0.55;
             const startX = width * 0.38;
             const startY = height + 10;
@@ -290,7 +268,6 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
             ctx.translate(curX, curY);
             ctx.rotate(t * Math.PI * 4);
 
-            // Draw glowing Alchemist Glass Flask
             ctx.fillStyle = '#f97316';
             ctx.strokeStyle = '#fef08a';
             ctx.lineWidth = 2.5;
@@ -298,11 +275,9 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
             ctx.arc(0, 4, 11, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
-            // Flask neck & cork
             ctx.fillStyle = '#fde68a';
             ctx.fillRect(-4, -12, 8, 9);
           } else {
-            // Expanding 3x3 Wildfire Ring
             const t = (progress - 0.55) / 0.45;
             const maxRadius = targetPos.cellW * 1.45;
             const r = maxRadius * t;
@@ -325,14 +300,13 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           ctx.restore();
         }
 
-        // --- DRAW WEAPON 3: DWARVEN THUNDER-HAMMER (Ricochet Hammer + Lightning Arcs) ---
+        // Thunder-Hammer: lightning from the sky, then between bounce targets
         else if (anim.type === 'arc_chain') {
           ctx.save();
           const t = Math.sin(progress * Math.PI);
           ctx.strokeStyle = `rgba(250, 204, 21, ${1 - progress * 0.7})`;
           ctx.lineWidth = 4;
 
-          // Draw jagged lightning bolt from top sky & between ricochet targets
           const drawJaggedBolt = (x1, y1, x2, y2) => {
             ctx.beginPath();
             ctx.moveTo(x1, y1);
@@ -356,7 +330,6 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
             });
           }
 
-          // Spinning Dwarven Warhammer Icon at target
           ctx.translate(targetPos.x, targetPos.y);
           ctx.rotate(progress * Math.PI * 3);
           ctx.scale(0.8 + t * 0.5, 0.8 + t * 0.5);
@@ -370,14 +343,13 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           ctx.restore();
         }
 
-        // --- DRAW WEAPON 4: EXECUTIONER'S GREATSWORD (Diagonal X-Slash) ---
+        // Greatsword: two diagonal slashes
         else if (anim.type === 'overclock_pulse') {
           ctx.save();
           const slashLen = Math.max(width, height) * 0.85;
           const alpha = 1 - progress;
           ctx.translate(targetPos.x, targetPos.y);
 
-          // Draw 2 gleaming steel diagonal sword slashes
           [-Math.PI / 4, Math.PI / 4].forEach((angle, idx) => {
             ctx.save();
             ctx.rotate(angle);
@@ -398,7 +370,7 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           ctx.restore();
         }
 
-        // --- DRAW CHAIN REACTION: POWDER-KEG BARREL EXPLOSION ---
+        // Keg and ogre blasts
         else if (anim.type === 'BARREL_EXPLOSION') {
           ctx.save();
           const r = targetPos.cellW * 1.35 * progress;
@@ -415,7 +387,7 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
           ctx.restore();
         }
 
-        // --- DRAW CHAIN REACTION: STORM-RUNE MAGE LIGHTNING BEAM ---
+        // Shaman lightning down a row or column
         else if (anim.type === 'RUNE_LIGHTNING') {
           ctx.save();
           ctx.strokeStyle = `rgba(250, 204, 21, ${1 - progress})`;
@@ -438,7 +410,7 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
       }
       activeAnimsRef.current = remainingAnims;
 
-      // 2. Render & Update Flying Shrapnel, Wood Splinters & Fire Embers
+      // Particles
       const nextParticles = [];
       for (const p of particlesRef.current) {
         p.x += p.vx * dt;

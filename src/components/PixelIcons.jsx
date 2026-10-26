@@ -26,10 +26,7 @@ export const Flame = pixel(P.Fire);
 export const Zap = pixel(P.Zap);
 export const Sparkles = pixel(P.Sparkles);
 export const TrendingUp = pixel(P.TrendingUp);
-export const Cpu = pixel(P.Cpu);
 export const Shield = pixel(P.Shield);
-export const ShieldCheck = pixel(P.Shield);
-export const Award = pixel(P.Trophy);
 export const RotateCcw = pixel(P.Reload);
 export const Share2 = pixel(P.Share);
 export const Gift = pixel(P.Gift);
@@ -43,12 +40,10 @@ export const Lock = pixel(P.Lock);
 export const Play = pixel(P.Play);
 export const Home = pixel(P.Home);
 export const ShoppingBag = pixel(P.Tools);
-export const GraduationCap = pixel(P.Teach);
 export const Maximize2 = pixel(P.Expand);
 export const Move = pixel(P.Move);
 export const ZoomIn = pixel(P.ZoomIn);
 export const ZoomOut = pixel(P.ZoomOut);
-export const DollarSign = pixel(P.Dollar);
 export const Tv = pixel(P.Tv);
 export const Sword = pixel(P.Sword);
 export const Heart = pixel(P.Heart);
@@ -65,7 +60,6 @@ export const Star = pixel(P.Star);
 export const Robot = pixel(P.Robot);
 export const Coins = pixel(P.Coins);
 export const Flag = pixel(P.Flag);
-export const Tools = pixel(P.Tools);
 
 // Gold coin drawn on an 8x8 grid in the game palette; replaces the 🪙 emoji.
 export function GoldCoin({ size = 14, className = '' }) {
