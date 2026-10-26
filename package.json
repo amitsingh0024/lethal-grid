@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:portal": "vite build --mode portal",
+    "zip:portal": "vite build --mode portal && node scripts/zip-portal.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

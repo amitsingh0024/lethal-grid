@@ -65,6 +65,7 @@ import {
   subscribeToTelemetry,
   getMonetizationConfig,
   SHOW_DEV_TOOLS,
+  IS_PORTAL_BUILD,
 } from './services/analytics';
 import { playSfx } from './services/sfx';
 import { StageMapModal } from './components/StageMapModal';
@@ -144,6 +145,9 @@ const DEFAULT_SAVE = {
   runGoldStart: 0,
   estSessionRevenueUsd: 0.004,
 };
+
+// BASE_URL is '/' on our site and './' in the portal build, which runs from a subfolder
+const LOGO_URL = `${import.meta.env.BASE_URL}logo.svg`;
 
 // Last time the game was open, for the offline garrison; kept apart from the save so the
 // heartbeat that refreshes it doesn't re-render the game
@@ -1502,7 +1506,7 @@ export default function App() {
             </button>
             <img
               className="hud-logo"
-              src="/logo.svg"
+              src={LOGO_URL}
               alt="Lethal Grid"
               width="144"
               height="28"
@@ -1675,7 +1679,7 @@ export default function App() {
 
             <span className="title-eyebrow-ribbon">A chain-reaction siege puzzle</span>
             <h1 className="title-main-logo">
-              <img src="/logo.svg" alt="Lethal Grid" width="576" height="112" />
+              <img src={LOGO_URL} alt="Lethal Grid" width="576" height="112" />
             </h1>
             <p className="title-tagline">
               One shot. One chain. No goblins left.
@@ -2330,7 +2334,11 @@ export default function App() {
                 className="btn-danger"
                 onClick={() => {
                   if (window.confirm('Reset all progress? This cannot be undone.')) {
-                    localStorage.removeItem(STORAGE_KEY);
+                    try {
+                      localStorage.removeItem(STORAGE_KEY);
+                    } catch {
+                      // Storage is blocked, so there is no saved progress to remove
+                    }
                     window.location.reload();
                   }
                 }}
@@ -2460,24 +2468,51 @@ export default function App() {
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="privacy-title">
           <div className="modal-card privacy-modal-card">
             <h3 id="privacy-title">Privacy</h3>
-            <p>
-              <strong>1. Local storage:</strong> Lethal Grid stores your
-              progress locally in your browser&apos;s <code>localStorage</code>.
-            </p>
-            <p>
-              <strong>2. Google Analytics (GA4):</strong> We use Google Analytics to measure anonymous
-              gameplay metrics such as waves cleared and weapon popularity.
-            </p>
-            <p>
-              <strong>3. Google AdSense & Cookies:</strong> Third-party vendors, including Google, use
-              cookies to serve ads based on a user&apos;s prior visits to this website or other
-              websites.
-            </p>
-            <p>
-              <a href="/privacy" target="_blank" rel="noopener">
-                Read the full privacy policy
-              </a>
-            </p>
+            {IS_PORTAL_BUILD ? (
+              // Portal iframes block links out, so the whole policy is here
+              <>
+                <p>
+                  Lethal Grid is a free game with no accounts. We never ask for your name, email or
+                  payment details.
+                </p>
+                <p>
+                  <strong>Your progress stays on your device.</strong> Your save (gold, stages,
+                  upgrades, stars and settings) is kept in your browser&apos;s local storage and is
+                  never sent to us. Clearing your browser&apos;s site data, or Reset progress in
+                  Settings, deletes it.
+                </p>
+                <p>
+                  <strong>No tracking or ads of our own.</strong> This version of Lethal Grid loads
+                  no analytics, cookies or ad scripts. The website you are playing on may show ads
+                  and collect data under its own privacy policy.
+                </p>
+                <p>
+                  Lethal Grid is made for a general audience and is not directed at children under
+                  13.
+                </p>
+              </>
+            ) : (
+              <>
+                <p>
+                  <strong>1. Local storage:</strong> Lethal Grid stores your
+                  progress locally in your browser&apos;s <code>localStorage</code>.
+                </p>
+                <p>
+                  <strong>2. Google Analytics (GA4):</strong> We use Google Analytics to measure anonymous
+                  gameplay metrics such as waves cleared and weapon popularity.
+                </p>
+                <p>
+                  <strong>3. Google AdSense & Cookies:</strong> Third-party vendors, including Google, use
+                  cookies to serve ads based on a user&apos;s prior visits to this website or other
+                  websites.
+                </p>
+                <p>
+                  <a href="/privacy" target="_blank" rel="noopener">
+                    Read the full privacy policy
+                  </a>
+                </p>
+              </>
+            )}
             <div className="modal-actions">
               <button
                 type="button"

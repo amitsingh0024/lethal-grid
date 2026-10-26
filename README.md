@@ -98,7 +98,23 @@ npm install
 npm run dev      # local dev server
 npm run build    # production build into dist/
 npm run preview  # serve the built dist/ locally
+npm run zip:portal  # portal build into dist-portal/, packed as lethal-grid-portal.zip
 ```
+
+---
+
+## 🕹 Game portals (CrazyGames, itch.io, Poki, GameDistribution)
+
+`npm run zip:portal` builds with `vite build --mode portal` and packs `dist-portal/` into `lethal-grid-portal.zip`, with `index.html` at the root of the zip. Upload that zip to the portal. The Cloudflare build (`npm run build`) is unchanged.
+
+The portal build differs from the website build in these ways:
+- **Relative paths** (`base: './'`), so it runs from whatever subfolder the portal hosts it under.
+- **No GA4 or AdSense**, even if `.env` holds real IDs. Portals forbid outside ad and tracking scripts, and rewarded-ad buttons stay hidden. `IS_PORTAL_BUILD` in `src/services/analytics.js` is the switch.
+- **Privacy text inline** in the Privacy dialog, with no link out of the iframe.
+- **No website-only files:** canonical link, social cards, structured data and manifest (the `<!-- web-only -->` blocks in `index.html`), plus `_headers`, `ads.txt`, `privacy.html`, `manifest.webmanifest`, `og-image.jpg`, `robots.txt` and `sitemap.xml`.
+- **Space, arrow and Page keys** don't scroll the portal's page behind the game.
+
+Both builds go silent while the tab is hidden, which portal QA checks by switching tabs.
 
 ---
 
