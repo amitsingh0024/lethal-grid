@@ -1,69 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Sparkles, DollarSign, ShieldCheck, Tv } from './PixelIcons';
-import { getMonetizationConfig, recordAdEvent } from '../services/analytics';
+import { Play, Sparkles, Tv } from './PixelIcons';
+import { recordAdEvent } from '../services/analytics';
 
-/**
- * Responsive Google AdSense Banner Component
- * - Maintains strict layout separation and fixed aspect ratios to prevent Cumulative Layout Shift (CLS)
- * - Automatically serves real Google AdSense units when `VITE_ADSENSE_CLIENT_ID` is configured
- * - Displays an interactive AdSense Preview Sandbox when running locally so you can verify placements
- */
-export function AdBannerSlot({ slotId = '1111111111', label = 'Top Leaderboard Ad Slot', format = 'horizontal' }) {
-  const config = getMonetizationConfig();
-
-  useEffect(() => {
-    recordAdEvent(label, false);
-    if (config.isLiveAdSense && typeof window !== 'undefined') {
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch {
-        // Ignore duplicate push errors in dev strict mode
-      }
-    }
-  }, [config.isLiveAdSense, label]);
-
-  return (
-    <aside className={`ad-slot-wrapper ad-format-${format}`} aria-label="Advertisement">
-      <div className="ad-slot-badge">
-        <span>ADVERTISEMENT • GOOGLE ADSENSE READY</span>
-        <span className="ad-slot-status">
-          {config.isLiveAdSense ? 'LIVE ADSENSE' : 'SANDBOX PREVIEW ($2.00 eCPM)'}
-        </span>
-      </div>
-
-      {config.isLiveAdSense ? (
-        <ins
-          className="adsbygoogle"
-          style={{ display: 'block', width: '100%', height: '100%' }}
-          data-ad-client={config.adsenseClientId}
-          data-ad-slot={slotId}
-          data-ad-format="auto"
-          data-full-width-responsive="true"
-        />
-      ) : (
-        <div className="ad-sandbox-placeholder">
-          <div className="ad-sandbox-left">
-            <DollarSign size={16} className="text-emerald" />
-            <div>
-              <strong>{label}</strong>
-              <p>
-                Safe 150px margin from game buttons • Paste your <code>ca-pub-XXXX</code> in{' '}
-                <code>.env</code> to activate live ads.
-              </p>
-            </div>
-          </div>
-          <span className="ad-sandbox-pill">Est. +$0.002 / view</span>
-        </div>
-      )}
-    </aside>
-  );
-}
-
-/**
- * High-eCPM Rewarded Video Ad Modal Simulator / Trigger
- * Gives the player an immediate in-game reward (2× Gold, +1 shot, or doubled garrison Gold)
- * after watching a short 3-second simulated ad (or real Google H5 Games Placement API ad).
- */
+// Sandbox stand-in for a rewarded ad: a 3-second card that grants the reward when claimed.
+// Live rewarded ads go through services/rewardedAds.js instead.
 export function RewardedAdModal({ isOpen, onClose, rewardTitle, onRewardClaimed }) {
   const [secondsLeft, setSecondsLeft] = useState(3);
 
