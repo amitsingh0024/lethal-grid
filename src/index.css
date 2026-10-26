@@ -3866,3 +3866,11 @@ body {
 .crest-node button {
   flex-shrink: 0;
 }
+
+/* Keyboard focus: a bright gold ring on anything focusable, shown only for keyboard users */
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid #f5b82e !important;
+  outline-offset: 2px;
+}
