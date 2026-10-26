@@ -1375,9 +1375,15 @@ export default function App() {
       },
     });
 
-  // Reward buttons appear only while an ad can actually be shown
+  // Reward buttons appear only while an ad can actually be shown. Google serves one rewarded
+  // request at a time, so on a lost wave the 2x Gold offer yields to the +1 Shot offer.
   const goldAd = useRewardedAd(
-    screen === 'PLAY' && gameMode === 'CAMPAIGN' && adBoostSeconds <= 0 ? 'double_gold' : null,
+    screen === 'PLAY' &&
+      gameMode === 'CAMPAIGN' &&
+      adBoostSeconds <= 0 &&
+      waveOutcome === 'IN_PROGRESS'
+      ? 'double_gold'
+      : null,
     { onSandboxShow: showSandboxAd('2× Gold for 3 minutes') }
   );
   const shotAd = useRewardedAd(
