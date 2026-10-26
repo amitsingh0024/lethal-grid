@@ -86,6 +86,8 @@ Progress is stored in the browser's `localStorage` under one key. Each field is 
   - `VITE_ADSENSE_CLIENT_ID=ca-pub-XXXXXXXXXXXXXXXX`
   - `VITE_ADSENSE_SIDEBAR_SLOT` and the other ad slot IDs
 - Replace the placeholder publisher ID in `public/ads.txt` with your real `pub-XXXXXXXXXXXXXXXX` ID so Google can verify the site.
+- **AdSense site verification:** the AdSense script is added by JavaScript (and only when the ID is set), so Google's crawler may not see the "AdSense code snippet" in the page HTML. In AdSense, add the site with the **ads.txt snippet** method, or the **meta tag** method (add Google's `<meta name="google-adsense-account">` tag to `index.html`), instead of the code snippet.
+- **Rewarded ads** use Google H5 Games Ads, which must be approved on the AdSense account first. Until then production shows no "Watch ad" buttons; use `?debug` to try the simulated ad.
 
 ---
 
