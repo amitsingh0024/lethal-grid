@@ -3798,3 +3798,306 @@ a:focus-visible,
   outline: 3px solid #f5b82e !important;
   outline-offset: 2px;
 }
+
+/* ============================================================================
+   LANDSCAPE FIT: on a wide screen every game screen fits the window with no page
+   scroll, as game portals require for their 16:9 iframes. The board takes the full
+   height between a side column (stage scene and shots) and the weapon column.
+   ============================================================================ */
+@media (min-width: 721px) and (min-aspect-ratio: 5/4) {
+  .app-shell {
+    max-width: 1480px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 8px 14px;
+    gap: 8px;
+  }
+
+  .app-shell > main {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  /* Battle */
+  .arena-focused-stage {
+    max-width: none;
+    display: grid;
+    grid-template-columns: clamp(200px, 24vw, 300px) minmax(0, 1fr) clamp(180px, 21vw, 270px);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'banner board dock'
+      'hud board dock';
+    gap: 10px 14px;
+  }
+
+  .arena-focused-stage .dungeon-stage-banner {
+    grid-area: banner;
+    min-height: 0;
+    padding: 8px 10px 0;
+  }
+
+  .arena-focused-stage .dungeon-actors-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'hero horde'
+      'speech speech';
+    gap: 6px;
+  }
+
+  .arena-focused-stage .hero-stage-side {
+    grid-area: hero;
+  }
+
+  .arena-focused-stage .horde-stage-side {
+    grid-area: horde;
+  }
+
+  .arena-focused-stage .stage-speech-scroll {
+    grid-area: speech;
+    margin-bottom: 4px;
+    padding: 6px 8px;
+  }
+
+  .arena-focused-stage .stage-speech-scroll p {
+    font-size: 0.9rem;
+  }
+
+  .dungeon-floor-ledge {
+    margin: 0 -10px;
+  }
+
+  .arena-focused-stage .battle-hud-bar {
+    grid-area: hud;
+    flex-direction: column;
+    align-items: stretch;
+    align-self: start;
+    flex-wrap: nowrap;
+  }
+
+  .arena-focused-stage .charges-display {
+    flex-wrap: wrap;
+  }
+
+  .arena-focused-stage .arena-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  /* The board is the largest square that fits its cell */
+  .arena-focused-stage .grid-stage {
+    grid-area: board;
+    container-type: size;
+    padding: 0;
+  }
+
+  .arena-focused-stage .courtyard-board-wrap {
+    width: min(100cqw, 100cqh);
+    max-width: none;
+  }
+
+  .arena-focused-stage .weapon-dock {
+    grid-area: dock;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 8px;
+    overflow-y: auto;
+  }
+
+  /* Title screen: logo on the left, menu on the right */
+  .indie-title-screen {
+    min-height: 0;
+    padding: 4px 4px 8px;
+  }
+
+  .title-center-stage {
+    max-width: 980px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+    grid-template-areas:
+      'diorama menu'
+      'eyebrow menu'
+      'logo menu'
+      'tagline menu';
+    align-content: center;
+    align-items: center;
+    justify-items: center;
+    column-gap: 32px;
+    padding: 12px 24px;
+  }
+
+  .title-crest-diorama {
+    grid-area: diorama;
+    align-self: end;
+  }
+
+  .title-eyebrow-ribbon {
+    grid-area: eyebrow;
+  }
+
+  .title-main-logo {
+    grid-area: logo;
+    width: 100%;
+  }
+
+  .title-main-logo img {
+    width: min(520px, 100%);
+    margin: 0 auto;
+  }
+
+  .title-tagline {
+    grid-area: tagline;
+    align-self: start;
+    margin-bottom: 0;
+  }
+
+  .indie-menu-stack {
+    grid-area: menu;
+    gap: 8px;
+  }
+
+  /* Forge: the tree fills the height, with the selected upgrade in a column beside it */
+  .upgrade-lab-screen {
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+  }
+
+  .upgrade-lab-screen .skill-tree-wrapper {
+    flex: 1 1 0;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(230px, 300px);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'header header'
+      'tree dock';
+    gap: 8px 12px;
+  }
+
+  .upgrade-lab-screen .skill-tree-header {
+    grid-area: header;
+    padding: 8px 16px;
+  }
+
+  .upgrade-lab-screen .skill-tree-viewport {
+    grid-area: tree;
+    height: auto;
+    min-height: 0;
+  }
+
+  .upgrade-lab-screen .skill-tree-bottom-dock {
+    grid-area: dock;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 12px;
+    overflow-y: auto;
+  }
+
+  .upgrade-lab-screen .dock-node-summary {
+    flex: none;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .upgrade-lab-screen .dock-node-action {
+    min-width: 0;
+  }
+
+  .upgrade-lab-screen .btn-forge-node {
+    padding: 10px 12px;
+  }
+}
+
+/* Short landscape screens (small iframes, phones on their side) */
+@media (min-width: 721px) and (min-aspect-ratio: 5/4) and (max-height: 620px) {
+  .top-nav.game-hud {
+    border-width: 8px;
+    padding: 0 4px;
+  }
+
+  .top-nav .wallet-pill {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .arena-focused-stage .dungeon-torches {
+    margin-bottom: 2px;
+  }
+
+  .arena-focused-stage .actor-pedestal-label {
+    display: none;
+  }
+
+  .arena-focused-stage .stage-speech-scroll p {
+    font-size: 0.8rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .arena-focused-stage .weapon-dock-btn {
+    padding: 4px 6px;
+  }
+
+  .arena-focused-stage .weapon-dock-text > span {
+    display: none;
+  }
+
+  .title-crest-diorama {
+    display: none;
+  }
+
+  .indie-menu-btn {
+    padding-top: 6px;
+    padding-bottom: 4px;
+  }
+
+  .upgrade-lab-screen .skill-tree-header p {
+    display: none;
+  }
+}
+
+/* Phones on their side: drop the scene's figures so the board keeps its size */
+@media (min-width: 721px) and (min-aspect-ratio: 5/4) and (max-height: 460px) {
+  .arena-focused-stage .hero-stage-side,
+  .arena-focused-stage .horde-stage-side {
+    display: none;
+  }
+
+  .arena-focused-stage .weapon-dock-btn .ability-icon {
+    transform: scale(0.8);
+    margin: -6px;
+  }
+
+  .arena-focused-stage .charges-display {
+    padding: 2px 8px;
+  }
+
+  .indie-menu-stack {
+    gap: 4px;
+  }
+
+  .indie-menu-btn {
+    padding-top: 2px;
+    padding-bottom: 0;
+  }
+
+  /* Restart and Share keep only their icons so all actions share one row */
+  .arena-focused-stage .arena-actions {
+    flex-wrap: nowrap;
+  }
+
+  .arena-focused-stage .arena-actions > .btn-sm {
+    flex: 0 0 auto;
+  }
+
+  .arena-focused-stage .arena-actions > .btn-sm span {
+    display: none;
+  }
+}
