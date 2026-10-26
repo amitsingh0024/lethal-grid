@@ -143,8 +143,21 @@ const SOUNDS = {
   },
 };
 
+// Silences the game while a video ad plays, so the two never talk over each other
+let paused = false;
+export function setSfxPaused(value) {
+  paused = value;
+  try {
+    if (!audio) return;
+    if (value) audio.ctx.suspend();
+    else audio.ctx.resume();
+  } catch {
+    // Ignore audio state errors
+  }
+}
+
 export function playSfx(name, muted, opts = {}) {
-  if (muted) return;
+  if (muted || paused) return;
   try {
     const a = getAudio();
     const sound = SOUNDS[name];

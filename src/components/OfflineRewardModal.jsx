@@ -13,7 +13,7 @@ function formatAway(minutes) {
  * Welcome-back card for the offline garrison. Collecting is free; the ad that doubles it
  * is optional and never shown on its own.
  */
-export function OfflineRewardModal({ reward, onCollect, onWatchAd }) {
+export function OfflineRewardModal({ reward, onCollect, onWatchAd, canWatchAd = true }) {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="offline-title">
       <div className="modal-card offline-reward-card">
@@ -33,10 +33,12 @@ export function OfflineRewardModal({ reward, onCollect, onWatchAd }) {
         </div>
 
         <div className="banner-buttons">
-          <button type="button" className="btn-secondary" onClick={onWatchAd}>
-            <Tv size={15} />
-            <span>Watch ad: +{(reward.gold * 2).toLocaleString()}</span>
-          </button>
+          {canWatchAd && (
+            <button type="button" className="btn-secondary" onClick={onWatchAd}>
+              <Tv size={15} />
+              <span>Watch ad: +{(reward.gold * 2).toLocaleString()}</span>
+            </button>
+          )}
           <button type="button" className="btn-primary" onClick={onCollect}>
             <span>Collect</span>
           </button>

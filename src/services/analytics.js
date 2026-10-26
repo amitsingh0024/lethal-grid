@@ -95,9 +95,23 @@ export function initAnalyticsAndAds() {
     const adScript = document.createElement('script');
     adScript.async = true;
     adScript.crossOrigin = 'anonymous';
+    // H5 Games Ads: at most one interstitial-style break a minute; test ads until approved
+    adScript.dataset.adFrequencyHint = '60s';
+    if (import.meta.env.VITE_ADBREAK_TEST === 'on') adScript.dataset.adbreakTest = 'on';
     adScript.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`;
     document.head.appendChild(adScript);
+    initAdPlacementApi();
   }
+}
+
+// Google H5 Games Ads (Ad Placement API). adBreak and adConfig queue onto adsbygoogle until
+// the script loads, so they can be called right away.
+function initAdPlacementApi() {
+  window.adsbygoogle = window.adsbygoogle || [];
+  window.adBreak = window.adConfig = function adPlacement(o) {
+    window.adsbygoogle.push(o);
+  };
+  window.adConfig({ preloadAdBreaks: 'on', sound: 'on' });
 }
 
 /**
