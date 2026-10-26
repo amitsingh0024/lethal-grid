@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { trackEvent } from './services/analytics';
+import { IS_PORTAL_BUILD, trackEvent } from './services/analytics';
 // Fonts are bundled and served from our own origin: no render-blocking request to Google Fonts,
 // and no player IP sent to a third party before consent
 import '@fontsource/pixelify-sans/latin-400.css';
@@ -29,6 +29,19 @@ const reportError = (kind, message) => {
 };
 window.addEventListener('error', (e) => reportError('error', e.message));
 window.addEventListener('unhandledrejection', (e) => reportError('promise', e.reason?.message || e.reason));
+
+// Inside a portal's iframe, Space and the arrow keys would scroll the portal's page behind the
+// game. Form fields keep them, and Space still presses a focused button.
+if (IS_PORTAL_BUILD) {
+  const SCROLL_KEYS = new Set([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown']);
+  window.addEventListener('keydown', (e) => {
+    if (!SCROLL_KEYS.has(e.key)) return;
+    const tag = e.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable) return;
+    if (e.key === ' ' && (tag === 'BUTTON' || tag === 'A')) return;
+    e.preventDefault();
+  });
+}
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

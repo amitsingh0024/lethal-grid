@@ -2,15 +2,22 @@
  * GA4 and AdSense. With VITE_GA_MEASUREMENT_ID and VITE_ADSENSE_CLIENT_ID set, the Google
  * scripts are loaded and events go to GA4. Without them nothing is sent, and events and
  * estimated ad revenue only land in the in-game telemetry feed (see SHOW_DEV_TOOLS).
+ * The portal build never loads either, whatever .env holds: portals forbid outside ad and
+ * tracking scripts in their iframe.
  */
+
+// `vite build --mode portal`: the zip uploaded to CrazyGames, itch.io and other game portals
+export const IS_PORTAL_BUILD = import.meta.env.MODE === 'portal';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-XXXXXXXXXX';
 const ADSENSE_CLIENT_ID = import.meta.env.VITE_ADSENSE_CLIENT_ID || 'ca-pub-0000000000000000';
 
 const isRealGAConfigured = () =>
+  !IS_PORTAL_BUILD &&
   Boolean(GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== 'G-XXXXXXXXXX' && GA_MEASUREMENT_ID.startsWith('G-'));
 
 const isRealAdSenseConfigured = () =>
+  !IS_PORTAL_BUILD &&
   Boolean(
     ADSENSE_CLIENT_ID &&
       ADSENSE_CLIENT_ID !== 'ca-pub-0000000000000000' &&

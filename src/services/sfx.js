@@ -6,10 +6,12 @@
 
 let audio = null;
 
+const isHidden = () => typeof document !== 'undefined' && document.hidden;
+
 function getAudio() {
   if (typeof window === 'undefined') return null;
   if (audio) {
-    if (audio.ctx.state === 'suspended') audio.ctx.resume();
+    if (audio.ctx.state === 'suspended' && !isHidden()) audio.ctx.resume();
     return audio;
   }
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -145,19 +147,29 @@ const SOUNDS = {
 
 // Silences the game while a video ad plays, so the two never talk over each other
 let paused = false;
-export function setSfxPaused(value) {
-  paused = value;
+
+function syncAudioState() {
   try {
     if (!audio) return;
-    if (value) audio.ctx.suspend();
+    if (paused || isHidden()) audio.ctx.suspend();
     else audio.ctx.resume();
   } catch {
     // Ignore audio state errors
   }
 }
 
+export function setSfxPaused(value) {
+  paused = value;
+  syncAudioState();
+}
+
+// Go silent while the tab is hidden; portals test this by switching tabs mid-game
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', syncAudioState);
+}
+
 export function playSfx(name, muted, opts = {}) {
-  if (muted || paused) return;
+  if (muted || paused || isHidden()) return;
   try {
     const a = getAudio();
     const sound = SOUNDS[name];

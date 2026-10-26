@@ -8,10 +8,13 @@
       name="description"
       content="A free medieval puzzle game in your browser. Set off powder kegs, shaman lightning and war banners so one shot clears the board, then upgrade your siege between stages."
     />
+    <!-- web-only -->
     <link rel="canonical" href="%SITE_URL%/" />
+    <!-- /web-only -->
     <meta name="theme-color" content="#1a120b" />
     <meta name="color-scheme" content="dark" />
 
+    <!-- web-only -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Lethal Grid" />
     <meta property="og:url" content="%SITE_URL%/" />
@@ -31,9 +34,11 @@
       content="One shot. One chain. No goblins left. Free to play in your browser."
     />
     <meta name="twitter:image" content="%SITE_URL%/og-image.jpg" />
+    <!-- /web-only -->
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- web-only -->
     <link rel="manifest" href="/manifest.webmanifest" />
 
     <script type="application/ld+json">
@@ -54,6 +59,7 @@
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
       }
     </script>
+    <!-- /web-only -->
   </head>
   <body>
     <div id="root"></div>
@@ -71,7 +77,12 @@
           unlock new weapons and train an archer garrison. Replay cleared stages for stars and
           chests, take on the Daily Siege, and earn Royal Crests for permanent upgrades.
         </p>
-        <p>Please turn on JavaScript to play. <a href="/privacy" style="color: #f5b82e">Privacy</a></p>
+        <p>
+          Please turn on JavaScript to play.
+          <!-- web-only -->
+          <a href="/privacy" style="color: #f5b82e">Privacy</a>
+          <!-- /web-only -->
+        </p>
       </main>
     </noscript>
     <script type="module" src="/src/main.jsx"></script>
