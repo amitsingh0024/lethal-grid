@@ -26,6 +26,7 @@ import {
   Star,
   Robot,
   Crown,
+  Music,
 } from './components/PixelIcons';
 import {
   NODE_TYPES,
@@ -71,6 +72,7 @@ import { StageMapModal } from './components/StageMapModal';
 import { OfflineRewardModal } from './components/OfflineRewardModal';
 import { CrestTreeModal } from './components/CrestTreeModal';
 import { shake, squash, popIn } from './services/juice';
+import { setMusicEnabled, setMusicTrack } from './services/music';
 import { RewardedAdModal } from './components/AdUnit';
 import { useRewardedAd, isRewardedAdPlaying } from './services/rewardedAds';
 import {
@@ -157,6 +159,8 @@ const DEFAULT_SAVE = {
   runGoldStart: 0,
   estSessionRevenueUsd: 0.004,
 };
+
+const MUSIC_KEY = 'lethal_grid_music';
 
 // BASE_URL is '/' on our site and './' in the portal build, which runs from a subfolder
 const LOGO_URL = `${import.meta.env.BASE_URL}logo.svg`;
@@ -373,6 +377,14 @@ export default function App() {
   const [armedCellId, setArmedCellId] = useState(null);
   const lastPointerTypeRef = useRef('mouse');
   const [muted, setMuted] = useState(false);
+  // Music has its own switch in Settings and is remembered; the speaker button mutes everything
+  const [musicOn, setMusicOn] = useState(() => {
+    try {
+      return localStorage.getItem(MUSIC_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
   const [floatingPopups, setFloatingPopups] = useState([]);
   const [vfxQueue, setVfxQueue] = useState([]);
   const [firingWeaponId, setFiringWeaponId] = useState(null);
@@ -1454,7 +1466,20 @@ export default function App() {
 
   // Game portals time play and place their ads around it. A wave being played is gameplay;
   // entering one is the natural break for an ad, except in training and on auto replays.
-  const inGameplay = (screen === 'PLAY' || screen === 'TUTORIAL') && isWaveLive;
+  const inBattle = screen === 'PLAY' || screen === 'TUTORIAL';
+  useEffect(() => {
+    setMusicTrack(inBattle ? 'battle' : 'menu');
+  }, [inBattle]);
+  useEffect(() => {
+    setMusicEnabled(musicOn && !muted);
+    try {
+      localStorage.setItem(MUSIC_KEY, musicOn ? 'on' : 'off');
+    } catch {
+      // Private mode: the setting just isn't remembered
+    }
+  }, [musicOn, muted]);
+
+  const inGameplay = inBattle && isWaveLive;
   useEffect(() => {
     if (!inGameplay) {
       portalGameplayStop();
@@ -2346,6 +2371,10 @@ export default function App() {
               <button type="button" className="btn-secondary" onClick={() => setMuted((m) => !m)}>
                 {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
                 <span>Sound: {muted ? 'off' : 'on'}</span>
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setMusicOn((m) => !m)}>
+                <Music size={18} />
+                <span>Music: {musicOn ? 'on' : 'off'}</span>
               </button>
               <button
                 type="button"
