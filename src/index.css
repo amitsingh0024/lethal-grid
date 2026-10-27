@@ -3273,10 +3273,10 @@ body {
 
 .grid-tile .creature-wrap {
   flex: none;
-  width: 56cqi;
-  height: 56cqi;
-  max-width: 62px;
-  max-height: 62px;
+  width: 64cqi;
+  height: 64cqi;
+  max-width: 76px;
+  max-height: 76px;
 }
 
 .grid-tile .conduit-dir-tag {
@@ -4304,8 +4304,8 @@ a:focus-visible,
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 56%;
-  max-width: 62px;
+  width: 64%;
+  max-width: 76px;
   aspect-ratio: 1 / 1;
   translate: -50% -50%;
 }

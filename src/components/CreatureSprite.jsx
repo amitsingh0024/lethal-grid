@@ -398,15 +398,58 @@ PIXEL_MATRICES.REMAINS_SCORCH = [
 const FRAME_PX = 64;
 const spriteSheetCache = new Map();
 
-function drawMatrix(ctx, matrix, offsetX, scale = 4) {
+/**
+ * Doubles a sprite's resolution with Scale2x, which rounds off diagonal steps instead of just
+ * making each pixel bigger, so the 16px source art reads as 32px detail on the board.
+ */
+function scale2x(matrix) {
+  const h = matrix.length;
+  const w = Math.max(...matrix.map((row) => row.length));
+  const at = (r, c) => (r >= 0 && r < h && c >= 0 && c < w ? matrix[r][c] || '.' : '.');
+  const out = Array.from({ length: h * 2 }, () => new Array(w * 2));
+  for (let r = 0; r < h; r++) {
+    for (let c = 0; c < w; c++) {
+      const p = at(r, c);
+      const a = at(r - 1, c);
+      const b = at(r, c + 1);
+      const cl = at(r, c - 1);
+      const d = at(r + 1, c);
+      out[2 * r][2 * c] = cl === a && cl !== d && a !== b ? cl : p;
+      out[2 * r][2 * c + 1] = a === b && a !== cl && b !== d ? a : p;
+      out[2 * r + 1][2 * c] = d === cl && d !== b && cl !== a ? cl : p;
+      out[2 * r + 1][2 * c + 1] = b === d && b !== a && d !== cl ? b : p;
+    }
+  }
+  return out;
+}
+
+function shadeHex(hex, amount) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) =>
+    Math.round(amount > 0 ? v + (255 - v) * amount : v * (1 + amount))
+  );
+  return `rgb(${ch.join(',')})`;
+}
+
+// Light from the top left: a pixel just inside the outline on that side catches light, one
+// above the bottom outline falls into shadow
+function drawMatrix(ctx, source, offsetX) {
+  const matrix = scale2x(source);
+  const scale = 2;
+  const isEdge = (key) => key === undefined || key === '.' || key === 'K';
   for (let r = 0; r < matrix.length; r++) {
-    const rowStr = matrix[r];
-    for (let c = 0; c < rowStr.length; c++) {
-      const hex = PALETTE[rowStr[c]];
-      if (hex) {
-        ctx.fillStyle = hex;
-        ctx.fillRect(offsetX + c * scale, r * scale, scale, scale);
+    const row = matrix[r];
+    for (let c = 0; c < row.length; c++) {
+      const key = row[c];
+      const hex = PALETTE[key];
+      if (!hex) continue;
+      let fill = hex;
+      if (key !== 'K') {
+        if (isEdge(matrix[r - 1]?.[c]) || isEdge(row[c - 1])) fill = shadeHex(hex, 0.22);
+        else if (isEdge(matrix[r + 1]?.[c])) fill = shadeHex(hex, -0.25);
       }
+      ctx.fillStyle = fill;
+      ctx.fillRect(offsetX + c * scale, r * scale, scale, scale);
     }
   }
 }
