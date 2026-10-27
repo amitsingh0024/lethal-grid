@@ -60,6 +60,7 @@ export const Star = pixel(P.Star);
 export const Robot = pixel(P.Robot);
 export const Coins = pixel(P.Coins);
 export const Flag = pixel(P.Flag);
+export const Music = pixel(P.Music);
 
 // Gold coin drawn on an 8x8 grid in the game palette; replaces the 🪙 emoji.
 export function GoldCoin({ size = 14, className = '' }) {

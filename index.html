@@ -60,9 +60,52 @@
       }
     </script>
     <!-- /web-only -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #1a120b;
+      }
+      .boot-screen {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 18px;
+      }
+      .boot-screen img {
+        width: min(288px, 70vw);
+        height: auto;
+        image-rendering: pixelated;
+      }
+      .boot-bar {
+        width: 160px;
+        height: 6px;
+        background: #3b2a1a;
+        overflow: hidden;
+      }
+      .boot-bar span {
+        display: block;
+        width: 40%;
+        height: 100%;
+        background: #f5b82e;
+        animation: boot 1s ease-in-out infinite alternate;
+      }
+      @keyframes boot {
+        to {
+          transform: translateX(150%);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen" role="status">
+        <img src="/logo.svg" alt="Lethal Grid" width="288" height="56" />
+        <span class="boot-bar"><span></span></span>
+      </div>
+    </div>
     <noscript>
       <main style="max-width: 640px; margin: 48px auto; padding: 0 16px; color: #f3e6cf; font-family: sans-serif">
         <h1>Lethal Grid — Medieval Chain-Reaction Puzzle</h1>

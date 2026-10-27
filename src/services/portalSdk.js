@@ -8,6 +8,7 @@
  * rewardedBreak() for the optional rewards. While an ad shows, sound is paused and
  * isAdPlaying() holds the game's timers (archers, auto).
  */
+import { setMusicPaused } from './music';
 import { setSfxPaused } from './sfx';
 
 // Written as plain comparisons so the bundler drops the other portals' code from each build
@@ -23,6 +24,7 @@ export function setAdPlaying(value) {
   if (adPlaying && !value) lastAdEndedAt = Date.now();
   adPlaying = value;
   setSfxPaused(value);
+  setMusicPaused(value);
 }
 
 // No break right after another ad, such as the wave a +1 Shot reward reopens

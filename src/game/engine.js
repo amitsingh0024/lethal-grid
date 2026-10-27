@@ -336,28 +336,28 @@ export const TUTORIAL_LESSONS = [
   {
     step: 1,
     title: 'Lesson 1: Sappers',
-    commanderSpeech:
-      'That goblin in the middle is holding a powder keg. Shoot it and watch.',
+    commanderSpeech: 'Shoot the powder keg!',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 1, col: 1 },
   },
   {
     step: 2,
     title: 'Lesson 2: Shamans',
-    commanderSpeech:
-      'Shamans throw lightning down their row when they fall. Hit the shaman.',
+    commanderSpeech: 'Shamans throw lightning down their row. Hit the shaman!',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 1, col: 0 },
   },
   {
     step: 3,
     title: 'Lesson 3: Heralds',
-    commanderSpeech:
-      'An ogre. Hit the green banner first: it gives +50% damage for the rest of the turn.',
+    commanderSpeech: 'The banner boosts every hit after it. Banner first!',
     recommendedAbility: 'rail_beam',
     highlightCell: { row: 0, col: 1 },
   },
 ];
+
+// The first lesson is a bigger board, so the very first shot already sets off a long chain
+export const getTutorialGridSize = (step) => (step === 1 ? 4 : 3);
 
 // Chain links land one after another after the weapon hits; deep chains bunch up so a turn
 // never takes more than about a second to play out
@@ -371,7 +371,7 @@ function getHitRevealMs(depth, primaryImpactMs) {
 }
 
 export function generateTutorialBoard(step = 1) {
-  const gridSize = 3;
+  const gridSize = getTutorialGridSize(step);
   const makeCell = (r, c, type = NODE_TYPES.EMPTY, hp = 0, conduitAxis = 'ROW') => ({
     id: `tut-${step}-${r}-${c}`,
     row: r,
@@ -393,11 +393,16 @@ export function generateTutorialBoard(step = 1) {
   }
 
   if (step === 1) {
-    cells[1 * 3 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
-    cells[0 * 3 + 1] = makeCell(0, 1, NODE_TYPES.STANDARD, 3);
-    cells[2 * 3 + 1] = makeCell(2, 1, NODE_TYPES.STANDARD, 3);
-    cells[1 * 3 + 0] = makeCell(1, 0, NODE_TYPES.STANDARD, 3);
-    cells[1 * 3 + 2] = makeCell(1, 2, NODE_TYPES.STANDARD, 3);
+    // The shot sets off the first keg, its blast reaches the second, and the two blasts
+    // cover every raider on the board
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if ((r === 0 && c === 3) || (r === 3 && c === 0)) continue;
+        cells[r * 4 + c] = makeCell(r, c, NODE_TYPES.STANDARD, 3);
+      }
+    }
+    cells[1 * 4 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
+    cells[2 * 4 + 2] = makeCell(2, 2, NODE_TYPES.BOMB, 3);
   } else if (step === 2) {
     cells[1 * 3 + 0] = makeCell(1, 0, NODE_TYPES.CONDUIT, 3, 'ROW');
     cells[1 * 3 + 2] = makeCell(1, 2, NODE_TYPES.BOMB, 3);

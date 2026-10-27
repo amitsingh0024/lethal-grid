@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import confetti from 'canvas-confetti';
 import {
-  Flame,
   Sparkles,
   Shield,
   RotateCcw,
@@ -20,7 +19,6 @@ import {
   ShoppingBag,
   Sword,
   Heart,
-  Skull,
   Tv,
   Settings,
   GoldCoin,
@@ -28,6 +26,7 @@ import {
   Star,
   Robot,
   Crown,
+  Music,
 } from './components/PixelIcons';
 import {
   NODE_TYPES,
@@ -37,6 +36,7 @@ import {
   TUTORIAL_LESSONS,
   generateBoard,
   generateTutorialBoard,
+  getTutorialGridSize,
   getAbilityPreviewIndices,
   executeAbilityAndResolveChains,
   getUpgradeCost,
@@ -72,6 +72,7 @@ import { StageMapModal } from './components/StageMapModal';
 import { OfflineRewardModal } from './components/OfflineRewardModal';
 import { CrestTreeModal } from './components/CrestTreeModal';
 import { shake, squash, popIn } from './services/juice';
+import { setMusicEnabled, setMusicTrack } from './services/music';
 import { RewardedAdModal } from './components/AdUnit';
 import { useRewardedAd, isRewardedAdPlaying } from './services/rewardedAds';
 import {
@@ -82,7 +83,12 @@ import {
   portalHappyTime,
   portalLoadingFinished,
 } from './services/portalSdk';
-import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
+import {
+  CreatureSprite,
+  FallenCreature,
+  TutorialPointer,
+  WeaponPixelIcon,
+} from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 import { DungeonStageBanner } from './components/DungeonStageBanner';
 import { UpgradeSkillTree, SKILL_TREE_NODES } from './components/UpgradeSkillTree';
@@ -153,6 +159,8 @@ const DEFAULT_SAVE = {
   runGoldStart: 0,
   estSessionRevenueUsd: 0.004,
 };
+
+const MUSIC_KEY = 'lethal_grid_music';
 
 // BASE_URL is '/' on our site and './' in the portal build, which runs from a subfolder
 const LOGO_URL = `${import.meta.env.BASE_URL}logo.svg`;
@@ -369,6 +377,14 @@ export default function App() {
   const [armedCellId, setArmedCellId] = useState(null);
   const lastPointerTypeRef = useRef('mouse');
   const [muted, setMuted] = useState(false);
+  // Music has its own switch in Settings and is remembered; the speaker button mutes everything
+  const [musicOn, setMusicOn] = useState(() => {
+    try {
+      return localStorage.getItem(MUSIC_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
   const [floatingPopups, setFloatingPopups] = useState([]);
   const [vfxQueue, setVfxQueue] = useState([]);
   const [firingWeaponId, setFiringWeaponId] = useState(null);
@@ -382,7 +398,7 @@ export default function App() {
 
   const campaignGridSize = Math.min(8, 3 + (save.upgrades.grid_size || 0));
   const activeGridSize =
-    screen === 'TUTORIAL' ? 3 : gameMode === 'DAILY' ? 5 : campaignGridSize;
+    screen === 'TUTORIAL' ? getTutorialGridSize(tutorialStep) : gameMode === 'DAILY' ? 5 : campaignGridSize;
   const maxTurnCharges =
     screen === 'TUTORIAL' ? 1 : gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
 
@@ -439,6 +455,8 @@ export default function App() {
     'Pick a weapon, then tap a raider.'
   );
   const [lastTurnStats, setLastTurnStats] = useState(null);
+  // Big text over the board after a long chain: { id, title, kills }
+  const [comboCallout, setComboCallout] = useState(null);
   const [adBoostSeconds, setAdBoostSeconds] = useState(0);
   const [rewardedModalConfig, setRewardedModalConfig] = useState({
     isOpen: false,
@@ -1109,6 +1127,18 @@ export default function App() {
           playSfx('defeat', muted);
         }
 
+        const { chainDepth, nodesDestroyed } = result.stats;
+        if (chainDepth >= 2 && nodesDestroyed >= 3) {
+          const id = `combo-${Date.now()}`;
+          setComboCallout({
+            id,
+            title:
+              chainDepth >= 6 ? 'Massacre!' : chainDepth >= 4 ? 'Great chain!' : 'Chain!',
+            kills: nodesDestroyed,
+          });
+          setTimeout(() => setComboCallout((c) => (c?.id === id ? null : c)), 1400);
+        }
+
         setFloatingPopups((prev) => [
           ...prev.slice(-4),
           {
@@ -1450,7 +1480,20 @@ export default function App() {
 
   // Game portals time play and place their ads around it. A wave being played is gameplay;
   // entering one is the natural break for an ad, except in training and on auto replays.
-  const inGameplay = (screen === 'PLAY' || screen === 'TUTORIAL') && isWaveLive;
+  const inBattle = screen === 'PLAY' || screen === 'TUTORIAL';
+  useEffect(() => {
+    setMusicTrack(inBattle ? 'battle' : 'menu');
+  }, [inBattle]);
+  useEffect(() => {
+    setMusicEnabled(musicOn && !muted);
+    try {
+      localStorage.setItem(MUSIC_KEY, musicOn ? 'on' : 'off');
+    } catch {
+      // Private mode: the setting just isn't remembered
+    }
+  }, [musicOn, muted]);
+
+  const inGameplay = inBattle && isWaveLive;
   useEffect(() => {
     if (!inGameplay) {
       portalGameplayStop();
@@ -1654,15 +1697,17 @@ export default function App() {
             </div>
 
             <div className="title-corner-right">
-              <button
-                type="button"
-                className="title-utility-btn"
-                onClick={() => setShowBestiaryModal(true)}
-                title="Bestiary"
-              >
-                <BookOpen size={15} />
-                <span>Bestiary</span>
-              </button>
+              {!isNewPlayer && (
+                <button
+                  type="button"
+                  className="title-utility-btn"
+                  onClick={() => setShowBestiaryModal(true)}
+                  title="Bestiary"
+                >
+                  <BookOpen size={15} />
+                  <span>Bestiary</span>
+                </button>
+              )}
 
               {SHOW_DEV_TOOLS && (
                 <button
@@ -1726,7 +1771,7 @@ export default function App() {
                   onClick={() => startTutorial(1)}
                 >
                   <Sword size={18} className="menu-sword-cursor" />
-                  <span className="menu-btn-label">Learn to Play</span>
+                  <span className="menu-btn-label">Play</span>
                   <span className="menu-btn-tag gold">+15 <GoldCoin size={16} /></span>
                 </button>
               ) : (
@@ -1767,29 +1812,34 @@ export default function App() {
                 </button>
               )}
 
-              <button
-                type="button"
-                className="indie-menu-btn"
-                onClick={() => startGameSession('DAILY', 5)}
-              >
-                <Sword size={18} className="menu-sword-cursor" />
-                <span className="menu-btn-label">Daily Siege</span>
-                <span className="menu-btn-tag">#{getTodayDateSeed().slice(5)}</span>
-              </button>
+              {/* A new player sees only Play and Skip; the rest opens up after the tutorial */}
+              {!isNewPlayer && (
+                <>
+                  <button
+                    type="button"
+                    className="indie-menu-btn"
+                    onClick={() => startGameSession('DAILY', 5)}
+                  >
+                    <Sword size={18} className="menu-sword-cursor" />
+                    <span className="menu-btn-label">Daily Siege</span>
+                    <span className="menu-btn-tag">#{getTodayDateSeed().slice(5)}</span>
+                  </button>
 
-              <button
-                type="button"
-                className="indie-menu-btn"
-                onClick={() => setScreen('UPGRADES')}
-              >
-                <Sword size={18} className="menu-sword-cursor" />
-                <span className="menu-btn-label">Forge</span>
-                {affordableUpgradesCount > 0 ? (
-                  <span className="menu-btn-tag ready">{affordableUpgradesCount} ready</span>
-                ) : (
-                  <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize}</span>
-                )}
-              </button>
+                  <button
+                    type="button"
+                    className="indie-menu-btn"
+                    onClick={() => setScreen('UPGRADES')}
+                  >
+                    <Sword size={18} className="menu-sword-cursor" />
+                    <span className="menu-btn-label">Forge</span>
+                    {affordableUpgradesCount > 0 ? (
+                      <span className="menu-btn-tag ready">{affordableUpgradesCount} ready</span>
+                    ) : (
+                      <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize}</span>
+                    )}
+                  </button>
+                </>
+              )}
 
               {isNewPlayer ? (
                 <button
@@ -1884,6 +1934,20 @@ export default function App() {
               )}
             </div>
 
+            {screen === 'PLAY' && gameMode === 'CAMPAIGN' && (
+              <div className="stage-goals" aria-label="Star goals">
+                <StarRow
+                  count={save.stageStars[boardSector] || 0}
+                  label={`Best: ${save.stageStars[boardSector] || 0} of 3 stars`}
+                />
+                <ul>
+                  <li>Clear every raider</li>
+                  <li>Keep a shot spare</li>
+                  <li>Clear it in one shot</li>
+                </ul>
+              </div>
+            )}
+
             <div className="arena-actions">
               {screen === 'PLAY' && (goldAd.ready || adBoostSeconds > 0) && (
                 <button
@@ -1926,6 +1990,13 @@ export default function App() {
           <div className="grid-stage" ref={gridStageRef}>
             <div className="courtyard-board-wrap">
               <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} gridRef={gridRef} />
+
+              {comboCallout && (
+                <div key={comboCallout.id} className="combo-callout" aria-live="polite">
+                  <strong>{comboCallout.title}</strong>
+                  <span>{comboCallout.kills} raiders down</span>
+                </div>
+              )}
 
               <div
                 ref={gridRef}
@@ -1988,9 +2059,7 @@ export default function App() {
                       {isArmed ? (
                         <span className="tutorial-click-tag">Tap again to fire</span>
                       ) : (
-                        isTutorialTarget && (
-                          <span className="tutorial-click-tag">Shoot here</span>
-                        )
+                        isTutorialTarget && <TutorialPointer />
                       )}
 
                       {!isDead ? (
@@ -2019,12 +2088,11 @@ export default function App() {
                         </>
                       ) : (
                         <div className="tile-wreckage">
-                          {cell.destroyedByChain ? (
-                            <Flame size={24} className="explosion-burst" />
-                          ) : (
-                            cell.type !== NODE_TYPES.EMPTY && (
-                              <Skull size={18} className="tile-cleared-mark" />
-                            )
+                          {cell.type !== NODE_TYPES.EMPTY && (
+                            <FallenCreature
+                              type={cell.type}
+                              byBlast={cell.destroyedByChain}
+                            />
                           )}
                         </div>
                       )}
@@ -2230,8 +2298,8 @@ export default function App() {
                       {unlocked ? (
                         <span className="weapon-dmg-badge">{stats.damage} dmg</span>
                       ) : (
-                        <span className="weapon-dmg-badge">
-                          Stage {getStageLabel(ab.minSector)} · {getWeaponUnlockCost(ab)} <GoldCoin size={12} />
+                        <span className="weapon-dmg-badge weapon-lock-badge">
+                          Stage {getStageLabel(ab.minSector)}
                         </span>
                       )}
                     </div>
@@ -2324,6 +2392,10 @@ export default function App() {
               <button type="button" className="btn-secondary" onClick={() => setMuted((m) => !m)}>
                 {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
                 <span>Sound: {muted ? 'off' : 'on'}</span>
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setMusicOn((m) => !m)}>
+                <Music size={18} />
+                <span>Music: {musicOn ? 'on' : 'off'}</span>
               </button>
               <button
                 type="button"

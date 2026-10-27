@@ -3273,10 +3273,10 @@ body {
 
 .grid-tile .creature-wrap {
   flex: none;
-  width: 56cqi;
-  height: 56cqi;
-  max-width: 62px;
-  max-height: 62px;
+  width: 64cqi;
+  height: 64cqi;
+  max-width: 76px;
+  max-height: 76px;
 }
 
 .grid-tile .conduit-dir-tag {
@@ -4260,5 +4260,199 @@ a:focus-visible,
   .indie-menu-btn {
     padding-top: 8px;
     padding-bottom: 6px;
+  }
+}
+
+/* Tutorial: a glove bobs over the tile to shoot, so the lesson needs few words */
+.tutorial-pointer {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  z-index: 26;
+  pointer-events: none;
+  /* The fingertip sits left of the sprite's middle, so nudge it over the tile's centre */
+  transform: translateX(calc(-50% + 5px));
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55));
+  animation: pointerBob 0.8s ease-in-out infinite;
+}
+
+@keyframes pointerBob {
+  0%,
+  100% {
+    transform: translate(calc(-50% + 5px), 0);
+  }
+  50% {
+    transform: translate(calc(-50% + 5px), 8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-pointer {
+    animation: none;
+  }
+}
+
+/* A fallen raider flashes, hops and drops out of its tile, then its remains fade in */
+.tile-wreckage {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.creature-falling,
+.creature-remains {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64%;
+  max-width: 76px;
+  aspect-ratio: 1 / 1;
+  translate: -50% -50%;
+}
+
+.creature-falling {
+  z-index: 3;
+  animation: creatureFall 0.55s cubic-bezier(0.45, 0, 0.8, 0.4) forwards;
+}
+
+.creature-remains {
+  opacity: 0;
+  animation: remainsIn 0.3s ease-out 0.45s forwards;
+}
+
+@keyframes creatureFall {
+  0% {
+    transform: translateY(0) rotate(0) scale(1);
+    filter: brightness(3) saturate(0);
+    opacity: 1;
+  }
+  15% {
+    transform: translateY(-22%) rotate(-8deg) scale(1.12);
+    filter: brightness(2) saturate(0.4);
+  }
+  35% {
+    filter: none;
+  }
+  100% {
+    transform: translateY(70%) rotate(28deg) scale(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes remainsIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creature-falling {
+    display: none;
+  }
+
+  .creature-remains {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
+/* Star goals: shown under the shots in the landscape layout, where the left column has room */
+.stage-goals {
+  display: none;
+}
+
+@media (min-width: 560px) and (min-aspect-ratio: 5/4) and (min-height: 621px) {
+  .arena-focused-stage .stage-goals {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-style: solid;
+    border-width: 8px;
+    border-image: url('/ui/slot.png') 4 fill / 8px stretch;
+    image-rendering: pixelated;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .stage-goals ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 3px;
+  }
+
+  .stage-goals li::before {
+    content: '★ ';
+    color: rgba(251, 191, 36, 0.55);
+  }
+}
+
+/* Long chains get a call-out that slams in over the board, then floats away */
+.combo-callout {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  translate: -50% -50%;
+  animation: comboSlam 1.4s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+
+.combo-callout strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 7cqi, 3.2rem);
+  color: #fde047;
+  text-shadow:
+    3px 3px 0 #7c2d12,
+    -2px -2px 0 #1c1917,
+    2px -2px 0 #1c1917,
+    -2px 2px 0 #1c1917,
+    0 8px 18px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+}
+
+.combo-callout span {
+  font-family: var(--font-display);
+  font-size: clamp(0.8rem, 2.6cqi, 1.1rem);
+  color: #fef3c7;
+  text-shadow: 2px 2px 0 #1c1917;
+}
+
+@keyframes comboSlam {
+  0% {
+    transform: scale(2.4) rotate(-6deg);
+    opacity: 0;
+  }
+  14% {
+    transform: scale(0.92) rotate(-3deg);
+    opacity: 1;
+  }
+  22% {
+    transform: scale(1.05) rotate(-3deg);
+  }
+  75% {
+    transform: scale(1) rotate(-3deg) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-3deg) translateY(-30px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .combo-callout {
+    animation: none;
   }
 }
