@@ -337,24 +337,24 @@ const PIXEL_MATRICES = {
   ],
 };
 
-// Armoured glove pointing down, shown over the tile the tutorial wants hit
+// Armoured glove pointing down at the tile the tutorial wants hit
 PIXEL_MATRICES.POINTER = [
-  '.....KKK........',
-  '....KWSSK.......',
-  '....KSssK.......',
-  '....KSssK.......',
-  '....KSssKKK.....',
-  '....KSssKSSKKK..',
-  '.KKKKSssKssKSSK.',
-  'KSSKKSssKssKssK.',
-  'KSssKSssKssKssK.',
-  '.KSsSSssSssSssK.',
-  '..KSSSSSSSSSSK..',
-  '..KsSSSSSSSSsK..',
-  '...KsssssssssK..',
-  '...KGGGGGGGGGK..',
-  '...KgggggggggK..',
   '....KKKKKKKKK...',
+  '...KgggggggggK..',
+  '...KGGGGGGGGGK..',
+  '...KsssssssssK..',
+  '..KsSSSSSSSSsK..',
+  '..KSSSSSSSSSSK..',
+  '.KSsSSssSssSssK.',
+  'KSssKSssKssKssK.',
+  'KSSKKSssKssKssK.',
+  '.KKKKSssKssKSSK.',
+  '....KSssKSSKKK..',
+  '....KSssKKK.....',
+  '....KSssK.......',
+  '....KSssK.......',
+  '....KWSSK.......',
+  '.....KKK........',
 ];
 
 // What a fallen raider leaves behind: a skull, or scorch marks where a blast took it

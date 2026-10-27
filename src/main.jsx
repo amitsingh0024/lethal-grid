@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { IS_PORTAL_BUILD, trackEvent } from './services/analytics';
+import { preloadArt } from './services/preloadArt';
 // Fonts are bundled and served from our own origin: no render-blocking request to Google Fonts,
 // and no player IP sent to a third party before consent
 import '@fontsource/pixelify-sans/latin-400.css';
@@ -43,10 +44,13 @@ if (IS_PORTAL_BUILD) {
   });
 }
 
-createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+// The loading screen in index.html stays up until the backdrops and first boards are ready
+preloadArt().then(() => {
+  createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </React.StrictMode>
+  );
+});

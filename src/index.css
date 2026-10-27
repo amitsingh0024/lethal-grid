@@ -4266,11 +4266,12 @@ a:focus-visible,
 /* Tutorial: a glove bobs over the tile to shoot, so the lesson needs few words */
 .tutorial-pointer {
   position: absolute;
-  top: -22px;
+  top: -30px;
   left: 50%;
   z-index: 26;
   pointer-events: none;
-  transform: translateX(-50%);
+  /* The fingertip sits left of the sprite's middle, so nudge it over the tile's centre */
+  transform: translateX(calc(-50% + 5px));
   filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55));
   animation: pointerBob 0.8s ease-in-out infinite;
 }
@@ -4278,10 +4279,10 @@ a:focus-visible,
 @keyframes pointerBob {
   0%,
   100% {
-    transform: translate(-50%, 0);
+    transform: translate(calc(-50% + 5px), 0);
   }
   50% {
-    transform: translate(-50%, 8px);
+    transform: translate(calc(-50% + 5px), 8px);
   }
 }
 
