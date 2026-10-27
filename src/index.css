@@ -4393,3 +4393,65 @@ a:focus-visible,
     color: rgba(251, 191, 36, 0.55);
   }
 }
+
+/* Long chains get a call-out that slams in over the board, then floats away */
+.combo-callout {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  translate: -50% -50%;
+  animation: comboSlam 1.4s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+
+.combo-callout strong {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 7cqi, 3.2rem);
+  color: #fde047;
+  text-shadow:
+    3px 3px 0 #7c2d12,
+    -2px -2px 0 #1c1917,
+    2px -2px 0 #1c1917,
+    -2px 2px 0 #1c1917,
+    0 8px 18px rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+}
+
+.combo-callout span {
+  font-family: var(--font-display);
+  font-size: clamp(0.8rem, 2.6cqi, 1.1rem);
+  color: #fef3c7;
+  text-shadow: 2px 2px 0 #1c1917;
+}
+
+@keyframes comboSlam {
+  0% {
+    transform: scale(2.4) rotate(-6deg);
+    opacity: 0;
+  }
+  14% {
+    transform: scale(0.92) rotate(-3deg);
+    opacity: 1;
+  }
+  22% {
+    transform: scale(1.05) rotate(-3deg);
+  }
+  75% {
+    transform: scale(1) rotate(-3deg) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(-3deg) translateY(-30px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .combo-callout {
+    animation: none;
+  }
+}

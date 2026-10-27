@@ -455,6 +455,8 @@ export default function App() {
     'Pick a weapon, then tap a raider.'
   );
   const [lastTurnStats, setLastTurnStats] = useState(null);
+  // Big text over the board after a long chain: { id, title, kills }
+  const [comboCallout, setComboCallout] = useState(null);
   const [adBoostSeconds, setAdBoostSeconds] = useState(0);
   const [rewardedModalConfig, setRewardedModalConfig] = useState({
     isOpen: false,
@@ -1123,6 +1125,18 @@ export default function App() {
           }
         } else if (outcome === 'DEFEAT') {
           playSfx('defeat', muted);
+        }
+
+        const { chainDepth, nodesDestroyed } = result.stats;
+        if (chainDepth >= 2 && nodesDestroyed >= 3) {
+          const id = `combo-${Date.now()}`;
+          setComboCallout({
+            id,
+            title:
+              chainDepth >= 6 ? 'Massacre!' : chainDepth >= 4 ? 'Great chain!' : 'Chain!',
+            kills: nodesDestroyed,
+          });
+          setTimeout(() => setComboCallout((c) => (c?.id === id ? null : c)), 1400);
         }
 
         setFloatingPopups((prev) => [
@@ -1976,6 +1990,13 @@ export default function App() {
           <div className="grid-stage" ref={gridStageRef}>
             <div className="courtyard-board-wrap">
               <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} gridRef={gridRef} />
+
+              {comboCallout && (
+                <div key={comboCallout.id} className="combo-callout" aria-live="polite">
+                  <strong>{comboCallout.title}</strong>
+                  <span>{comboCallout.kills} raiders down</span>
+                </div>
+              )}
 
               <div
                 ref={gridRef}
