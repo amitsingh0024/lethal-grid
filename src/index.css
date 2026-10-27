@@ -4262,3 +4262,134 @@ a:focus-visible,
     padding-bottom: 6px;
   }
 }
+
+/* Tutorial: a glove bobs over the tile to shoot, so the lesson needs few words */
+.tutorial-pointer {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  z-index: 26;
+  pointer-events: none;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55));
+  animation: pointerBob 0.8s ease-in-out infinite;
+}
+
+@keyframes pointerBob {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, 8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-pointer {
+    animation: none;
+  }
+}
+
+/* A fallen raider flashes, hops and drops out of its tile, then its remains fade in */
+.tile-wreckage {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.creature-falling,
+.creature-remains {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56%;
+  max-width: 62px;
+  aspect-ratio: 1 / 1;
+  translate: -50% -50%;
+}
+
+.creature-falling {
+  z-index: 3;
+  animation: creatureFall 0.55s cubic-bezier(0.45, 0, 0.8, 0.4) forwards;
+}
+
+.creature-remains {
+  opacity: 0;
+  animation: remainsIn 0.3s ease-out 0.45s forwards;
+}
+
+@keyframes creatureFall {
+  0% {
+    transform: translateY(0) rotate(0) scale(1);
+    filter: brightness(3) saturate(0);
+    opacity: 1;
+  }
+  15% {
+    transform: translateY(-22%) rotate(-8deg) scale(1.12);
+    filter: brightness(2) saturate(0.4);
+  }
+  35% {
+    filter: none;
+  }
+  100% {
+    transform: translateY(70%) rotate(28deg) scale(0.7);
+    opacity: 0;
+  }
+}
+
+@keyframes remainsIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creature-falling {
+    display: none;
+  }
+
+  .creature-remains {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
+/* Star goals: shown under the shots in the landscape layout, where the left column has room */
+.stage-goals {
+  display: none;
+}
+
+@media (min-width: 560px) and (min-aspect-ratio: 5/4) and (min-height: 621px) {
+  .arena-focused-stage .stage-goals {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-style: solid;
+    border-width: 8px;
+    border-image: url('/ui/slot.png') 4 fill / 8px stretch;
+    image-rendering: pixelated;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  .stage-goals ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 3px;
+  }
+
+  .stage-goals li::before {
+    content: '★ ';
+    color: rgba(251, 191, 36, 0.55);
+  }
+}

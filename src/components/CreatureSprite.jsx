@@ -337,6 +337,64 @@ const PIXEL_MATRICES = {
   ],
 };
 
+// Armoured glove pointing down, shown over the tile the tutorial wants hit
+PIXEL_MATRICES.POINTER = [
+  '.....KKK........',
+  '....KWSSK.......',
+  '....KSssK.......',
+  '....KSssK.......',
+  '....KSssKKK.....',
+  '....KSssKSSKKK..',
+  '.KKKKSssKssKSSK.',
+  'KSSKKSssKssKssK.',
+  'KSssKSssKssKssK.',
+  '.KSsSSssSssSssK.',
+  '..KSSSSSSSSSSK..',
+  '..KsSSSSSSSSsK..',
+  '...KsssssssssK..',
+  '...KGGGGGGGGGK..',
+  '...KgggggggggK..',
+  '....KKKKKKKKK...',
+];
+
+// What a fallen raider leaves behind: a skull, or scorch marks where a blast took it
+PIXEL_MATRICES.REMAINS_SKULL = [
+  '................',
+  '................',
+  '................',
+  '.....KKKKKK.....',
+  '....KWWWWWWK....',
+  '...KWWWWWWSSK...',
+  '...KWKKWWKKSK...',
+  '...KWKKWWKKSK...',
+  '...KWWWKKWWSK...',
+  '....KSWWWWSK....',
+  '.....KWKWKK.....',
+  '..KK..KKKK..KK..',
+  '..KSKK....KKSK..',
+  '...KSSKKKKSSK...',
+  '....KK....KK....',
+  '................',
+];
+PIXEL_MATRICES.REMAINS_SCORCH = [
+  '................',
+  '................',
+  '.......Y........',
+  '......YOY.......',
+  '..Y...OrO...Y...',
+  '.YOY..OrO..YOY..',
+  '..O..KOrOK..O...',
+  '....KIIrIIK.....',
+  '...KIIIIIIIK....',
+  '..KIbIIIIIbIK...',
+  '..KIIIbIIIIIK...',
+  '...KIIIIIbIK....',
+  '....KKIIIKK.....',
+  '......KKK.......',
+  '................',
+  '................',
+];
+
 const FRAME_PX = 64;
 const spriteSheetCache = new Map();
 
@@ -452,4 +510,30 @@ export function WeaponPixelIcon({ id, size = 40 }) {
     overclock_pulse: 'WEAPON_SWORD',
   };
   return <PixelSprite frame0={map[id] || 'WEAPON_SWORD'} size={size} />;
+}
+
+export function TutorialPointer() {
+  return (
+    <span className="tutorial-pointer" aria-hidden="true">
+      <PixelSprite frame0="POINTER" size={40} />
+    </span>
+  );
+}
+
+/**
+ * A raider that just fell: its sprite flashes, hops and drops out of the tile, then the remains
+ * fade in. Mounted when the tile dies, so the animation plays once per kill.
+ */
+export function FallenCreature({ type, byBlast }) {
+  const sprite = CREATURE_SPRITES[type] || 'GOBLIN';
+  return (
+    <>
+      <span className="creature-falling" aria-hidden="true">
+        <PixelSprite frame0={`${sprite}_0`} size="100%" />
+      </span>
+      <span className="creature-remains" aria-hidden="true">
+        <PixelSprite frame0={byBlast ? 'REMAINS_SCORCH' : 'REMAINS_SKULL'} size="100%" />
+      </span>
+    </>
+  );
 }

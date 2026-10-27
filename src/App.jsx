@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import confetti from 'canvas-confetti';
 import {
-  Flame,
   Sparkles,
   Shield,
   RotateCcw,
@@ -20,7 +19,6 @@ import {
   ShoppingBag,
   Sword,
   Heart,
-  Skull,
   Tv,
   Settings,
   GoldCoin,
@@ -37,6 +35,7 @@ import {
   TUTORIAL_LESSONS,
   generateBoard,
   generateTutorialBoard,
+  getTutorialGridSize,
   getAbilityPreviewIndices,
   executeAbilityAndResolveChains,
   getUpgradeCost,
@@ -82,7 +81,12 @@ import {
   portalHappyTime,
   portalLoadingFinished,
 } from './services/portalSdk';
-import { CreatureSprite, WeaponPixelIcon } from './components/CreatureSprite';
+import {
+  CreatureSprite,
+  FallenCreature,
+  TutorialPointer,
+  WeaponPixelIcon,
+} from './components/CreatureSprite';
 import { BattleVFXCanvas } from './components/BattleVFXCanvas';
 import { DungeonStageBanner } from './components/DungeonStageBanner';
 import { UpgradeSkillTree, SKILL_TREE_NODES } from './components/UpgradeSkillTree';
@@ -382,7 +386,7 @@ export default function App() {
 
   const campaignGridSize = Math.min(8, 3 + (save.upgrades.grid_size || 0));
   const activeGridSize =
-    screen === 'TUTORIAL' ? 3 : gameMode === 'DAILY' ? 5 : campaignGridSize;
+    screen === 'TUTORIAL' ? getTutorialGridSize(tutorialStep) : gameMode === 'DAILY' ? 5 : campaignGridSize;
   const maxTurnCharges =
     screen === 'TUTORIAL' ? 1 : gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
 
@@ -1654,15 +1658,17 @@ export default function App() {
             </div>
 
             <div className="title-corner-right">
-              <button
-                type="button"
-                className="title-utility-btn"
-                onClick={() => setShowBestiaryModal(true)}
-                title="Bestiary"
-              >
-                <BookOpen size={15} />
-                <span>Bestiary</span>
-              </button>
+              {!isNewPlayer && (
+                <button
+                  type="button"
+                  className="title-utility-btn"
+                  onClick={() => setShowBestiaryModal(true)}
+                  title="Bestiary"
+                >
+                  <BookOpen size={15} />
+                  <span>Bestiary</span>
+                </button>
+              )}
 
               {SHOW_DEV_TOOLS && (
                 <button
@@ -1726,7 +1732,7 @@ export default function App() {
                   onClick={() => startTutorial(1)}
                 >
                   <Sword size={18} className="menu-sword-cursor" />
-                  <span className="menu-btn-label">Learn to Play</span>
+                  <span className="menu-btn-label">Play</span>
                   <span className="menu-btn-tag gold">+15 <GoldCoin size={16} /></span>
                 </button>
               ) : (
@@ -1767,29 +1773,34 @@ export default function App() {
                 </button>
               )}
 
-              <button
-                type="button"
-                className="indie-menu-btn"
-                onClick={() => startGameSession('DAILY', 5)}
-              >
-                <Sword size={18} className="menu-sword-cursor" />
-                <span className="menu-btn-label">Daily Siege</span>
-                <span className="menu-btn-tag">#{getTodayDateSeed().slice(5)}</span>
-              </button>
+              {/* A new player sees only Play and Skip; the rest opens up after the tutorial */}
+              {!isNewPlayer && (
+                <>
+                  <button
+                    type="button"
+                    className="indie-menu-btn"
+                    onClick={() => startGameSession('DAILY', 5)}
+                  >
+                    <Sword size={18} className="menu-sword-cursor" />
+                    <span className="menu-btn-label">Daily Siege</span>
+                    <span className="menu-btn-tag">#{getTodayDateSeed().slice(5)}</span>
+                  </button>
 
-              <button
-                type="button"
-                className="indie-menu-btn"
-                onClick={() => setScreen('UPGRADES')}
-              >
-                <Sword size={18} className="menu-sword-cursor" />
-                <span className="menu-btn-label">Forge</span>
-                {affordableUpgradesCount > 0 ? (
-                  <span className="menu-btn-tag ready">{affordableUpgradesCount} ready</span>
-                ) : (
-                  <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize}</span>
-                )}
-              </button>
+                  <button
+                    type="button"
+                    className="indie-menu-btn"
+                    onClick={() => setScreen('UPGRADES')}
+                  >
+                    <Sword size={18} className="menu-sword-cursor" />
+                    <span className="menu-btn-label">Forge</span>
+                    {affordableUpgradesCount > 0 ? (
+                      <span className="menu-btn-tag ready">{affordableUpgradesCount} ready</span>
+                    ) : (
+                      <span className="menu-btn-tag">{campaignGridSize}×{campaignGridSize}</span>
+                    )}
+                  </button>
+                </>
+              )}
 
               {isNewPlayer ? (
                 <button
@@ -1883,6 +1894,20 @@ export default function App() {
                 </span>
               )}
             </div>
+
+            {screen === 'PLAY' && gameMode === 'CAMPAIGN' && (
+              <div className="stage-goals" aria-label="Star goals">
+                <StarRow
+                  count={save.stageStars[boardSector] || 0}
+                  label={`Best: ${save.stageStars[boardSector] || 0} of 3 stars`}
+                />
+                <ul>
+                  <li>Clear every raider</li>
+                  <li>Keep a shot spare</li>
+                  <li>Clear it in one shot</li>
+                </ul>
+              </div>
+            )}
 
             <div className="arena-actions">
               {screen === 'PLAY' && (goldAd.ready || adBoostSeconds > 0) && (
@@ -1988,9 +2013,7 @@ export default function App() {
                       {isArmed ? (
                         <span className="tutorial-click-tag">Tap again to fire</span>
                       ) : (
-                        isTutorialTarget && (
-                          <span className="tutorial-click-tag">Shoot here</span>
-                        )
+                        isTutorialTarget && <TutorialPointer />
                       )}
 
                       {!isDead ? (
@@ -2019,12 +2042,11 @@ export default function App() {
                         </>
                       ) : (
                         <div className="tile-wreckage">
-                          {cell.destroyedByChain ? (
-                            <Flame size={24} className="explosion-burst" />
-                          ) : (
-                            cell.type !== NODE_TYPES.EMPTY && (
-                              <Skull size={18} className="tile-cleared-mark" />
-                            )
+                          {cell.type !== NODE_TYPES.EMPTY && (
+                            <FallenCreature
+                              type={cell.type}
+                              byBlast={cell.destroyedByChain}
+                            />
                           )}
                         </div>
                       )}
@@ -2230,8 +2252,8 @@ export default function App() {
                       {unlocked ? (
                         <span className="weapon-dmg-badge">{stats.damage} dmg</span>
                       ) : (
-                        <span className="weapon-dmg-badge">
-                          Stage {getStageLabel(ab.minSector)} · {getWeaponUnlockCost(ab)} <GoldCoin size={12} />
+                        <span className="weapon-dmg-badge weapon-lock-badge">
+                          Stage {getStageLabel(ab.minSector)}
                         </span>
                       )}
                     </div>
