@@ -498,6 +498,11 @@ button:disabled {
   gap: 12px;
 }
 
+/* Groups the stage scene and shots into one column on wide screens; elsewhere it is invisible */
+.arena-side {
+  display: contents;
+}
+
 /* Warm Parchment Dialogue Box for Sir Aldric */
 .commander-dialogue-bar {
   background: linear-gradient(135deg, #3b2a1d, #291d14);
@@ -3822,16 +3827,54 @@ a:focus-visible,
   .arena-focused-stage {
     max-width: none;
     display: grid;
-    grid-template-columns: clamp(200px, 24vw, 300px) minmax(0, 1fr) clamp(180px, 21vw, 270px);
+    grid-template-columns: clamp(190px, 20vw, 280px) minmax(0, 1fr) clamp(170px, 18vw, 250px);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
-      'banner board dock'
-      'hud board dock';
+      'side board nav'
+      'side board dock';
     gap: 10px 14px;
   }
 
+  /* The board runs the full height of the window: the HUD moves to the top of the weapon column,
+     with icon buttons, and the stage scene and shots stack in the side column */
+  .arena-side {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  .arena-focused-stage .game-hud {
+    grid-area: nav;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+    border-width: 8px;
+    padding: 0 2px;
+  }
+
+  .arena-focused-stage .game-hud .wallet-pill {
+    padding: 4px 8px;
+  }
+
+  .arena-focused-stage .game-hud .hud-logo {
+    display: none;
+  }
+
+  .arena-focused-stage .game-hud .hud-left,
+  .arena-focused-stage .game-hud .top-actions {
+    display: contents;
+  }
+
+  .arena-focused-stage .game-hud .hud-btn > span:not(.nav-badge-count) {
+    display: none;
+  }
+
   .arena-focused-stage .dungeon-stage-banner {
-    grid-area: banner;
     min-height: 0;
     padding: 8px 10px 0;
   }
@@ -3867,10 +3910,8 @@ a:focus-visible,
   }
 
   .arena-focused-stage .battle-hud-bar {
-    grid-area: hud;
     flex-direction: column;
     align-items: stretch;
-    align-self: start;
     flex-wrap: nowrap;
   }
 
@@ -3880,6 +3921,7 @@ a:focus-visible,
 
   .arena-focused-stage .arena-actions > * {
     flex: 1 1 auto;
+    min-width: 0;
     justify-content: center;
   }
 
@@ -4132,6 +4174,15 @@ a:focus-visible,
 
   .hud-logo {
     height: 20px;
+  }
+
+  /* No room for Gold beside the board here; the Forge shows it */
+  .arena-focused-stage .game-hud .wallet-pill {
+    display: none;
+  }
+
+  .arena-focused-stage .game-hud {
+    grid-template-columns: repeat(2, auto);
   }
 }
 
@@ -4686,6 +4737,28 @@ a:focus-visible,
 }
 
 /* Bosses at work: the troll's shield, the king's summons, the witch's healing */
+.tile-arrow-badge {
+  position: absolute;
+  right: 6%;
+  bottom: 12%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(127, 29, 29, 0.88);
+  border: 1px solid #fca5a5;
+  color: #fee2e2;
+  pointer-events: none;
+  animation: arrow-badge-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes arrow-badge-pulse {
+  50% {
+    transform: scale(1.18);
+  }
+}
+
 .tile-shield-badge {
   position: absolute;
   left: 6%;

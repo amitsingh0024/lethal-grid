@@ -479,8 +479,9 @@ export function BattleVFXCanvas({ vfxQueue, gridSize, gridRef }) {
 const HIT_FLASH_MS = 110;
 const NUMBER_MS = 780;
 
-/** Damage number styles: crits are big and gold, lucky procs violet, kills red */
+/** Damage number styles: crits are big and gold, lucky procs violet, kills red, blocks steel blue */
 function numberStyle(anim) {
+  if (anim.blocked) return { fill: '#bfdbfe', stroke: '#1e3a8a', size: 20 };
   if (anim.lucky) return { fill: '#e9d5ff', stroke: '#3b0764', size: 30 };
   if (anim.crit) return { fill: '#fde047', stroke: '#7c2d12', size: 32 };
   if (anim.killed) return { fill: '#fecaca', stroke: '#450a0a', size: 24 };
@@ -505,7 +506,13 @@ function drawHit(ctx, anim, elapsed, pos) {
   const pop = t < 0.15 ? 0.4 + (t / 0.15) * 0.95 : t < 0.28 ? 1.35 - ((t - 0.15) / 0.13) * 0.35 : 1;
   const rise = (1 - (1 - t) ** 3) * 30;
   const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
-  const text = anim.lucky ? `${anim.damage}!!` : anim.crit ? `${anim.damage}!` : `${anim.damage}`;
+  const text = anim.blocked
+    ? 'BLOCK'
+    : anim.lucky
+    ? `${anim.damage}!!`
+    : anim.crit
+    ? `${anim.damage}!`
+    : `${anim.damage}`;
 
   ctx.save();
   ctx.globalAlpha = alpha;

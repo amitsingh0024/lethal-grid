@@ -73,6 +73,60 @@ export const BOSS_KINDS = {
 };
 const BOSS_ORDER = ['OGRE', 'KING', 'TROLL', 'WITCH'];
 
+// Goblins that join the horde as the campaign goes on, each from its own stage. They are goblins
+// in every other way: same Gold, same headshots, same contagion.
+export const RAIDER_KINDS = {
+  SHIELD: {
+    name: 'Shield Bearer',
+    short: 'SHIELD',
+    rule: 'Blocks the first hit it takes, then its shield breaks.',
+    from: 4,
+    chance: 0.15,
+  },
+  WOLF: {
+    name: 'Wolf Rider',
+    short: 'WOLF',
+    rule: 'Charges two rows a turn when the way is clear.',
+    from: 6,
+    chance: 0.14,
+  },
+  ARCHER: {
+    name: 'Goblin Archer',
+    short: 'ARCHER',
+    rule: 'Holds its ground and shoots the wall every second turn.',
+    from: 8,
+    chance: 0.1,
+  },
+};
+
+// The most of each kind on one board, so a small board never turns into a wall of archers
+const raiderKindCap = (kind, gridSize) =>
+  kind === 'ARCHER' ? Math.max(1, Math.floor(gridSize / 3)) : kind === 'WOLF' ? Math.floor(gridSize / 2) : 99;
+
+// The kinds a new stage introduces, for the callout the first time they appear
+export const getNewRaiderKinds = (sector) =>
+  Object.keys(RAIDER_KINDS).filter((k) => RAIDER_KINDS[k].from === sector);
+
+function rollRaiderKind(sector, rng, counts, gridSize) {
+  const roll = rng();
+  let edge = 0;
+  for (const [kind, def] of Object.entries(RAIDER_KINDS)) {
+    if (sector < def.from) continue;
+    edge += def.chance;
+    if (roll < edge) return (counts[kind] || 0) < raiderKindCap(kind, gridSize) ? kind : null;
+  }
+  return null;
+}
+
+function setRaiderKind(cell, kind) {
+  cell.kind = kind;
+  // Archers and wolf riders trade armour for range and speed, and the shield is the bearer's armour
+  const hpMult = kind === 'SHIELD' ? 0.85 : 0.8;
+  cell.hp = cell.maxHp = Math.max(2, Math.floor(cell.maxHp * hpMult));
+  if (kind === 'SHIELD') cell.shield = true;
+  if (kind === 'ARCHER') cell.draw = 0;
+}
+
 export const getBossKind = (sector) =>
   BOSS_ORDER[(Math.ceil(sector / STAGES_PER_CHAPTER) - 1) % BOSS_ORDER.length];
 
@@ -540,6 +594,7 @@ export function generateBoard({
   const isBossSector = !isDaily && sector % 5 === 0;
   const bossIdx = isBossSector ? Math.floor(totalCells / 2) : -1;
   const bossKind = isBossSector ? getBossKind(sector) : null;
+  const kindCounts = {};
 
   for (let i = 0; i < totalCells; i++) {
     const r = Math.floor(i / gridSize);
@@ -576,12 +631,29 @@ export function generateBoard({
     }
 
     const cell = makeCell(serial, r, c, type, maxHp, rng() > 0.5 ? 'ROW' : 'COL');
+    if (type === NODE_TYPES.STANDARD) {
+      const kind = rollRaiderKind(sector, rng, kindCounts, gridSize);
+      if (kind) {
+        setRaiderKind(cell, kind);
+        kindCounts[kind] = (kindCounts[kind] || 0) + 1;
+      }
+    }
     if (i === bossIdx) {
       cell.bossKind = bossKind;
       // The Goblin King's summons arrive at the wave's base HP
       cell.spawnHp = baseHp;
     }
     cells.push(cell);
+  }
+
+  // The stage a kind first appears always shows at least one, so its callout has something to point at
+  if (!isDaily) {
+    getNewRaiderKinds(sector).forEach((kind) => {
+      if (kindCounts[kind]) return;
+      const goblins = cells.filter((c) => c.type === NODE_TYPES.STANDARD && !c.kind);
+      if (goblins.length === 0) return;
+      setRaiderKind(goblins[Math.floor(rng() * goblins.length)], kind);
+    });
   }
 
   return cells;
@@ -610,6 +682,8 @@ export function isShieldedByTroll(cells, cell) {
  * The horde's turn, after each shot that leaves raiders standing. Raiders on the bottom row are
  * at the wall and strike it (a boss for 2), then every other raider steps one row closer when
  * the tile in front is free. A raider stepping onto a fallen one tramples it, leaving bare ground.
+ * Goblin Archers never step forward; away from the front they loose an arrow at the wall every
+ * second turn. Wolf Riders take a second step when the tile ahead is still free.
  * Then the bosses act: the Goblin King calls a goblin into the top row, and the Hex Witch heals
  * every other raider a quarter of their max HP.
  */
@@ -634,26 +708,41 @@ export function marchHorde(cells, gridSize) {
     strikes.push({ cellId: cell.id, damage });
   }
 
+  nextCells.forEach((cell, i) => {
+    if (cell.kind !== 'ARCHER' || !isStanding(cell) || i >= (gridSize - 1) * gridSize) return;
+    cell.draw = (cell.draw || 0) + 1;
+    if (cell.draw < 2) return;
+    cell.draw = 0;
+    wallDamage += 1;
+    strikes.push({ cellId: cell.id, damage: 1, arrow: true });
+  });
+
   // Bottom-up, so a whole column closes ranks by one step and nobody moves twice
-  const moved = [];
-  for (let r = gridSize - 2; r >= 0; r--) {
-    for (let c = 0; c < gridSize; c++) {
-      const from = r * gridSize + c;
-      const to = from + gridSize;
-      if (!isStanding(nextCells[from]) || isStanding(nextCells[to])) continue;
-      const raider = nextCells[from];
-      nextCells[from] = {
-        ...nextCells[to],
-        type: NODE_TYPES.EMPTY,
-        hp: 0,
-        maxHp: 0,
-        row: r,
-        col: c,
-      };
-      nextCells[to] = { ...raider, row: r + 1, col: c };
-      moved.push(raider.id);
+  const moved = new Set();
+  const step = (onlyWolves) => {
+    for (let r = gridSize - 2; r >= 0; r--) {
+      for (let c = 0; c < gridSize; c++) {
+        const from = r * gridSize + c;
+        const to = from + gridSize;
+        const raider = nextCells[from];
+        if (!isStanding(raider) || isStanding(nextCells[to]) || raider.kind === 'ARCHER') continue;
+        if (onlyWolves && raider.kind !== 'WOLF') continue;
+        nextCells[from] = {
+          ...nextCells[to],
+          type: NODE_TYPES.EMPTY,
+          hp: 0,
+          maxHp: 0,
+          row: r,
+          col: c,
+        };
+        nextCells[to] = { ...raider, row: r + 1, col: c };
+        moved.add(raider.id);
+      }
     }
-  }
+  };
+  step(false);
+  // The wolves' second stride
+  if (nextCells.some((c) => c.kind === 'WOLF' && isStanding(c))) step(true);
 
   const summoned = [];
   nextCells
@@ -673,6 +762,8 @@ export function marchHorde(cells, gridSize) {
         ...nextCells[col],
         id: `${king.id}-s${king.summons}`,
         type: NODE_TYPES.STANDARD,
+        kind: null,
+        shield: false,
         hp,
         maxHp: hp,
         vulnerable: 1,
@@ -691,7 +782,7 @@ export function marchHorde(cells, gridSize) {
     });
   }
 
-  return { nextCells, strikes, wallDamage, moved, summoned, healed };
+  return { nextCells, strikes, wallDamage, moved: [...moved], summoned, healed };
 }
 
 export function getAbilityPreviewIndices({
@@ -846,6 +937,28 @@ export function executeAbilityAndResolveChains({
   function applyDamageToCell(idx, rawDamage, sourceLabel, isChainReaction = false) {
     const cell = nextCells[idx];
     if (!cell || cell.type === NODE_TYPES.EMPTY || cell.hp <= 0) return;
+
+    if (cell.shield) {
+      cell.shield = false;
+      cell.justHit = true;
+      hits.push({
+        idx,
+        cellId: cell.id,
+        row: cell.row,
+        col: cell.col,
+        damage: 0,
+        hpAfter: cell.hp,
+        killed: false,
+        crit: false,
+        lucky: false,
+        blocked: true,
+        depth: chainDepth,
+        source: sourceLabel,
+        atMs: getHitRevealMs(chainDepth, primaryImpactMs),
+      });
+      events.push({ type: 'SHIELD', text: 'Shield blocked!' });
+      return;
+    }
 
     const isCrit = !isIntro && rng() < critChance;
     const critMult = isCrit ? 3.0 : 1.0;

@@ -24,6 +24,16 @@ Ads are optional. Players can play ad-free, and watching a rewarded ad gives an 
 
 Chains trigger other enemies, so one hit can clear the whole board.
 
+Later stages mix in goblins with a trick of their own (`RAIDER_KINDS`). Each appears from a set stage, with a callout the first time, and a board holds only so many of each.
+
+| Raider | From stage | Rule |
+| --- | --- | --- |
+| Shield Bearer | 1-4 | Blocks the first hit it takes (weapon or chain), then fights on as a plain goblin. |
+| Wolf Rider | 2-1 | Steps two rows a turn when the way is clear. At most half the board's width. |
+| Goblin Archer | 2-3 | Never advances. Away from the front it shoots the wall for 1 every second turn; a red crosshair marks the turn it will shoot. At most one per three columns. |
+
+A bot that picks the best tile each shot wins 0 to 7 points fewer stages with them than without, most on the largest boards.
+
 ### Weapons
 | Weapon | Unlocks | Behavior |
 | --- | --- | --- |

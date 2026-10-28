@@ -42,6 +42,8 @@ import {
   UPGRADE_CATALOG,
   INTRO_STAGES,
   BOSS_KINDS,
+  RAIDER_KINDS,
+  getNewRaiderKinds,
   dealBattleCards,
   getCardShotMods,
   revealSaboteurs,
@@ -126,6 +128,7 @@ function buildHitVfx(hit, atMs, stackIndex = 0) {
     crit: hit.crit,
     lucky: hit.lucky,
     killed: hit.killed,
+    blocked: hit.blocked,
     delayMs: atMs,
     duration: 780,
     impactMs: 0,
@@ -919,11 +922,16 @@ export default function App() {
     setTimeout(() => setComboCallout((c) => (c?.id === id ? null : c)), ms);
   };
 
+  // A chapter boss, or a raider this stage brings to the horde for the first time
   const announceBoss = (cells) => {
     const boss = cells.find((c) => c.bossKind);
-    if (!boss) return;
-    const kind = BOSS_KINDS[boss.bossKind];
-    showCallout(kind.name, kind.rule, 2200);
+    const live = battleRef.current;
+    const newKind =
+      live.mode === 'CAMPAIGN' &&
+      getNewRaiderKinds(live.sector).find((k) => cells.some((c) => c.kind === k));
+    const kind = boss ? BOSS_KINDS[boss.bossKind] : newKind ? RAIDER_KINDS[newKind] : null;
+    if (!kind) return;
+    showCallout(boss ? kind.name : `New: ${kind.name}`, kind.rule, 2400);
     setCommanderMessage(`${kind.name}! ${kind.rule}`);
   };
 
@@ -994,9 +1002,11 @@ export default function App() {
     const shownHp = new Map(shotFrom.map((c) => [c.id, c.hp]));
     const hidden = {};
     const lastHitIndex = {};
+    const shields = new Set();
     hits.forEach((h, i) => {
       if (!(h.cellId in hidden)) hidden[h.cellId] = shownHp.get(h.cellId) ?? h.hpAfter + h.damage;
       lastHitIndex[h.cellId] = i;
+      if (h.blocked) shields.add(h.cellId);
     });
 
     const groups = [];
@@ -1040,7 +1050,7 @@ export default function App() {
       onFinish();
       return 0;
     }
-    setReveal({ token, board: result.nextCells, hidden });
+    setReveal({ token, board: result.nextCells, hidden, shields });
     const lastAt = groups[groups.length - 1].realAt;
     live.lockUntil = performance.now() + lastAt + 40;
 
@@ -1051,11 +1061,13 @@ export default function App() {
           setReveal((r) => {
             if (!r || r.token !== token) return r;
             const next = { ...r.hidden };
+            const shieldsUp = new Set(r.shields);
             g.hits.forEach((h) => {
               if (h.last) delete next[h.cellId];
               else next[h.cellId] = h.hpAfter;
+              if (h.blocked) shieldsUp.delete(h.cellId);
             });
-            return { ...r, hidden: next };
+            return { ...r, hidden: next, shields: shieldsUp };
           })
         );
         playHitGroupFeedback(g, {
@@ -1133,9 +1145,15 @@ export default function App() {
       shake(gridStageRef.current, 4 + Math.min(6, march.wallDamage), 260);
       playSfx('hit', muted, { weapon: 'nova_bomb' });
       const hitters = march.strikes.length;
+      const arrows = march.strikes.every((st) => st.arrow);
       notes.push(
-        `${hitters === 1 ? 'A raider hits' : `${hitters} raiders hit`} the wall! ` +
-          `Wall ${wallHpLeft}/${live.wallCap}.`
+        `${
+          arrows
+            ? 'Arrows hit the wall!'
+            : hitters === 1
+            ? 'A raider hits the wall!'
+            : `${hitters} raiders hit the wall!`
+        } Wall ${wallHpLeft}/${live.wallCap}.`
       );
     }
     if (march.summoned.length > 0) notes.push('The Goblin King calls a goblin!');
@@ -1525,7 +1543,13 @@ export default function App() {
   const displayBoard = isRevealing
     ? board.map((c) =>
         c.id in reveal.hidden
-          ? { ...c, hp: reveal.hidden[c.id], justHit: false, destroyedByChain: false }
+          ? {
+              ...c,
+              hp: reveal.hidden[c.id],
+              shield: c.shield || reveal.shields.has(c.id),
+              justHit: false,
+              destroyedByChain: false,
+            }
           : c
       )
     : board;
@@ -1694,86 +1718,89 @@ export default function App() {
   // Until the intro stages are cleared the menu shows only Play
   const isNewPlayer = !save.tutorialCompleted && save.sector <= 3;
 
+  // HUD: home, logo, forge or play, gold, sound and settings. In battle it sits inside the arena,
+  // so on a wide screen it can take the top of the weapon column instead of a full-width row.
+  const hud = screen !== 'MENU' && (
+    <header className="top-nav game-hud">
+      <div className="hud-left">
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={() => setScreen('MENU')}
+          aria-label="Home"
+          title="Home"
+        >
+          <Home size={18} />
+        </button>
+        <img
+          className="hud-logo"
+          src={LOGO_URL}
+          alt="Lethal Grid"
+          width="144"
+          height="28"
+        />
+      </div>
+
+      <div className="top-actions">
+        {screen === 'UPGRADES' ? (
+          <button type="button" className="btn-secondary hud-btn" onClick={() => continueCampaign()}>
+            <Play size={18} />
+            <span>Play</span>
+          </button>
+        ) : (
+          screen === 'PLAY' && (
+            <button type="button" className="btn-secondary hud-btn" onClick={() => setScreen('UPGRADES')}>
+              <ShoppingBag size={18} />
+              <span>Forge</span>
+              {affordableUpgradesCount > 0 && (
+                <span className="nav-badge-count">{affordableUpgradesCount}</span>
+              )}
+            </button>
+          )
+        )}
+
+        <div className="wallet-pill" title="Gold">
+          <GoldCoin size={16} />
+          <strong>{save.shards.toLocaleString()}</strong>
+        </div>
+
+        {SHOW_DEV_TOOLS && (
+          <button
+            type="button"
+            className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
+            onClick={() => setShowRevenueDashboard((v) => !v)}
+            title="Inspect Google Analytics 4 Events & AdSense Revenue"
+          >
+            <Activity size={15} className="text-emerald" />
+            <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={() => setMuted((m) => !m)}
+          aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
+        >
+          {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+        </button>
+
+        <button
+          type="button"
+          className="btn-icon"
+          onClick={() => setShowSettingsModal(true)}
+          aria-label="Settings"
+          title="Settings"
+        >
+          <Settings size={18} />
+        </button>
+      </div>
+    </header>
+  );
+
   return (
     <div className="app-shell">
-      {/* HUD: home, logo, forge or play, gold, sound and settings */}
-      {screen !== 'MENU' && (
-        <header className="top-nav game-hud">
-          <div className="hud-left">
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={() => setScreen('MENU')}
-              aria-label="Home"
-              title="Home"
-            >
-              <Home size={18} />
-            </button>
-            <img
-              className="hud-logo"
-              src={LOGO_URL}
-              alt="Lethal Grid"
-              width="144"
-              height="28"
-            />
-          </div>
-
-          <div className="top-actions">
-            {screen === 'UPGRADES' ? (
-              <button type="button" className="btn-secondary hud-btn" onClick={() => continueCampaign()}>
-                <Play size={18} />
-                <span>Play</span>
-              </button>
-            ) : (
-              screen === 'PLAY' && (
-                <button type="button" className="btn-secondary hud-btn" onClick={() => setScreen('UPGRADES')}>
-                  <ShoppingBag size={18} />
-                  <span>Forge</span>
-                  {affordableUpgradesCount > 0 && (
-                    <span className="nav-badge-count">{affordableUpgradesCount}</span>
-                  )}
-                </button>
-              )
-            )}
-
-            <div className="wallet-pill" title="Gold">
-              <GoldCoin size={16} />
-              <strong>{save.shards.toLocaleString()}</strong>
-            </div>
-
-            {SHOW_DEV_TOOLS && (
-              <button
-                type="button"
-                className={`btn-telemetry ${showRevenueDashboard ? 'active' : ''}`}
-                onClick={() => setShowRevenueDashboard((v) => !v)}
-                title="Inspect Google Analytics 4 Events & AdSense Revenue"
-              >
-                <Activity size={15} className="text-emerald" />
-                <span className="revenue-pill">${save.estSessionRevenueUsd.toFixed(3)}</span>
-              </button>
-            )}
-
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={() => setMuted((m) => !m)}
-              aria-label={muted ? 'Unmute sound effects' : 'Mute sound effects'}
-            >
-              {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
-            </button>
-
-            <button
-              type="button"
-              className="btn-icon"
-              onClick={() => setShowSettingsModal(true)}
-              aria-label="Settings"
-              title="Settings"
-            >
-              <Settings size={18} />
-            </button>
-          </div>
-        </header>
-      )}
+      {screen !== 'PLAY' && hud}
 
       {SHOW_DEV_TOOLS && showRevenueDashboard && (
         <section className="owner-telemetry-panel" aria-label="Analytics and Ad Revenue Dashboard">
@@ -1966,126 +1993,130 @@ export default function App() {
       {/* Battle (campaign and Daily) */}
       {screen === 'PLAY' && (
         <main className="arena-focused-stage">
-          <DungeonStageBanner
-            waveNumber={boardSector}
-            stageTitle={gameMode === 'DAILY' ? 'Daily Siege' : `Stage ${getStageLabel(boardSector)}`}
-            remainingEnemies={remainingAliveNodes}
-            totalEnemies={board.filter((c) => c.type !== NODE_TYPES.EMPTY).length}
-            isAttacking={Boolean(firingWeaponId)}
-            isCleared={isBoardCleared}
-            commanderMessage={commanderMessage}
-            selectedWeaponId={selectedAbilityId}
-            bossKind={board.find((c) => c.bossKind)?.bossKind}
-          />
+          {hud}
 
-          <div className="battle-hud-bar">
-            <div className="charges-display">
-              <span className="charges-label">Shots</span>
-              <div className="charge-pips">
-                {Array.from({ length: shotCap }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`charge-pip ${i < chargesLeft ? 'active' : 'spent'}`}
-                    title="Shot"
-                  >
-                    <Sword size={18} />
-                  </span>
-                ))}
-              </div>
-              <span
-                key={wallHp}
-                className={`wall-meter ${wallHp < wallCap ? 'wall-hit' : ''} ${
-                  wallHp <= Math.ceil(wallCap / 3) ? 'wall-low' : ''
-                }`}
-                title="Raiders on the bottom row hit the wall after each shot. If it falls, the wave is lost."
-              >
-                <Castle size={14} /> Wall {wallHp}/{wallCap}
-              </span>
-              {screen === 'PLAY' && (
+          <div className="arena-side">
+            <DungeonStageBanner
+              waveNumber={boardSector}
+              stageTitle={gameMode === 'DAILY' ? 'Daily Siege' : `Stage ${getStageLabel(boardSector)}`}
+              remainingEnemies={remainingAliveNodes}
+              totalEnemies={board.filter((c) => c.type !== NODE_TYPES.EMPTY).length}
+              isAttacking={Boolean(firingWeaponId)}
+              isCleared={isBoardCleared}
+              commanderMessage={commanderMessage}
+              selectedWeaponId={selectedAbilityId}
+              bossKind={board.find((c) => c.bossKind)?.bossKind}
+            />
+
+            <div className="battle-hud-bar">
+              <div className="charges-display">
+                <span className="charges-label">Shots</span>
+                <div className="charge-pips">
+                  {Array.from({ length: shotCap }).map((_, i) => (
+                    <span
+                      key={i}
+                      className={`charge-pip ${i < chargesLeft ? 'active' : 'spent'}`}
+                      title="Shot"
+                    >
+                      <Sword size={18} />
+                    </span>
+                  ))}
+                </div>
                 <span
-                  className="amp-pill ignite-pill"
-                  title="Ignite: any hit can set off a keg or shaman instantly"
+                  key={wallHp}
+                  className={`wall-meter ${wallHp < wallCap ? 'wall-hit' : ''} ${
+                    wallHp <= Math.ceil(wallCap / 3) ? 'wall-low' : ''
+                  }`}
+                  title="Raiders on the bottom row hit the wall after each shot. If it falls, the wave is lost."
                 >
-                  <Sparkles size={12} /> Ignite {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}%
+                  <Castle size={14} /> Wall {wallHp}/{wallCap}
                 </span>
-              )}
-              {screen === 'PLAY' && gameMode === 'CAMPAIGN' && isAutoSieging ? (
-                <button
-                  type="button"
-                  className="amp-pill"
-                  title="Auto plays this stage until you stop it"
-                  onClick={() => setAutoSector(null)}
-                >
-                  <Robot size={12} /> Auto on · Stop
-                </button>
-              ) : (
-                screen === 'PLAY' &&
-                gameMode === 'CAMPAIGN' &&
-                !isFrontierBoard && (
-                  <span className="amp-pill" title="A cleared stage. Replays pay full Gold.">
-                    Replay {getStageLabel(boardSector)}
+                {screen === 'PLAY' && (
+                  <span
+                    className="amp-pill ignite-pill"
+                    title="Ignite: any hit can set off a keg or shaman instantly"
+                  >
+                    <Sparkles size={12} /> Ignite {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}%
                   </span>
-                )
-              )}
-              {activeCard && (
-                <span className="amp-pill card-pill" title={activeCard.desc}>
-                  {React.createElement(CARD_ICONS[activeCard.icon] || Star, { size: 12 })}{' '}
-                  {activeCard.name}
-                </span>
-              )}
-              {turnAmplifierBonus > 1 && (
-                <span className="amp-pill">
-                  Rally +{Math.round((turnAmplifierBonus - 1) * 100)}%
-                </span>
-              )}
-            </div>
-
-            {screen === 'PLAY' && gameMode === 'CAMPAIGN' && (
-              <div className="stage-goals" aria-label="Star goals">
-                <StarRow
-                  count={save.stageStars[boardSector] || 0}
-                  label={`Best: ${save.stageStars[boardSector] || 0} of 3 stars`}
-                />
-                <ul>
-                  <li>Clear every raider</li>
-                  <li>Keep a shot spare</li>
-                  <li>Clear it in one shot</li>
-                </ul>
+                )}
+                {screen === 'PLAY' && gameMode === 'CAMPAIGN' && isAutoSieging ? (
+                  <button
+                    type="button"
+                    className="amp-pill"
+                    title="Auto plays this stage until you stop it"
+                    onClick={() => setAutoSector(null)}
+                  >
+                    <Robot size={12} /> Auto on · Stop
+                  </button>
+                ) : (
+                  screen === 'PLAY' &&
+                  gameMode === 'CAMPAIGN' &&
+                  !isFrontierBoard && (
+                    <span className="amp-pill" title="A cleared stage. Replays pay full Gold.">
+                      Replay {getStageLabel(boardSector)}
+                    </span>
+                  )
+                )}
+                {activeCard && (
+                  <span className="amp-pill card-pill" title={activeCard.desc}>
+                    {React.createElement(CARD_ICONS[activeCard.icon] || Star, { size: 12 })}{' '}
+                    {activeCard.name}
+                  </span>
+                )}
+                {turnAmplifierBonus > 1 && (
+                  <span className="amp-pill">
+                    Rally +{Math.round((turnAmplifierBonus - 1) * 100)}%
+                  </span>
+                )}
               </div>
-            )}
 
-            <div className="arena-actions">
-              {screen === 'PLAY' && (goldAd.ready || adBoostSeconds > 0) && (
+              {screen === 'PLAY' && gameMode === 'CAMPAIGN' && (
+                <div className="stage-goals" aria-label="Star goals">
+                  <StarRow
+                    count={save.stageStars[boardSector] || 0}
+                    label={`Best: ${save.stageStars[boardSector] || 0} of 3 stars`}
+                  />
+                  <ul>
+                    <li>Clear every raider</li>
+                    <li>Keep a shot spare</li>
+                    <li>Clear it in one shot</li>
+                  </ul>
+                </div>
+              )}
+
+              <div className="arena-actions">
+                {screen === 'PLAY' && (goldAd.ready || adBoostSeconds > 0) && (
+                  <button
+                    type="button"
+                    className="btn-reward-chip"
+                    onClick={() => goldAd.show(grantDoubleGold)}
+                    disabled={adBoostSeconds > 0}
+                  >
+                    <Gift size={14} />
+                    <span>
+                      {adBoostSeconds > 0 ? `2× Gold (${adBoostSeconds}s)` : '2× Gold'}
+                    </span>
+                  </button>
+                )}
+
                 <button
                   type="button"
-                  className="btn-reward-chip"
-                  onClick={() => goldAd.show(grantDoubleGold)}
-                  disabled={adBoostSeconds > 0}
+                  className="btn-secondary btn-sm"
+                  onClick={() => startGameSession(gameMode, boardSector)}
                 >
-                  <Gift size={14} />
+                  <RotateCcw size={14} />
                   <span>
-                    {adBoostSeconds > 0 ? `2× Gold (${adBoostSeconds}s)` : '2× Gold'}
+                    Restart
                   </span>
                 </button>
-              )}
 
-              <button
-                type="button"
-                className="btn-secondary btn-sm"
-                onClick={() => startGameSession(gameMode, boardSector)}
-              >
-                <RotateCcw size={14} />
-                <span>
-                  Restart
-                </span>
-              </button>
-
-              {screen === 'PLAY' && (
-                <button type="button" className="btn-secondary btn-sm" onClick={handleShareScore}>
-                  <Share2 size={14} />
-                  <span>{shareCopied === 'copied' ? 'Copied' : shareCopied === 'failed' ? "Couldn't copy" : 'Share'}</span>
-                </button>
-              )}
+                {screen === 'PLAY' && (
+                  <button type="button" className="btn-secondary btn-sm" onClick={handleShareScore}>
+                    <Share2 size={14} />
+                    <span>{shareCopied === 'copied' ? 'Copied' : shareCopied === 'failed' ? "Couldn't copy" : 'Share'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2202,7 +2233,11 @@ export default function App() {
                         <>
                           <div className="tile-top-row">
                             <span className="tile-type-tag">
-                              {cell.bossKind ? BOSS_KINDS[cell.bossKind].short : meta.short}
+                              {cell.bossKind
+                                ? BOSS_KINDS[cell.bossKind].short
+                                : cell.kind
+                                ? RAIDER_KINDS[cell.kind].short
+                                : meta.short}
                             </span>
                             <span className="tile-hp-pill">
                               <Heart size={12} className="tile-hp-heart" />
@@ -2216,9 +2251,22 @@ export default function App() {
                             </span>
                           )}
 
+                          {cell.kind === 'ARCHER' &&
+                            cell.draw === 1 &&
+                            cell.row < activeGridSize - 1 && (
+                              <span
+                                className="tile-arrow-badge"
+                                title="Shoots the wall at the end of this turn"
+                              >
+                                <Crosshair size={14} />
+                              </span>
+                            )}
+
                           <CreatureSprite
                             type={cell.type}
                             bossKind={cell.bossKind}
+                            kind={cell.kind}
+                            shield={cell.shield}
                             conduitAxis={cell.conduitAxis}
                             isTargeted={isTargeted}
                             isLowHp={hpPercent <= 40}
@@ -2237,6 +2285,7 @@ export default function App() {
                             <FallenCreature
                               type={cell.type}
                               bossKind={cell.bossKind}
+                              kind={cell.kind}
                               byBlast={cell.destroyedByChain}
                             />
                           )}
@@ -2671,6 +2720,17 @@ export default function App() {
                   <span>Rally: +50% damage for the rest of the turn.</span>
                 </div>
               </div>
+              {Object.entries(RAIDER_KINDS).map(([kind, raider]) => (
+                <div className="bestiary-item" key={kind}>
+                  <CreatureSprite type={NODE_TYPES.STANDARD} kind={kind} />
+                  <div>
+                    <strong className="text-amber">{raider.name}</strong>
+                    <span>
+                      From stage {getStageLabel(raider.from)}. {raider.rule}
+                    </span>
+                  </div>
+                </div>
+              ))}
               {Object.entries(BOSS_KINDS).map(([kind, boss]) => (
                 <div className="bestiary-item" key={kind}>
                   <CreatureSprite type={NODE_TYPES.BOSS} bossKind={kind} />

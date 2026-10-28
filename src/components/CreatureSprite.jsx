@@ -351,6 +351,71 @@ Object.entries(BOSS_RECOLOURS).forEach(([kind, swap]) => {
   });
 });
 
+// The raiders that join the horde later: a goblin behind a tower shield, a hooded archer, and a
+// goblin riding a wolf. Their second frame bobs down a pixel like the goblin's.
+PIXEL_MATRICES.RAIDER_SHIELD_0 = [
+  '.....KKKKKK.....',
+  '....KIIIIIIK....',
+  '...KIssssssIK...',
+  '..KKKKKKKKKKKK..',
+  '.KEeKYYYYYYKeEK.',
+  'KEeeKeKYYKeKeeEK',
+  '.KKKKeeeeeeKKKK.',
+  '.KKKKKKKKKKKeeK.',
+  'KSSSSSSSSSSKeeK.',
+  'KSsGGGGGGGsSKeK.',
+  'KSsGrRRRrGsSKeK.',
+  'KSsGRRRRRGsSKbK.',
+  'KSsGrRRRrGsSKKK.',
+  'KSsGGGGGGGsSK...',
+  '.KSsssssssSK....',
+  '..KKKKKKKKK.....',
+];
+PIXEL_MATRICES.RAIDER_ARCHER_0 = [
+  '.......KKK......',
+  '.....KKmmmK.....',
+  '....KmmMMmmK.K..',
+  '...KmMMMMMMmKBK.',
+  '..KmKKKKKKKmKbK.',
+  '.KEeKYeeYKeEKKbK',
+  '..KKeeeeeeKK.KbK',
+  '...KmmmmmmK..KbK',
+  '..KmMMMMMMmK.KbK',
+  '..KmMEeeeeeeeKbK',
+  '..KmMMMMMMmK.KbK',
+  '..KmmmmmmmmK.KbK',
+  '...KeeeKeeeK.KbK',
+  '...KeeeKeeeK..KK',
+  '...KbbbKbbbK....',
+  '...KKKKKKKKK....',
+];
+PIXEL_MATRICES.RAIDER_WOLF_0 = [
+  '....KKKKK.......',
+  '...KsSSSsK......',
+  '..KKKKKKKKK.....',
+  '..KEKYeYKEK.....',
+  '...KeeeeeK......',
+  '..KKBBBBBKK..K..',
+  '.KIIKIIIIIKKKIK.',
+  'KRIKIIIIIIIIIIK.',
+  'KIIIIIIIIIIIIIK.',
+  '.KKKIIsIIIIIsIK.',
+  '...KIsKKIIIKKsK.',
+  '...KIK.KIKKIK.K.',
+  '...KIK.KIK.KIK..',
+  '..KIIK.KIK.KIIK.',
+  '..KKK..KKK..KK..',
+  '................',
+];
+['RAIDER_SHIELD', 'RAIDER_ARCHER', 'RAIDER_WOLF'].forEach((name) => {
+  const rows = PIXEL_MATRICES[`${name}_0`];
+  // Wolves bob whole; the goblins lose a neck row so their feet stay planted
+  PIXEL_MATRICES[`${name}_1`] =
+    name === 'RAIDER_WOLF'
+      ? ['................', ...rows.slice(0, 15)]
+      : ['................', ...rows.slice(0, 7), ...rows.slice(8)];
+});
+
 // Armoured glove pointing down at the tile the tutorial wants hit
 PIXEL_MATRICES.POINTER = [
   '....KKKKKKKKK...',
@@ -545,13 +610,22 @@ const CREATURE_SPRITES = {
   [NODE_TYPES.BOSS]: 'BOSS',
 };
 
-const getSpriteName = (type, bossKind) =>
-  type === NODE_TYPES.BOSS && BOSS_RECOLOURS[bossKind]
-    ? `BOSS_${bossKind}`
-    : CREATURE_SPRITES[type] || 'GOBLIN';
+// A Shield Bearer whose shield broke is drawn as a plain goblin
+const getSpriteName = (type, bossKind, kind, shield) => {
+  if (type === NODE_TYPES.BOSS && BOSS_RECOLOURS[bossKind]) return `BOSS_${bossKind}`;
+  if (type === NODE_TYPES.STANDARD && kind && (kind !== 'SHIELD' || shield)) return `RAIDER_${kind}`;
+  return CREATURE_SPRITES[type] || 'GOBLIN';
+};
 
-export function CreatureSprite({ type, bossKind, conduitAxis = 'ROW', isTargeted = false }) {
-  const sprite = getSpriteName(type, bossKind);
+export function CreatureSprite({
+  type,
+  bossKind,
+  kind,
+  shield = true,
+  conduitAxis = 'ROW',
+  isTargeted = false,
+}) {
+  const sprite = getSpriteName(type, bossKind, kind, shield);
   return (
     <div className={`creature-wrap ${isTargeted ? 'creature-panicked' : 'creature-idle'}`}>
       {type === NODE_TYPES.CONDUIT && (
@@ -586,8 +660,8 @@ export function TutorialPointer() {
  * A raider that just fell: its sprite flashes, hops and drops out of the tile, then the remains
  * fade in. Mounted when the tile dies, so the animation plays once per kill.
  */
-export function FallenCreature({ type, bossKind, byBlast }) {
-  const sprite = getSpriteName(type, bossKind);
+export function FallenCreature({ type, bossKind, kind, byBlast }) {
+  const sprite = getSpriteName(type, bossKind, kind, false);
   return (
     <>
       <span className="creature-falling" aria-hidden="true">
