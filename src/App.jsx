@@ -42,6 +42,7 @@ import {
   UPGRADE_CATALOG,
   INTRO_STAGES,
   BOSS_KINDS,
+  BATTLE_CARDS,
   RAIDER_KINDS,
   getNewRaiderKinds,
   dealBattleCards,
@@ -173,6 +174,9 @@ const DEFAULT_SAVE = {
   crestUpgrades: {},
   // totalShardsEarned at the last reset; crests for the next reset come from gold since then
   runGoldStart: 0,
+  // The battle card taken for a campaign stage not yet cleared ({ sector, card }). Retrying that
+  // stage keeps it; starting any other stage or clearing this one drops it.
+  stageCard: null,
   estSessionRevenueUsd: 0.004,
 };
 
@@ -371,6 +375,10 @@ function sanitizeSave(parsed) {
     chestsClaimed: toCountMap(parsed.chestsClaimed, CHAPTER_CHEST_STARS.length),
     crestUpgrades,
     runGoldStart: toWhole(parsed.runGoldStart, 0, 0, totalShardsEarned),
+    stageCard:
+      parsed.stageCard && BATTLE_CARDS.some((c) => c.id === parsed.stageCard.card)
+        ? { sector: toWhole(parsed.stageCard.sector, 1, 1, 100000), card: parsed.stageCard.card }
+        : null,
     estSessionRevenueUsd: toFiniteNumber(parsed.estSessionRevenueUsd, DEFAULT_SAVE.estSessionRevenueUsd),
   };
 }
@@ -675,6 +683,7 @@ export default function App() {
         earned += live.firstClearBonus;
       }
       if (isVictory) {
+        setSave((prev) => (prev.stageCard ? { ...prev, stageCard: null } : prev));
         live.starsEarned = getClearStars({
           volleysFired: live.volleysFired,
           volleysLeft: live.chargesLeft,
@@ -854,8 +863,15 @@ export default function App() {
           isDaily,
         });
     const wallStart = getWallMax(gSize);
-    // Campaign stages past the intro open with a choice of battle card
-    const offer = targetMode === 'CAMPAIGN' && !intro ? dealBattleCards() : null;
+    // Campaign stages past the intro open with a choice of battle card. A retry of the stage the
+    // card was taken for keeps it, so losing on purpose can't reroll the offer; going to another
+    // stage drops it, and the lost stage deals a fresh three next time.
+    const dealsCard = targetMode === 'CAMPAIGN' && !intro;
+    const keptCard = dealsCard && save.stageCard?.sector === targetSector
+      ? BATTLE_CARDS.find((c) => c.id === save.stageCard.card)
+      : null;
+    const offer = dealsCard && !keptCard ? dealBattleCards() : null;
+    if (offer && save.stageCard) setSave((prev) => ({ ...prev, stageCard: null }));
 
     battleRef.current = {
       board: nextCells,
@@ -912,7 +928,12 @@ export default function App() {
         : `Stage ${getStageLabel(targetSector)}. Hit the kegs and shamans first.`
     );
     if (intro) trackEvent('tutorial_step_started', { step: targetSector });
-    if (!offer) announceBoss(nextCells);
+    if (keptCard) {
+      battleRef.current.cardPending = true;
+      pickBattleCard(keptCard, { kept: true });
+    } else if (!offer) {
+      announceBoss(nextCells);
+    }
   };
 
   // Big text over the board: a long chain, or the boss of a chapter arriving
@@ -936,7 +957,7 @@ export default function App() {
   };
 
   // The card applies at once where it changes the stage itself: shots, wall, or the board
-  const pickBattleCard = (card) => {
+  const pickBattleCard = (card, { kept = false } = {}) => {
     const live = battleRef.current;
     if (!live.cardPending) return;
     live.cardPending = false;
@@ -944,7 +965,10 @@ export default function App() {
     setCardOffer(null);
     setActiveCard(card);
     playSfx('upgrade', muted);
-    trackEvent('battle_card_picked', { card: card.id, sector: live.sector });
+    if (!kept) {
+      trackEvent('battle_card_picked', { card: card.id, sector: live.sector });
+      setSave((prev) => ({ ...prev, stageCard: { sector: live.sector, card: card.id } }));
+    }
 
     const patch = {};
     if (card.id === 'extra_shot') patch.chargesLeft = live.chargesLeft + 1;
@@ -956,7 +980,9 @@ export default function App() {
     if (card.id === 'war_horn') patch.amp = live.amp + 0.5;
     if (Object.keys(patch).length > 0) syncBattle(patch);
 
-    setCommanderMessage(`${card.name}: ${card.desc}`);
+    setCommanderMessage(
+      kept ? `Same card for this retry. ${card.name}: ${card.desc}` : `${card.name}: ${card.desc}`
+    );
     announceBoss(live.board);
   };
 
