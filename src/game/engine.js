@@ -44,6 +44,113 @@ export const NODE_META = {
   },
 };
 
+// Each chapter ends on a boss with its own rule. Every boss still shakes 5x5 when it falls.
+export const BOSS_KINDS = {
+  OGRE: {
+    name: 'Ogre Warlord',
+    short: 'OGRE',
+    rule: 'Lots of HP, and a 5×5 blast when it falls.',
+    hpMult: 2.8,
+  },
+  KING: {
+    name: 'Goblin King',
+    short: 'KING',
+    rule: 'Calls a new goblin into the top row every turn.',
+    hpMult: 2.4,
+  },
+  TROLL: {
+    name: 'Shield Troll',
+    short: 'TROLL',
+    rule: 'Raiders in its row and column take half damage.',
+    hpMult: 2.6,
+  },
+  WITCH: {
+    name: 'Hex Witch',
+    short: 'WITCH',
+    rule: 'Heals every other raider a quarter of their HP each turn.',
+    hpMult: 2.0,
+  },
+};
+const BOSS_ORDER = ['OGRE', 'KING', 'TROLL', 'WITCH'];
+
+export const getBossKind = (sector) =>
+  BOSS_ORDER[(Math.ceil(sector / STAGES_PER_CHAPTER) - 1) % BOSS_ORDER.length];
+
+// Battle cards: before each campaign stage the player picks one of three, and it lasts for
+// that stage only
+export const BATTLE_CARDS = [
+  { id: 'extra_shot', name: 'Spare Bolts', desc: '+1 shot this stage.', icon: 'Sword' },
+  { id: 'big_kegs', name: 'Black Powder', desc: 'Kegs blast 5×5.', icon: 'Bomb' },
+  {
+    id: 'storm',
+    name: 'Storm Call',
+    desc: 'Shaman lightning hits its row and its column.',
+    icon: 'Zap',
+  },
+  {
+    id: 'war_banner',
+    name: 'War Banner',
+    desc: 'Banners rally +100% instead of +50%.',
+    icon: 'Flag',
+  },
+  { id: 'whetstone', name: 'Whetstone', desc: 'Your weapon hits 50% harder.', icon: 'Crosshair' },
+  { id: 'masons', name: 'Masons', desc: 'The wall gets +8.', icon: 'Castle' },
+  {
+    id: 'powder_trail',
+    name: 'Powder Trail',
+    desc: 'One slain goblin in four explodes.',
+    icon: 'Fire',
+  },
+  { id: 'plunder', name: 'Plunder', desc: 'Double Gold this stage.', icon: 'Coins' },
+  {
+    id: 'opening_volley',
+    name: 'Opening Volley',
+    desc: 'Your first shot crits every hit.',
+    icon: 'Star',
+  },
+  { id: 'long_fuse', name: 'Long Fuse', desc: 'Chain blasts hit twice as hard.', icon: 'Sparkles' },
+  { id: 'war_horn', name: 'War Horn', desc: 'Start the stage with Rally +50%.', icon: 'Shield' },
+  { id: 'saboteurs', name: 'Saboteurs', desc: 'Two goblins turn out to be kegs.', icon: 'Potion' },
+];
+
+export function dealBattleCards(rng = Math.random, count = 3) {
+  const deck = [...BATTLE_CARDS];
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck.slice(0, count);
+}
+
+// What a card changes inside a shot; the rest (shots, wall, gold, rally) the screen applies
+export function getCardShotMods(cardId, isFirstShot = false) {
+  return {
+    kegRadius: cardId === 'big_kegs' ? 2 : 1,
+    stormBothAxes: cardId === 'storm',
+    rallyBonus: cardId === 'war_banner' ? 1 : 0.5,
+    weaponDamageMult: cardId === 'whetstone' ? 1.5 : 1,
+    contagionBonus: cardId === 'powder_trail' ? 0.25 : 0,
+    chainDamageMult: cardId === 'long_fuse' ? 2 : 1,
+    alwaysCrit: cardId === 'opening_volley' && isFirstShot,
+  };
+}
+
+// Saboteurs: two goblins on the board become kegs
+export function revealSaboteurs(cells, rng = Math.random) {
+  const goblins = cells
+    .map((c, i) => i)
+    .filter((i) => cells[i].type === NODE_TYPES.STANDARD && cells[i].hp > 0);
+  const picks = new Set();
+  while (picks.size < Math.min(2, goblins.length)) {
+    picks.add(goblins[Math.floor(rng() * goblins.length)]);
+  }
+  return cells.map((c, i) => {
+    if (!picks.has(i)) return c;
+    const hp = Math.max(2, Math.floor(c.maxHp * 0.8));
+    return { ...c, type: NODE_TYPES.BOMB, hp, maxHp: hp };
+  });
+}
+
 export const ABILITIES = [
   {
     id: 'rail_beam',
@@ -432,6 +539,7 @@ export function generateBoard({
 
   const isBossSector = !isDaily && sector % 5 === 0;
   const bossIdx = isBossSector ? Math.floor(totalCells / 2) : -1;
+  const bossKind = isBossSector ? getBossKind(sector) : null;
 
   for (let i = 0; i < totalCells; i++) {
     const r = Math.floor(i / gridSize);
@@ -443,7 +551,7 @@ export function generateBoard({
 
     if (i === bossIdx) {
       type = NODE_TYPES.BOSS;
-      maxHp = Math.floor(baseHp * 2.8);
+      maxHp = Math.floor(baseHp * BOSS_KINDS[bossKind].hpMult);
     } else if (i === guaranteedBombIdx) {
       type = NODE_TYPES.BOMB;
       maxHp = Math.max(2, Math.floor(baseHp * 0.8));
@@ -467,7 +575,13 @@ export function generateBoard({
       maxHp = Math.max(2, Math.floor(baseHp * (0.9 + rng() * 0.35)));
     }
 
-    cells.push(makeCell(serial, r, c, type, maxHp, rng() > 0.5 ? 'ROW' : 'COL'));
+    const cell = makeCell(serial, r, c, type, maxHp, rng() > 0.5 ? 'ROW' : 'COL');
+    if (i === bossIdx) {
+      cell.bossKind = bossKind;
+      // The Goblin King's summons arrive at the wave's base HP
+      cell.spawnHp = baseHp;
+    }
+    cells.push(cell);
   }
 
   return cells;
@@ -480,10 +594,24 @@ export const getWallMax = (gridSize) => gridSize * 2 + 2;
 
 const isStanding = (cell) => cell.type !== NODE_TYPES.EMPTY && cell.hp > 0;
 
+// Raiders sharing a row or column with a standing Shield Troll take half damage
+export function isShieldedByTroll(cells, cell) {
+  return cells.some(
+    (t) =>
+      t.id !== cell.id &&
+      t.bossKind === 'TROLL' &&
+      isStanding(t) &&
+      (t.row === cell.row || t.col === cell.col) &&
+      isStanding(cell)
+  );
+}
+
 /**
  * The horde's turn, after each shot that leaves raiders standing. Raiders on the bottom row are
- * at the wall and strike it (an ogre for 2), then every other raider steps one row closer when
+ * at the wall and strike it (a boss for 2), then every other raider steps one row closer when
  * the tile in front is free. A raider stepping onto a fallen one tramples it, leaving bare ground.
+ * Then the bosses act: the Goblin King calls a goblin into the top row, and the Hex Witch heals
+ * every other raider a quarter of their max HP.
  */
 export function marchHorde(cells, gridSize) {
   const nextCells = cells.map((c) => ({
@@ -492,6 +620,8 @@ export function marchHorde(cells, gridSize) {
     destroyedByChain: false,
     luckyIgnited: false,
     critHit: false,
+    summoned: false,
+    healed: false,
   }));
 
   const strikes = [];
@@ -512,13 +642,56 @@ export function marchHorde(cells, gridSize) {
       const to = from + gridSize;
       if (!isStanding(nextCells[from]) || isStanding(nextCells[to])) continue;
       const raider = nextCells[from];
-      nextCells[from] = { ...nextCells[to], type: NODE_TYPES.EMPTY, hp: 0, maxHp: 0, row: r, col: c };
+      nextCells[from] = {
+        ...nextCells[to],
+        type: NODE_TYPES.EMPTY,
+        hp: 0,
+        maxHp: 0,
+        row: r,
+        col: c,
+      };
       nextCells[to] = { ...raider, row: r + 1, col: c };
       moved.push(raider.id);
     }
   }
 
-  return { nextCells, strikes, wallDamage, moved };
+  const summoned = [];
+  nextCells
+    .filter((k) => k.bossKind === 'KING' && isStanding(k))
+    .forEach((king) => {
+      // The free top-row tile nearest the king's column
+      const free = [];
+      for (let c = 0; c < gridSize; c++) {
+        if (!isStanding(nextCells[c])) free.push(c);
+      }
+      if (free.length === 0) return;
+      free.sort((a, b) => Math.abs(a - king.col) - Math.abs(b - king.col));
+      const col = free[0];
+      king.summons = (king.summons || 0) + 1;
+      const hp = king.spawnHp || 3;
+      nextCells[col] = {
+        ...nextCells[col],
+        id: `${king.id}-s${king.summons}`,
+        type: NODE_TYPES.STANDARD,
+        hp,
+        maxHp: hp,
+        vulnerable: 1,
+        summoned: true,
+      };
+      summoned.push(nextCells[col].id);
+    });
+
+  let healed = 0;
+  if (nextCells.some((w) => w.bossKind === 'WITCH' && isStanding(w))) {
+    nextCells.forEach((cell) => {
+      if (cell.bossKind === 'WITCH' || !isStanding(cell) || cell.hp >= cell.maxHp) return;
+      cell.hp = Math.min(cell.maxHp, cell.hp + Math.ceil(cell.maxHp * 0.25));
+      cell.healed = true;
+      healed += 1;
+    });
+  }
+
+  return { nextCells, strikes, wallDamage, moved, summoned, healed };
 }
 
 export function getAbilityPreviewIndices({
@@ -605,6 +778,8 @@ export function executeAbilityAndResolveChains({
   isAutoArcherShot = false,
   // Daily boards pass a seeded generator so crits and lucky procs match for every player
   rng = Math.random,
+  // The stage's battle card, from getCardShotMods
+  mods = getCardShotMods(null),
 }) {
   const nextCells = cells.map((c) => ({
     ...c,
@@ -612,6 +787,8 @@ export function executeAbilityAndResolveChains({
     destroyedByChain: false,
     luckyIgnited: false,
     critHit: false,
+    summoned: false,
+    healed: false,
   }));
 
   const events = [];
@@ -629,16 +806,15 @@ export function executeAbilityAndResolveChains({
   const triggeredIndices = new Set();
 
   // Chain hits add a share of the target's max HP, so chains keep up with late-wave HP
-  const baseChainDamage = Math.max(
-    2,
-    Math.floor((2 + sector * 0.95) * (1 + chainAmpLevel * 0.2))
-  );
+  const baseChainDamage =
+    Math.max(2, Math.floor((2 + sector * 0.95) * (1 + chainAmpLevel * 0.2))) * mods.chainDamageMult;
   const maxHpShredRatio = isIntro ? 1.0 : 0.18 + chainAmpLevel * 0.015;
 
-  const critChance = isIntro ? 0 : 0.08 + luckySparkLevel * 0.015;
+  const critChance = isIntro ? 0 : mods.alwaysCrit ? 1 : 0.08 + luckySparkLevel * 0.015;
   const luckyFuseIgniteChance = isIntro ? 0 : 0.08 + luckySparkLevel * 0.018;
   const luckyExecuteChance = isIntro ? 0 : 0.04 + luckySparkLevel * 0.01;
-  const contagionExplodeChance = isIntro ? 0 : contagionLevel * 0.04;
+  const contagionExplodeChance = isIntro ? 0 : contagionLevel * 0.04 + mods.contagionBonus;
+  const hasTroll = cells.some((c) => c.bossKind === 'TROLL');
 
   // Thunder-Hammer bounces go to the toughest raiders left on the board
   const bounceTargets = [];
@@ -684,6 +860,9 @@ export function executeAbilityAndResolveChains({
       1,
       Math.ceil((rawDamage * critMult + hpShredBonus) * dynamicAmp * (cell.vulnerable || 1))
     );
+    if (hasTroll && isShieldedByTroll(nextCells, cell)) {
+      effectiveDamage = Math.max(1, Math.ceil(effectiveDamage * 0.5));
+    }
 
     // Lucky procs only matter on hits that wouldn't kill anyway
     let triggeredLuckyProc = false;
@@ -754,7 +933,7 @@ export function executeAbilityAndResolveChains({
         triggeredIndices.add(idx);
 
         if (cell.type === NODE_TYPES.AMPLIFIER) {
-          dynamicAmp += 0.5;
+          dynamicAmp += mods.rallyBonus;
           events.push({
             type: 'AMPLIFIER',
             text: `Rally! Damage now ${(dynamicAmp * 100).toFixed(0)}%.`,
@@ -822,7 +1001,7 @@ export function executeAbilityAndResolveChains({
         cell.vulnerable = Math.max(cell.vulnerable || 1, abilityStats.weakenMultiplier);
       }
 
-      applyDamageToCell(idx, abilityStats.damage, abilityObj.name, false);
+      applyDamageToCell(idx, abilityStats.damage * mods.weaponDamageMult, abilityObj.name, false);
     });
   }
 
@@ -836,7 +1015,7 @@ export function executeAbilityAndResolveChains({
       const { row, col, type, conduitAxis } = explosion;
 
       if (type === NODE_TYPES.BOMB || type === NODE_TYPES.BOSS) {
-        const radius = type === NODE_TYPES.BOSS ? 2 : 1;
+        const radius = type === NODE_TYPES.BOSS ? 2 : mods.kegRadius;
         vfxAnimations.push({
           id: `vfx-chain-keg-${Date.now()}-${Math.random()}`,
           type: 'BARREL_EXPLOSION',
@@ -849,7 +1028,7 @@ export function executeAbilityAndResolveChains({
 
         events.push({
           type: 'EXPLOSION',
-          text: `${type === NODE_TYPES.BOSS ? 'Ogre' : 'Keg'} blast!`,
+          text: `${type === NODE_TYPES.BOSS ? 'Boss' : 'Keg'} blast!`,
         });
 
         for (let dr = -radius; dr <= radius; dr++) {
@@ -868,15 +1047,19 @@ export function executeAbilityAndResolveChains({
           }
         }
       } else if (type === NODE_TYPES.CONDUIT) {
-        vfxAnimations.push({
-          id: `vfx-chain-rune-${Date.now()}-${Math.random()}`,
-          type: 'RUNE_LIGHTNING',
-          row,
-          col,
-          axis: conduitAxis,
-          delayMs: getHitRevealMs(chainDepth, primaryImpactMs) - CHAIN_IMPACT_MS,
-          duration: 420,
-          impactMs: CHAIN_IMPACT_MS,
+        // Storm Call sends the lightning down both lines
+        const axes = mods.stormBothAxes ? ['ROW', 'COL'] : [conduitAxis];
+        axes.forEach((axis) => {
+          vfxAnimations.push({
+            id: `vfx-chain-rune-${Date.now()}-${Math.random()}`,
+            type: 'RUNE_LIGHTNING',
+            row,
+            col,
+            axis,
+            delayMs: getHitRevealMs(chainDepth, primaryImpactMs) - CHAIN_IMPACT_MS,
+            duration: 420,
+            impactMs: CHAIN_IMPACT_MS,
+          });
         });
 
         events.push({
@@ -884,10 +1067,12 @@ export function executeAbilityAndResolveChains({
           text: `Shaman lightning!`,
         });
 
-        for (let i = 0; i < gridSize; i++) {
-          const nIdx = conduitAxis === 'ROW' ? row * gridSize + i : i * gridSize + col;
-          applyDamageToCell(nIdx, Math.ceil(baseChainDamage * 1.1), 'Rune Lightning', true);
-        }
+        axes.forEach((axis) => {
+          for (let i = 0; i < gridSize; i++) {
+            const nIdx = axis === 'ROW' ? row * gridSize + i : i * gridSize + col;
+            applyDamageToCell(nIdx, Math.ceil(baseChainDamage * 1.1), 'Rune Lightning', true);
+          }
+        });
       }
     }
   }

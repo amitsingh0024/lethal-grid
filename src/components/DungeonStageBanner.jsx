@@ -13,6 +13,7 @@ export function DungeonStageBanner({
   isCleared = false,
   commanderMessage = '',
   selectedWeaponId = 'rail_beam',
+  bossKind = null,
 }) {
   return (
     <div className="dungeon-stage-banner">
@@ -50,7 +51,11 @@ export function DungeonStageBanner({
             {isCleared ? (
               <Flag size={48} className="victory-flag-icon" />
             ) : waveNumber % 5 === 0 ? (
-              <PixelSprite frame0="BOSS_0" frame1="BOSS_1" size={64} />
+              <PixelSprite
+                frame0={bossKind && bossKind !== 'OGRE' ? `BOSS_${bossKind}_0` : 'BOSS_0'}
+                frame1={bossKind && bossKind !== 'OGRE' ? `BOSS_${bossKind}_1` : 'BOSS_1'}
+                size={64}
+              />
             ) : (
               <PixelSprite frame0="GOBLIN_0" frame1="GOBLIN_1" size={60} />
             )}

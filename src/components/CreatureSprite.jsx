@@ -337,6 +337,20 @@ const PIXEL_MATRICES = {
   ],
 };
 
+// The other chapter bosses are the ogre in their own colours
+const BOSS_RECOLOURS = {
+  KING: { S: 'E', s: 'e', R: 'P', r: 'c', O: 'P', I: 'b' },
+  TROLL: { G: 's', R: 'C', r: 'c', O: 'C', Y: 'W', S: 's', s: 'I' },
+  WITCH: { G: 'P', R: 'M', r: 'm', O: 'M', Y: 'M', S: 'F', s: 'f', I: 'm' },
+};
+Object.entries(BOSS_RECOLOURS).forEach(([kind, swap]) => {
+  ['0', '1'].forEach((frame) => {
+    PIXEL_MATRICES[`BOSS_${kind}_${frame}`] = PIXEL_MATRICES[`BOSS_${frame}`].map((row) =>
+      [...row].map((key) => swap[key] || key).join('')
+    );
+  });
+});
+
 // Armoured glove pointing down at the tile the tutorial wants hit
 PIXEL_MATRICES.POINTER = [
   '....KKKKKKKKK...',
@@ -531,8 +545,13 @@ const CREATURE_SPRITES = {
   [NODE_TYPES.BOSS]: 'BOSS',
 };
 
-export function CreatureSprite({ type, conduitAxis = 'ROW', isTargeted = false }) {
-  const sprite = CREATURE_SPRITES[type] || 'GOBLIN';
+const getSpriteName = (type, bossKind) =>
+  type === NODE_TYPES.BOSS && BOSS_RECOLOURS[bossKind]
+    ? `BOSS_${bossKind}`
+    : CREATURE_SPRITES[type] || 'GOBLIN';
+
+export function CreatureSprite({ type, bossKind, conduitAxis = 'ROW', isTargeted = false }) {
+  const sprite = getSpriteName(type, bossKind);
   return (
     <div className={`creature-wrap ${isTargeted ? 'creature-panicked' : 'creature-idle'}`}>
       {type === NODE_TYPES.CONDUIT && (
@@ -567,8 +586,8 @@ export function TutorialPointer() {
  * A raider that just fell: its sprite flashes, hops and drops out of the tile, then the remains
  * fade in. Mounted when the tile dies, so the animation plays once per kill.
  */
-export function FallenCreature({ type, byBlast }) {
-  const sprite = CREATURE_SPRITES[type] || 'GOBLIN';
+export function FallenCreature({ type, bossKind, byBlast }) {
+  const sprite = getSpriteName(type, bossKind);
   return (
     <>
       <span className="creature-falling" aria-hidden="true">
