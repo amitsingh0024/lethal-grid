@@ -332,32 +332,37 @@ export function getAbilityUpgradeCost(abilityIndex, currentLevel) {
   return Math.floor(base * Math.pow(1.72, currentLevel - 1)) * UPGRADE_PRICE_SCALE;
 }
 
-export const TUTORIAL_LESSONS = [
-  {
-    step: 1,
-    title: 'Lesson 1: Sappers',
-    commanderSpeech: 'Shoot the powder keg!',
-    recommendedAbility: 'rail_beam',
-    highlightCell: { row: 1, col: 1 },
+// The first three stages are set boards, each cleared by one well-placed Ballista shot: kegs,
+// then shamans, then banners. Each holds the tile to point at and the commander's hint.
+// Letters: G goblin, K keg, S shaman (lightning down its column), B banner, O ogre, . empty.
+export const INTRO_STAGES = {
+  1: {
+    hint: 'Shoot the powder keg!',
+    target: { row: 1, col: 1 },
+    layout: ['GGG', 'GKG', 'GGG'],
+    hp: { G: 3, K: 2 },
   },
-  {
-    step: 2,
-    title: 'Lesson 2: Shamans',
-    commanderSpeech: 'Shamans throw lightning down their row. Hit the shaman!',
-    recommendedAbility: 'rail_beam',
-    highlightCell: { row: 1, col: 0 },
+  2: {
+    hint: 'Shamans throw lightning down their column. Hit the shaman!',
+    target: { row: 1, col: 2 },
+    layout: ['GGG', 'KGS', 'GGG'],
+    hp: { G: 3, K: 2, S: 2 },
   },
-  {
-    step: 3,
-    title: 'Lesson 3: Heralds',
-    commanderSpeech: 'The banner boosts every hit after it. Banner first!',
-    recommendedAbility: 'rail_beam',
-    highlightCell: { row: 0, col: 1 },
+  3: {
+    hint: 'The banner boosts every hit after it. Banner first!',
+    target: { row: 0, col: 1 },
+    layout: ['GBG', 'GKG', 'GOG'],
+    hp: { G: 6, K: 3, B: 2, O: 14 },
   },
-];
+};
 
-// The first lesson is a bigger board, so the very first shot already sets off a long chain
-export const getTutorialGridSize = (step) => (step === 1 ? 4 : 3);
+const INTRO_TYPES = {
+  G: NODE_TYPES.STANDARD,
+  K: NODE_TYPES.BOMB,
+  S: NODE_TYPES.CONDUIT,
+  B: NODE_TYPES.AMPLIFIER,
+  O: NODE_TYPES.BOSS,
+};
 
 // Chain links land one after another after the weapon hits; deep chains bunch up so a turn
 // never takes more than about a second to play out
@@ -370,10 +375,12 @@ function getHitRevealMs(depth, primaryImpactMs) {
   return primaryImpactMs + 60 + Math.min(depth - 1, MAX_STAGGERED_LINKS) * CHAIN_STEP_MS;
 }
 
-export function generateTutorialBoard(step = 1) {
-  const gridSize = getTutorialGridSize(step);
-  const makeCell = (r, c, type = NODE_TYPES.EMPTY, hp = 0, conduitAxis = 'ROW') => ({
-    id: `tut-${step}-${r}-${c}`,
+// Every board gets its own tile ids, so a new board never looks like the old one moving
+let boardSerial = 0;
+
+function makeCell(serial, r, c, type, hp, conduitAxis = 'ROW') {
+  return {
+    id: `b${serial}-${r}-${c}`,
     row: r,
     col: c,
     type,
@@ -383,40 +390,21 @@ export function generateTutorialBoard(step = 1) {
     conduitAxis,
     justHit: false,
     destroyedByChain: false,
-  });
+    luckyIgnited: false,
+    critHit: false,
+  };
+}
 
+export function generateIntroBoard(sector) {
+  const stage = INTRO_STAGES[sector];
+  const serial = ++boardSerial;
   const cells = [];
-  for (let r = 0; r < gridSize; r++) {
-    for (let c = 0; c < gridSize; c++) {
-      cells.push(makeCell(r, c));
-    }
-  }
-
-  if (step === 1) {
-    // The shot sets off the first keg, its blast reaches the second, and the two blasts
-    // cover every raider on the board
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < 4; c++) {
-        if ((r === 0 && c === 3) || (r === 3 && c === 0)) continue;
-        cells[r * 4 + c] = makeCell(r, c, NODE_TYPES.STANDARD, 3);
-      }
-    }
-    cells[1 * 4 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
-    cells[2 * 4 + 2] = makeCell(2, 2, NODE_TYPES.BOMB, 3);
-  } else if (step === 2) {
-    cells[1 * 3 + 0] = makeCell(1, 0, NODE_TYPES.CONDUIT, 3, 'ROW');
-    cells[1 * 3 + 2] = makeCell(1, 2, NODE_TYPES.BOMB, 3);
-    cells[0 * 3 + 2] = makeCell(0, 2, NODE_TYPES.STANDARD, 3);
-    cells[2 * 3 + 2] = makeCell(2, 2, NODE_TYPES.STANDARD, 3);
-    cells[0 * 3 + 0] = makeCell(0, 0, NODE_TYPES.STANDARD, 3);
-  } else {
-    cells[0 * 3 + 1] = makeCell(0, 1, NODE_TYPES.AMPLIFIER, 2);
-    cells[1 * 3 + 1] = makeCell(1, 1, NODE_TYPES.BOMB, 3);
-    cells[2 * 3 + 1] = makeCell(2, 1, NODE_TYPES.BOSS, 6);
-    cells[2 * 3 + 0] = makeCell(2, 0, NODE_TYPES.STANDARD, 4);
-    cells[2 * 3 + 2] = makeCell(2, 2, NODE_TYPES.STANDARD, 4);
-  }
-
+  stage.layout.forEach((line, r) => {
+    [...line].forEach((ch, c) => {
+      const type = INTRO_TYPES[ch] || NODE_TYPES.EMPTY;
+      cells.push(makeCell(serial, r, c, type, stage.hp[ch] || 0, 'COL'));
+    });
+  });
   return cells;
 }
 
@@ -428,6 +416,7 @@ export function generateBoard({
   isDaily = false,
 }) {
   const rng = createSeededRandom(seedString || `sector-${sector}-${Date.now()}-${Math.random()}`);
+  const serial = ++boardSerial;
   const totalCells = gridSize * gridSize;
   const cells = [];
 
@@ -478,23 +467,58 @@ export function generateBoard({
       maxHp = Math.max(2, Math.floor(baseHp * (0.9 + rng() * 0.35)));
     }
 
-    cells.push({
-      id: `cell-${r}-${c}`,
-      row: r,
-      col: c,
-      type,
-      hp: maxHp,
-      maxHp,
-      vulnerable: 1,
-      conduitAxis: rng() > 0.5 ? 'ROW' : 'COL',
-      justHit: false,
-      destroyedByChain: false,
-      luckyIgnited: false,
-      critHit: false,
-    });
+    cells.push(makeCell(serial, r, c, type, maxHp, rng() > 0.5 ? 'ROW' : 'COL'));
   }
 
   return cells;
+}
+
+// The castle wall below the board. Bigger boards field a wider front, so the wall is sturdier.
+// At twice the front plus two, a 3x3 wall can't fall in three shots. From wave 10 on, a bot that
+// guards the front clears 5 to 15 points fewer waves than it did before the march.
+export const getWallMax = (gridSize) => gridSize * 2 + 2;
+
+const isStanding = (cell) => cell.type !== NODE_TYPES.EMPTY && cell.hp > 0;
+
+/**
+ * The horde's turn, after each shot that leaves raiders standing. Raiders on the bottom row are
+ * at the wall and strike it (an ogre for 2), then every other raider steps one row closer when
+ * the tile in front is free. A raider stepping onto a fallen one tramples it, leaving bare ground.
+ */
+export function marchHorde(cells, gridSize) {
+  const nextCells = cells.map((c) => ({
+    ...c,
+    justHit: false,
+    destroyedByChain: false,
+    luckyIgnited: false,
+    critHit: false,
+  }));
+
+  const strikes = [];
+  let wallDamage = 0;
+  for (let c = 0; c < gridSize; c++) {
+    const cell = nextCells[(gridSize - 1) * gridSize + c];
+    if (!isStanding(cell)) continue;
+    const damage = cell.type === NODE_TYPES.BOSS ? 2 : 1;
+    wallDamage += damage;
+    strikes.push({ cellId: cell.id, damage });
+  }
+
+  // Bottom-up, so a whole column closes ranks by one step and nobody moves twice
+  const moved = [];
+  for (let r = gridSize - 2; r >= 0; r--) {
+    for (let c = 0; c < gridSize; c++) {
+      const from = r * gridSize + c;
+      const to = from + gridSize;
+      if (!isStanding(nextCells[from]) || isStanding(nextCells[to])) continue;
+      const raider = nextCells[from];
+      nextCells[from] = { ...nextCells[to], type: NODE_TYPES.EMPTY, hp: 0, maxHp: 0, row: r, col: c };
+      nextCells[to] = { ...raider, row: r + 1, col: c };
+      moved.push(raider.id);
+    }
+  }
+
+  return { nextCells, strikes, wallDamage, moved };
 }
 
 export function getAbilityPreviewIndices({
@@ -576,7 +600,8 @@ export function executeAbilityAndResolveChains({
   adBoostMultiplier = 1,
   sector = 1,
   turnAmplifierBonus = 1,
-  isTutorial = false,
+  // Intro stages: no luck, and chain hits always kill, so the set shot always works
+  isIntro = false,
   isAutoArcherShot = false,
   // Daily boards pass a seeded generator so crits and lucky procs match for every player
   rng = Math.random,
@@ -608,13 +633,12 @@ export function executeAbilityAndResolveChains({
     2,
     Math.floor((2 + sector * 0.95) * (1 + chainAmpLevel * 0.2))
   );
-  const maxHpShredRatio = isTutorial ? 1.0 : 0.18 + chainAmpLevel * 0.015;
+  const maxHpShredRatio = isIntro ? 1.0 : 0.18 + chainAmpLevel * 0.015;
 
-  // No luck in the tutorial, so it plays out the same every time
-  const critChance = isTutorial ? 0 : 0.08 + luckySparkLevel * 0.015;
-  const luckyFuseIgniteChance = isTutorial ? 0 : 0.08 + luckySparkLevel * 0.018;
-  const luckyExecuteChance = isTutorial ? 0 : 0.04 + luckySparkLevel * 0.01;
-  const contagionExplodeChance = isTutorial ? 0 : contagionLevel * 0.04;
+  const critChance = isIntro ? 0 : 0.08 + luckySparkLevel * 0.015;
+  const luckyFuseIgniteChance = isIntro ? 0 : 0.08 + luckySparkLevel * 0.018;
+  const luckyExecuteChance = isIntro ? 0 : 0.04 + luckySparkLevel * 0.01;
+  const contagionExplodeChance = isIntro ? 0 : contagionLevel * 0.04;
 
   // Thunder-Hammer bounces go to the toughest raiders left on the board
   const bounceTargets = [];
@@ -647,7 +671,7 @@ export function executeAbilityAndResolveChains({
     const cell = nextCells[idx];
     if (!cell || cell.type === NODE_TYPES.EMPTY || cell.hp <= 0) return;
 
-    const isCrit = !isTutorial && rng() < critChance;
+    const isCrit = !isIntro && rng() < critChance;
     const critMult = isCrit ? 3.0 : 1.0;
     if (isCrit) {
       cell.critHit = true;
@@ -663,7 +687,7 @@ export function executeAbilityAndResolveChains({
 
     // Lucky procs only matter on hits that wouldn't kill anyway
     let triggeredLuckyProc = false;
-    if (!isTutorial && cell.hp > effectiveDamage) {
+    if (!isIntro && cell.hp > effectiveDamage) {
       const isVolatileUnit =
         cell.type === NODE_TYPES.BOMB ||
         cell.type === NODE_TYPES.CONDUIT ||
@@ -873,7 +897,7 @@ export function executeAbilityAndResolveChains({
 
   // A shot that fells 5 or more can refund its volley
   let refundedCharge = 0;
-  if (!isTutorial && !isAutoArcherShot && !isBoardClear && nodesDestroyed >= 5) {
+  if (!isIntro && !isAutoArcherShot && !isBoardClear && nodesDestroyed >= 5) {
     const refundChance = 0.12 + contagionLevel * 0.03;
     if (rng() < refundChance) {
       refundedCharge = 1;
