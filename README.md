@@ -46,6 +46,19 @@ Waves are shown as chapter stages: waves 1 to 5 are stages 1-1 to 1-5 (a boss on
 
 After every shot that leaves raiders standing, the horde marches (`marchHorde` in `src/game/engine.js`). Raiders on the bottom row strike the wall, 1 each and 2 for an ogre, then every other raider steps one row down if the tile in front is free. A raider stepping onto a fallen one tramples it. The wall holds twice the board width plus 2 (`getWallMax`), so a 3×3 wall can't fall in three shots. From wave 10 on, a bot that guards the front clears 5 to 15 points fewer waves than before the march.
 
+Before every campaign stage after the intro, the player picks one of three battle cards (`BATTLE_CARDS`), which last for that stage only. `getCardShotMods` turns a card into the shot's modifiers (keg blast radius, lightning on both lines, rally size, weapon and chain damage, contagion, a first shot that always crits). The screen applies the rest: an extra shot, +8 wall, double Gold, starting Rally, and two goblins turned into kegs. Auto takes the first card it is dealt, and the Daily has no cards. In a bot test on stage 2-3, every card except Masons and Plunder (which guard the wall and pay Gold) wins noticeably more often than no card.
+
+Each chapter ends on a boss (`BOSS_KINDS`, cycling by chapter):
+
+| Boss | Rule |
+| --- | --- |
+| Ogre Warlord | Lots of HP. |
+| Goblin King | Calls a goblin into the free top-row tile nearest him after every march. |
+| Shield Troll | Raiders in his row and column take half damage. |
+| Hex Witch | Heals every other raider a quarter of their max HP after every march. |
+
+Every boss strikes the wall for 2 and shakes 5×5 when it falls. The other bosses are the ogre sprite recoloured. In the bot test, the boss each chapter actually gets is beaten 5 to 11 points less often than an ogre on the same stage.
+
 A new player's first three stages are set boards (`INTRO_STAGES`), each cleared by one Ballista shot at the tile the glove points to: a keg, a shaman, then a banner. They play with no luck, and chain hits always kill, so the set shot always works. The menu shows only Play until stage 1-3 is cleared. Only a win on the frontier stage unlocks the next one. Archers help only while you still have volleys left. Leaving for the Royal Forge mid-stage resumes the same board.
 
 ### Economy

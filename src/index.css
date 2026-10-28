@@ -4427,6 +4427,13 @@ a:focus-visible,
   font-size: clamp(0.8rem, 2.6cqi, 1.1rem);
   color: #fef3c7;
   text-shadow: 2px 2px 0 #1c1917;
+  /* A boss's rule is a sentence: keep it on a dark plate, wrapped to the board */
+  max-width: min(420px, 80vw);
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 6px;
+  background: rgba(20, 12, 6, 0.8);
+  text-align: center;
 }
 
 @keyframes comboSlam {
@@ -4580,5 +4587,153 @@ a:focus-visible,
   .castle-wall-strip.wall-hit,
   .grid-tile.tile-at-wall::after {
     animation: none;
+  }
+}
+
+/* Battle cards: three to choose from before a campaign stage */
+.card-offer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8%;
+  background: rgba(15, 10, 6, 0.78);
+  border-radius: 14px;
+  animation: cardOfferIn 0.25s ease-out;
+}
+
+.card-offer-title {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 4.5cqi, 1.6rem);
+  color: #fde047;
+  text-shadow: 2px 2px 0 #7c2d12;
+}
+
+.card-offer-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(6px, 2cqi, 14px);
+  width: 100%;
+}
+
+.battle-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: clamp(120px, 38cqi, 210px);
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 3px solid #b45309;
+  background: linear-gradient(#3b2a1a, #24170d);
+  box-shadow: 0 6px 0 #120c07, 0 10px 20px rgba(0, 0, 0, 0.6);
+  color: #f3dfc1;
+  font-family: var(--font-body);
+  font-size: clamp(0.72rem, 2.6cqi, 0.95rem);
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  animation: cardDeal 0.35s ease-out backwards;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.battle-card:nth-child(2) { animation-delay: 0.07s; }
+.battle-card:nth-child(3) { animation-delay: 0.14s; }
+
+.battle-card strong {
+  font-family: var(--font-display);
+  font-size: clamp(0.8rem, 3cqi, 1.1rem);
+  color: #fde047;
+}
+
+.battle-card:hover,
+.battle-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: #fbbf24;
+  outline: none;
+}
+
+.battle-card-icon {
+  display: grid;
+  place-items: center;
+  width: clamp(36px, 11cqi, 56px);
+  height: clamp(36px, 11cqi, 56px);
+  border-radius: 8px;
+  background: #1b130d;
+  border: 2px solid #8a6a45;
+  color: #fbbf24;
+}
+
+@keyframes cardOfferIn {
+  from { opacity: 0; }
+}
+
+@keyframes cardDeal {
+  from { opacity: 0; transform: translateY(24px) rotate(-4deg); }
+}
+
+.amp-pill.card-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #4c1d95;
+  border-color: #c4b5fd;
+  color: #ede9fe;
+}
+
+/* Bosses at work: the troll's shield, the king's summons, the witch's healing */
+.tile-shield-badge {
+  position: absolute;
+  left: 6%;
+  bottom: 12%;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  background: rgba(30, 58, 138, 0.85);
+  border: 1px solid #93c5fd;
+  color: #dbeafe;
+  pointer-events: none;
+}
+
+.grid-tile.tile-summoned {
+  animation: summonIn 0.5s ease-out;
+}
+
+@keyframes summonIn {
+  0% { transform: translateY(-40%) scale(0.6); opacity: 0; filter: brightness(2); }
+  60% { transform: translateY(4%) scale(1.04); opacity: 1; }
+  100% { transform: none; filter: none; }
+}
+
+.grid-tile.tile-healed .creature-wrap {
+  animation: healGlow 0.7s ease-out;
+}
+
+@keyframes healGlow {
+  0% { filter: drop-shadow(0 0 0 #22c55e) brightness(1.6) hue-rotate(60deg); }
+  100% { filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-offer,
+  .battle-card,
+  .grid-tile.tile-summoned,
+  .grid-tile.tile-healed .creature-wrap {
+    animation: none;
+  }
+}
+
+/* Short landscape screens: the battlements on the board stand in for the wall pill, and the
+   battle card takes the Ignite pill's place in the side column */
+@media (min-width: 560px) and (min-aspect-ratio: 5/4) and (max-height: 520px) {
+  .charges-display .wall-meter,
+  .charges-display:has(.card-pill) .ignite-pill {
+    display: none;
   }
 }

@@ -27,6 +27,13 @@ import {
   Robot,
   Crown,
   Music,
+  Bomb,
+  Zap,
+  Flag,
+  Crosshair,
+  Fire,
+  Coins,
+  Potion,
 } from './components/PixelIcons';
 import {
   NODE_TYPES,
@@ -34,6 +41,11 @@ import {
   ABILITIES,
   UPGRADE_CATALOG,
   INTRO_STAGES,
+  BOSS_KINDS,
+  dealBattleCards,
+  getCardShotMods,
+  revealSaboteurs,
+  isShieldedByTroll,
   generateBoard,
   generateIntroBoard,
   getWallMax,
@@ -225,6 +237,21 @@ const toCountMap = (value, maxCount) => {
   return out;
 };
 
+const CARD_ICONS = {
+  Sword,
+  Bomb,
+  Zap,
+  Flag,
+  Crosshair,
+  Castle,
+  Fire,
+  Coins,
+  Star,
+  Sparkles,
+  Shield,
+  Potion,
+};
+
 const AUTO_BEAT_MS = 1200;
 // Pause after a run ends so the result reads and auto never outpaces a player by much
 const AUTO_RESTART_MS = 2500;
@@ -251,6 +278,7 @@ function pickAutoTarget(live, { selectedAbilityId, save, activeGridSize }) {
       sector: live.sector,
       turnAmplifierBonus: live.amp,
       rng,
+      mods: getCardShotMods(live.card, live.volleysFired === 0),
     });
     const score = trial.stats.nodesDestroyed + (trial.stats.isBoardClear ? 100 : 0);
     if (score > bestScore) {
@@ -401,7 +429,6 @@ export default function App() {
   const campaignGridSize = Math.min(8, 3 + (save.upgrades.grid_size || 0));
   const activeGridSize = gameMode === 'DAILY' ? 5 : campaignGridSize;
   const maxTurnCharges = gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
-  const wallMax = getWallMax(activeGridSize);
 
   const [chargesLeft, setChargesLeft] = useState(maxTurnCharges);
   // Wave the board on screen belongs to; save.sector moves ahead as soon as a wave is cleared
@@ -423,6 +450,11 @@ export default function App() {
   const [introTarget, setIntroTarget] = useState(null);
   // Raiders striking the wall this turn, by tile id
   const [strikingIds, setStrikingIds] = useState(null);
+  // Before a campaign stage: three battle cards to pick from; then the one picked
+  const [cardOffer, setCardOffer] = useState(null);
+  const [activeCard, setActiveCard] = useState(null);
+  const [wallCap, setWallCap] = useState(() => getWallMax(campaignGridSize));
+  const shotCap = maxTurnCharges + (activeCard?.id === 'extra_shot' ? 1 : 0);
   const [adVolleyUsed, setAdVolleyUsed] = useState(false);
 
   // Live battle state read and written synchronously, so clicks landing in the same frame
@@ -447,7 +479,10 @@ export default function App() {
       adVolleyUsed: false,
       lockUntil: 0,
       wallHp: getWallMax(campaignGridSize),
+      wallCap: getWallMax(campaignGridSize),
       intro: false,
+      card: null,
+      cardPending: false,
     };
   }
 
@@ -459,6 +494,7 @@ export default function App() {
     if ('amp' in patch) setTurnAmplifierBonus(patch.amp);
     if ('adVolleyUsed' in patch) setAdVolleyUsed(patch.adVolleyUsed);
     if ('wallHp' in patch) setWallHp(patch.wallHp);
+    if ('wallCap' in patch) setWallCap(patch.wallCap);
   };
 
   const [commanderMessage, setCommanderMessage] = useState(
@@ -720,7 +756,7 @@ export default function App() {
       const live = battleRef.current;
       const currentSave = saveRef.current;
       if (currentScreen !== 'PLAY' || live.mode !== 'CAMPAIGN' || isRewardedAdPlaying()) return;
-      if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) return;
+      if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0 || live.cardPending) return;
 
       const aliveCells = live.board.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
       if (aliveCells.length === 0) return;
@@ -728,7 +764,8 @@ export default function App() {
       registerCampaignAttempt();
       const target = aliveCells[Math.floor(Math.random() * aliveCells.length)];
       const prestigeMult = getCrestGoldMult(currentSave.overclockCores || 0, currentSave.crestUpgrades);
-      const adMult = (boostLeft > 0 ? 2 : 1) * prestigeMult;
+      const plunder = live.card === 'plunder' ? 2 : 1;
+      const adMult = (boostLeft > 0 ? 2 : 1) * prestigeMult * plunder;
 
       const result = executeAbilityAndResolveChains({
         cells: live.board,
@@ -745,6 +782,7 @@ export default function App() {
         sector: live.sector,
         turnAmplifierBonus: live.amp,
         isAutoArcherShot: true,
+        mods: getCardShotMods(live.card),
       });
 
       const hitVfx = (result.hits || []).map((h) => buildHitVfx(h, h.atMs));
@@ -813,6 +851,8 @@ export default function App() {
           isDaily,
         });
     const wallStart = getWallMax(gSize);
+    // Campaign stages past the intro open with a choice of battle card
+    const offer = targetMode === 'CAMPAIGN' && !intro ? dealBattleCards() : null;
 
     battleRef.current = {
       board: nextCells,
@@ -834,7 +874,11 @@ export default function App() {
       adVolleyUsed: false,
       lockUntil: 0,
       wallHp: wallStart,
+      wallCap: wallStart,
       intro: Boolean(intro),
+      card: null,
+      cardPending: Boolean(offer),
+      cardOffer: offer,
     };
     syncBattle({
       board: nextCells,
@@ -843,7 +887,10 @@ export default function App() {
       amp: 1,
       adVolleyUsed: false,
       wallHp: wallStart,
+      wallCap: wallStart,
     });
+    setCardOffer(offer);
+    setActiveCard(null);
     setArmedCellId(null);
     setBoardSector(boardSectorValue);
     setLastTurnStats(null);
@@ -862,6 +909,47 @@ export default function App() {
         : `Stage ${getStageLabel(targetSector)}. Hit the kegs and shamans first.`
     );
     if (intro) trackEvent('tutorial_step_started', { step: targetSector });
+    if (!offer) announceBoss(nextCells);
+  };
+
+  // Big text over the board: a long chain, or the boss of a chapter arriving
+  const showCallout = (title, sub, ms = 1400) => {
+    const id = `callout-${Date.now()}-${Math.random()}`;
+    setComboCallout({ id, title, sub, ms });
+    setTimeout(() => setComboCallout((c) => (c?.id === id ? null : c)), ms);
+  };
+
+  const announceBoss = (cells) => {
+    const boss = cells.find((c) => c.bossKind);
+    if (!boss) return;
+    const kind = BOSS_KINDS[boss.bossKind];
+    showCallout(kind.name, kind.rule, 2200);
+    setCommanderMessage(`${kind.name}! ${kind.rule}`);
+  };
+
+  // The card applies at once where it changes the stage itself: shots, wall, or the board
+  const pickBattleCard = (card) => {
+    const live = battleRef.current;
+    if (!live.cardPending) return;
+    live.cardPending = false;
+    live.card = card.id;
+    setCardOffer(null);
+    setActiveCard(card);
+    playSfx('upgrade', muted);
+    trackEvent('battle_card_picked', { card: card.id, sector: live.sector });
+
+    const patch = {};
+    if (card.id === 'extra_shot') patch.chargesLeft = live.chargesLeft + 1;
+    if (card.id === 'masons') {
+      patch.wallHp = live.wallHp + 8;
+      patch.wallCap = live.wallCap + 8;
+    }
+    if (card.id === 'saboteurs') patch.board = revealSaboteurs(live.board);
+    if (card.id === 'war_horn') patch.amp = live.amp + 0.5;
+    if (Object.keys(patch).length > 0) syncBattle(patch);
+
+    setCommanderMessage(`${card.name}: ${card.desc}`);
+    announceBoss(live.board);
   };
 
   // Resume a live campaign wave (e.g. returning from the Forge) instead of rerolling it
@@ -1030,18 +1118,29 @@ export default function App() {
     if (live.outcome !== 'IN_PROGRESS') return;
     const gridSize = Math.round(Math.sqrt(live.board.length));
     const march = marchHorde(live.board, gridSize);
-    if (march.moved.length === 0 && march.wallDamage === 0) return;
+    const bossActed = march.summoned.length > 0 || march.healed > 0;
+    if (march.moved.length === 0 && march.wallDamage === 0 && !bossActed) return;
 
     const wallHpLeft = Math.max(0, live.wallHp - march.wallDamage);
     const outcome = wallHpLeft <= 0 ? 'DEFEAT' : 'IN_PROGRESS';
     syncBattle({ board: march.nextCells, wallHp: wallHpLeft, outcome });
-    if (march.strikes.length === 0) return;
 
-    const ids = new Set(march.strikes.map((st) => st.cellId));
-    setStrikingIds(ids);
-    setTimeout(() => setStrikingIds((cur) => (cur === ids ? null : cur)), 520);
-    shake(gridStageRef.current, 4 + Math.min(6, march.wallDamage), 260);
-    playSfx('hit', muted, { weapon: 'nova_bomb' });
+    const notes = [];
+    if (march.strikes.length > 0) {
+      const ids = new Set(march.strikes.map((st) => st.cellId));
+      setStrikingIds(ids);
+      setTimeout(() => setStrikingIds((cur) => (cur === ids ? null : cur)), 520);
+      shake(gridStageRef.current, 4 + Math.min(6, march.wallDamage), 260);
+      playSfx('hit', muted, { weapon: 'nova_bomb' });
+      const hitters = march.strikes.length;
+      notes.push(
+        `${hitters === 1 ? 'A raider hits' : `${hitters} raiders hit`} the wall! ` +
+          `Wall ${wallHpLeft}/${live.wallCap}.`
+      );
+    }
+    if (march.summoned.length > 0) notes.push('The Goblin King calls a goblin!');
+    if (march.healed > 0) notes.push(`The Hex Witch heals ${march.healed}!`);
+    if (bossActed) playSfx('lucky', muted);
 
     if (outcome === 'DEFEAT') {
       playSfx('defeat', muted);
@@ -1050,16 +1149,12 @@ export default function App() {
       setCommanderMessage('The wall fell! Clear the front row before they reach it.');
       return;
     }
-    const hitters = march.strikes.length;
-    setCommanderMessage(
-      `${hitters === 1 ? 'A raider hits' : `${hitters} raiders hit`} the wall! ` +
-        `Wall ${wallHpLeft}/${getWallMax(gridSize)}.`
-    );
+    if (notes.length > 0) setCommanderMessage(notes.join(' '));
   };
 
   const handleCellClick = (cell) => {
     const live = battleRef.current;
-    if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) return;
+    if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0 || live.cardPending) return;
     if (performance.now() < live.lockUntil) return;
     const { row, col } = cell;
 
@@ -1081,7 +1176,9 @@ export default function App() {
     setTimeout(() => setFiringWeaponId(null), 420);
 
     const prestigeMult = getCrestGoldMult(save.overclockCores || 0, save.crestUpgrades);
-    const adMult = (adBoostSeconds > 0 ? 2 : 1) * prestigeMult;
+    const plunder = live.card === 'plunder' ? 2 : 1;
+    const adMult = (adBoostSeconds > 0 ? 2 : 1) * prestigeMult * plunder;
+    const mods = getCardShotMods(live.card, live.volleysFired === 1);
 
     const result = executeAbilityAndResolveChains({
       cells: live.board,
@@ -1099,12 +1196,13 @@ export default function App() {
       turnAmplifierBonus: live.amp,
       isIntro: live.intro,
       isAutoArcherShot: false,
+      mods,
       rng: live.rng,
     });
 
     const shotFrom = live.board;
     const nextCharges = Math.min(
-      maxTurnCharges,
+      shotCap,
       live.chargesLeft - 1 + (result.stats.refundedCharge || 0)
     );
     const outcome = result.stats.isBoardClear
@@ -1153,14 +1251,10 @@ export default function App() {
 
         const { chainDepth, nodesDestroyed } = result.stats;
         if (chainDepth >= 2 && nodesDestroyed >= 3) {
-          const id = `combo-${Date.now()}`;
-          setComboCallout({
-            id,
-            title:
-              chainDepth >= 6 ? 'Massacre!' : chainDepth >= 4 ? 'Great chain!' : 'Chain!',
-            kills: nodesDestroyed,
-          });
-          setTimeout(() => setComboCallout((c) => (c?.id === id ? null : c)), 1400);
+          showCallout(
+            chainDepth >= 6 ? 'Massacre!' : chainDepth >= 4 ? 'Great chain!' : 'Chain!',
+            `${nodesDestroyed} raiders down`
+          );
         }
 
         setFloatingPopups((prev) => [
@@ -1391,7 +1485,7 @@ export default function App() {
     // Ignore the trailing click of a double-click on "Claim" landing on the board
     live.lockUntil = performance.now() + 350;
     syncBattle({
-      chargesLeft: Math.min(maxTurnCharges, live.chargesLeft + 1),
+      chargesLeft: Math.min(shotCap, live.chargesLeft + 1),
       outcome: 'IN_PROGRESS',
       adVolleyUsed: true,
     });
@@ -1476,7 +1570,14 @@ export default function App() {
   // Auto: fires the best-scoring shot each beat, then starts the stage again when it ends.
   // Handlers change every render, so the loop reads the latest ones through a ref.
   const autoActionsRef = useRef(null);
-  autoActionsRef.current = { handleCellClick, startGameSession, selectedAbilityId, save, activeGridSize };
+  autoActionsRef.current = {
+    handleCellClick,
+    startGameSession,
+    pickBattleCard,
+    selectedAbilityId,
+    save,
+    activeGridSize,
+  };
   useEffect(() => {
     if (autoSector === null) return;
     if (screen !== 'PLAY' || gameMode !== 'CAMPAIGN') {
@@ -1494,6 +1595,11 @@ export default function App() {
       if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) {
         if (performance.now() < live.lockUntil + AUTO_RESTART_MS) return;
         actions.startGameSession('CAMPAIGN', autoSector);
+        return;
+      }
+      // Auto takes the first card it is dealt
+      if (live.cardPending) {
+        actions.pickBattleCard(live.cardOffer[0]);
         return;
       }
       const target = pickAutoTarget(live, actions);
@@ -1869,13 +1975,14 @@ export default function App() {
             isCleared={isBoardCleared}
             commanderMessage={commanderMessage}
             selectedWeaponId={selectedAbilityId}
+            bossKind={board.find((c) => c.bossKind)?.bossKind}
           />
 
           <div className="battle-hud-bar">
             <div className="charges-display">
               <span className="charges-label">Shots</span>
               <div className="charge-pips">
-                {Array.from({ length: maxTurnCharges }).map((_, i) => (
+                {Array.from({ length: shotCap }).map((_, i) => (
                   <span
                     key={i}
                     className={`charge-pip ${i < chargesLeft ? 'active' : 'spent'}`}
@@ -1887,16 +1994,16 @@ export default function App() {
               </div>
               <span
                 key={wallHp}
-                className={`wall-meter ${wallHp < wallMax ? 'wall-hit' : ''} ${
-                  wallHp <= Math.ceil(wallMax / 3) ? 'wall-low' : ''
+                className={`wall-meter ${wallHp < wallCap ? 'wall-hit' : ''} ${
+                  wallHp <= Math.ceil(wallCap / 3) ? 'wall-low' : ''
                 }`}
                 title="Raiders on the bottom row hit the wall after each shot. If it falls, the wave is lost."
               >
-                <Castle size={14} /> Wall {wallHp}/{wallMax}
+                <Castle size={14} /> Wall {wallHp}/{wallCap}
               </span>
               {screen === 'PLAY' && (
                 <span
-                  className="amp-pill"
+                  className="amp-pill ignite-pill"
                   title="Ignite: any hit can set off a keg or shaman instantly"
                 >
                   <Sparkles size={12} /> Ignite {8 + Math.round((save.upgrades.lucky_spark || 0) * 1.8)}%
@@ -1919,6 +2026,12 @@ export default function App() {
                     Replay {getStageLabel(boardSector)}
                   </span>
                 )
+              )}
+              {activeCard && (
+                <span className="amp-pill card-pill" title={activeCard.desc}>
+                  {React.createElement(CARD_ICONS[activeCard.icon] || Star, { size: 12 })}{' '}
+                  {activeCard.name}
+                </span>
               )}
               {turnAmplifierBonus > 1 && (
                 <span className="amp-pill">
@@ -1980,10 +2093,40 @@ export default function App() {
             <div className="courtyard-board-wrap">
               <BattleVFXCanvas vfxQueue={vfxQueue} gridSize={activeGridSize} gridRef={gridRef} />
 
+              {cardOffer && (
+                <div className="card-offer" role="dialog" aria-label="Choose a battle card">
+                  <strong className="card-offer-title">Choose a battle card</strong>
+                  <div className="card-offer-row">
+                    {cardOffer.map((card) => {
+                      const Icon = CARD_ICONS[card.icon] || Star;
+                      return (
+                        <button
+                          key={card.id}
+                          type="button"
+                          className="battle-card"
+                          onClick={() => pickBattleCard(card)}
+                        >
+                          <span className="battle-card-icon">
+                            <Icon size={26} />
+                          </span>
+                          <strong>{card.name}</strong>
+                          <span>{card.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {comboCallout && (
-                <div key={comboCallout.id} className="combo-callout" aria-live="polite">
+                <div
+                  key={comboCallout.id}
+                  className="combo-callout"
+                  style={{ animationDuration: `${comboCallout.ms}ms` }}
+                  aria-live="polite"
+                >
                   <strong>{comboCallout.title}</strong>
-                  <span>{comboCallout.kills} raiders down</span>
+                  <span>{comboCallout.sub}</span>
                 </div>
               )}
 
@@ -2031,6 +2174,8 @@ export default function App() {
                         isArmed ? 'tile-armed' : '',
                         cell.justHit ? 'tile-hit-flash' : '',
                         cell.destroyedByChain ? 'tile-chain-wrecked' : '',
+                        cell.summoned ? 'tile-summoned' : '',
+                        cell.healed ? 'tile-healed' : '',
                       ]
                         .filter(Boolean)
                         .join(' ')}
@@ -2056,15 +2201,24 @@ export default function App() {
                       {!isDead ? (
                         <>
                           <div className="tile-top-row">
-                            <span className="tile-type-tag">{meta.short}</span>
+                            <span className="tile-type-tag">
+                              {cell.bossKind ? BOSS_KINDS[cell.bossKind].short : meta.short}
+                            </span>
                             <span className="tile-hp-pill">
                               <Heart size={12} className="tile-hp-heart" />
                               {cell.hp}
                             </span>
                           </div>
 
+                          {isShieldedByTroll(displayBoard, cell) && (
+                            <span className="tile-shield-badge" title="Shielded by the troll">
+                              <Shield size={14} />
+                            </span>
+                          )}
+
                           <CreatureSprite
                             type={cell.type}
+                            bossKind={cell.bossKind}
                             conduitAxis={cell.conduitAxis}
                             isTargeted={isTargeted}
                             isLowHp={hpPercent <= 40}
@@ -2082,6 +2236,7 @@ export default function App() {
                           {cell.type !== NODE_TYPES.EMPTY && (
                             <FallenCreature
                               type={cell.type}
+                              bossKind={cell.bossKind}
                               byBlast={cell.destroyedByChain}
                             />
                           )}
@@ -2095,12 +2250,12 @@ export default function App() {
               {/* The castle wall the horde marches on, one block per point of wall */}
               <div
                 key={wallHp}
-                className={`castle-wall-strip ${wallHp < wallMax ? 'wall-hit' : ''} ${
-                  wallHp <= Math.ceil(wallMax / 3) ? 'wall-low' : ''
+                className={`castle-wall-strip ${wallHp < wallCap ? 'wall-hit' : ''} ${
+                  wallHp <= Math.ceil(wallCap / 3) ? 'wall-low' : ''
                 }`}
                 aria-hidden="true"
               >
-                {Array.from({ length: wallMax }).map((_, i) => (
+                {Array.from({ length: wallCap }).map((_, i) => (
                   <span key={i} className={i < wallHp ? 'wall-block' : 'wall-block broken'} />
                 ))}
               </div>
@@ -2308,6 +2463,11 @@ export default function App() {
                 After each shot the horde marches one row closer. Raiders on the bottom row strike the
                 castle wall, and if the wall falls the wave is lost, so deal with the front first.
               </p>
+              <p>
+                Before each stage, pick one of three <strong>battle cards</strong>: an extra shot,
+                bigger keg blasts, double Gold and more. Every fifth stage ends on a boss with its own
+                rule: the Ogre Warlord, the Goblin King, the Shield Troll and the Hex Witch.
+              </p>
               <ul>
                 <li>
                   <strong>Sapper (red keg):</strong> explodes 3×3 when it falls.
@@ -2511,13 +2671,15 @@ export default function App() {
                   <span>Rally: +50% damage for the rest of the turn.</span>
                 </div>
               </div>
-              <div className="bestiary-item">
-                <CreatureSprite type={NODE_TYPES.BOSS} />
-                <div>
-                  <strong className="text-violet">Ogre</strong>
-                  <span>Lots of HP. Shakes 5×5 when it falls. Bring it down with chains.</span>
+              {Object.entries(BOSS_KINDS).map(([kind, boss]) => (
+                <div className="bestiary-item" key={kind}>
+                  <CreatureSprite type={NODE_TYPES.BOSS} bossKind={kind} />
+                  <div>
+                    <strong className="text-violet">{boss.name}</strong>
+                    <span>Chapter boss. {boss.rule} Shakes 5×5 when it falls.</span>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
 
             <div className="modal-actions">
