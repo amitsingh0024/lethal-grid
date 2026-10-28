@@ -4456,3 +4456,129 @@ a:focus-visible,
     animation: none;
   }
 }
+
+/* The castle wall's health, beside the shots */
+.wall-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #3b2a1a;
+  border: 1px solid #a87b4f;
+  color: #f3dfc1;
+  white-space: nowrap;
+}
+
+.wall-meter.wall-low {
+  background: #5b1a14;
+  border-color: #f87171;
+  color: #fecaca;
+}
+
+.wall-meter.wall-hit {
+  animation: wallHit 0.45s ease-out;
+}
+
+@keyframes wallHit {
+  0% { transform: translateX(0) scale(1.15); filter: brightness(1.8); }
+  25% { transform: translateX(-3px) scale(1.1); }
+  50% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+  100% { transform: translateX(0) scale(1); filter: none; }
+}
+
+/* A raider at the front lunges at the wall below the board */
+.grid-tile.tile-striking .creature-wrap {
+  animation: raiderStrike 0.5s ease-in-out;
+}
+
+@keyframes raiderStrike {
+  0% { transform: translateY(0); }
+  35% { transform: translateY(18%) scale(1.08); }
+  55% { transform: translateY(14%) scale(1.08); }
+  100% { transform: translateY(0); }
+}
+
+.grid-tile.tile-striking {
+  box-shadow: inset 0 -6px 0 rgba(220, 38, 38, 0.75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-meter.wall-hit,
+  .grid-tile.tile-striking .creature-wrap {
+    animation: none;
+  }
+}
+
+/* Raiders on the bottom row will hit the wall after the shot: a red arrow under the tile */
+.grid-tile.tile-at-wall::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  transform: translateX(-50%);
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 10px solid #ef4444;
+  filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.9));
+  animation: atWallPulse 0.9s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 4;
+}
+
+@keyframes atWallPulse {
+  50% { transform: translate(-50%, 3px); opacity: 0.6; }
+}
+
+/* Battlements along the bottom of the board frame */
+.castle-wall-strip {
+  position: absolute;
+  left: 50%;
+  bottom: 1.2%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 3px;
+  padding: 3px 5px;
+  background: rgba(20, 12, 6, 0.85);
+  border: 2px solid #8a6a45;
+  border-radius: 4px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.castle-wall-strip .wall-block {
+  width: clamp(8px, 2.4cqi, 14px);
+  height: clamp(8px, 2.4cqi, 12px);
+  background: linear-gradient(#cbb89a, #8f7b5e);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.castle-wall-strip .wall-block.broken {
+  background: #2a1d12;
+  box-shadow: inset 0 0 0 1px #4a3524;
+}
+
+.castle-wall-strip.wall-low .wall-block:not(.broken) {
+  background: linear-gradient(#f2a3a3, #b94a4a);
+}
+
+.castle-wall-strip.wall-hit {
+  animation: wallStripHit 0.45s ease-out;
+}
+
+@keyframes wallStripHit {
+  0% { transform: translateX(-50%) scale(1.12); filter: brightness(1.7); }
+  30% { transform: translateX(calc(-50% - 4px)); }
+  60% { transform: translateX(calc(-50% + 4px)); }
+  100% { transform: translateX(-50%); filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .castle-wall-strip.wall-hit,
+  .grid-tile.tile-at-wall::after {
+    animation: none;
+  }
+}

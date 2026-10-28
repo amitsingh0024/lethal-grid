@@ -42,7 +42,11 @@ Chains trigger other enemies, so one hit can clear the whole board.
 - **Battlement Archer Garrison:** archers auto-shoot enemies every 2.2 seconds.
 
 ### Stages, winning and losing
-Waves are shown as chapter stages: waves 1 to 5 are stages 1-1 to 1-5 (a boss on 1-5), wave 6 is 2-1, and so on. A stage is won when every raider is down, and lost when the volleys run out first. Only a win on the frontier stage unlocks the next one. Archers help only while you still have volleys left. Leaving for the Royal Forge mid-stage resumes the same board.
+Waves are shown as chapter stages: waves 1 to 5 are stages 1-1 to 1-5 (a boss on 1-5), wave 6 is 2-1, and so on. A stage is won when every raider is down, and lost when the volleys run out first or the castle wall falls.
+
+After every shot that leaves raiders standing, the horde marches (`marchHorde` in `src/game/engine.js`). Raiders on the bottom row strike the wall, 1 each and 2 for an ogre, then every other raider steps one row down if the tile in front is free. A raider stepping onto a fallen one tramples it. The wall holds twice the board width plus 2 (`getWallMax`), so a 3×3 wall can't fall in three shots. From wave 10 on, a bot that guards the front clears 5 to 15 points fewer waves than before the march.
+
+A new player's first three stages are set boards (`INTRO_STAGES`), each cleared by one Ballista shot at the tile the glove points to: a keg, a shaman, then a banner. They play with no luck, and chain hits always kill, so the set shot always works. The menu shows only Play until stage 1-3 is cleared. Only a win on the frontier stage unlocks the next one. Archers help only while you still have volleys left. Leaving for the Royal Forge mid-stage resumes the same board.
 
 ### Economy
 The core loop is replay and upgrade: play a stage, bank the gold, buy upgrades, then push the next stage or farm a cleared one from the Siege Map.
@@ -127,7 +131,7 @@ Both builds go silent while the tab is hidden, which portal QA checks by switchi
 | `zip:gamedistribution` | GameDistribution | Needs `VITE_GD_GAME_ID` from the GD dashboard. Interstitial and rewarded ads |
 | `zip:poki` | Poki | Commercial and rewarded breaks, gameplay start/stop |
 
-In the SDK builds a commercial break plays as the player enters a wave (not in training, on auto replays, or within 30 seconds of another ad), and the existing reward buttons (2× Gold, +1 Shot, 2× Garrison) play the portal's rewarded ad. Sound and the game's timers pause while an ad shows.
+In the SDK builds a commercial break plays as the player enters a wave (not on the intro stages, on auto replays, or within 30 seconds of another ad), and the existing reward buttons (2× Gold, +1 Shot, 2× Garrison) play the portal's rewarded ad. Sound and the game's timers pause while an ad shows.
 
 ---
 

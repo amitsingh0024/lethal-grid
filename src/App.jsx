@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import confetti from 'canvas-confetti';
 import {
@@ -33,10 +33,11 @@ import {
   NODE_META,
   ABILITIES,
   UPGRADE_CATALOG,
-  TUTORIAL_LESSONS,
+  INTRO_STAGES,
   generateBoard,
-  generateTutorialBoard,
-  getTutorialGridSize,
+  generateIntroBoard,
+  getWallMax,
+  marchHorde,
   getAbilityPreviewIndices,
   executeAbilityAndResolveChains,
   getUpgradeCost,
@@ -227,6 +228,8 @@ const toCountMap = (value, maxCount) => {
 const AUTO_BEAT_MS = 1200;
 // Pause after a run ends so the result reads and auto never outpaces a player by much
 const AUTO_RESTART_MS = 2500;
+// How long the horde takes to step forward after a shot
+const MARCH_MS = 420;
 
 // Auto's aim: try every living raider with a throwaway roll and take the shot that fells the most
 function pickAutoTarget(live, { selectedAbilityId, save, activeGridSize }) {
@@ -366,9 +369,8 @@ export default function App() {
   const saveRef = useRef(save);
   saveRef.current = save;
 
-  // Top-level screen state: 'MENU' | 'TUTORIAL' | 'PLAY' | 'UPGRADES'
+  // Top-level screen state: 'MENU' | 'PLAY' | 'UPGRADES'
   const [screen, setScreen] = useState('MENU');
-  const [tutorialStep, setTutorialStep] = useState(1);
 
   const [gameMode, setGameMode] = useState('CAMPAIGN'); // 'CAMPAIGN' | 'DAILY'
   const [selectedAbilityId, setSelectedAbilityId] = useState('rail_beam');
@@ -397,10 +399,9 @@ export default function App() {
   const gridRef = useRef(null);
 
   const campaignGridSize = Math.min(8, 3 + (save.upgrades.grid_size || 0));
-  const activeGridSize =
-    screen === 'TUTORIAL' ? getTutorialGridSize(tutorialStep) : gameMode === 'DAILY' ? 5 : campaignGridSize;
-  const maxTurnCharges =
-    screen === 'TUTORIAL' ? 1 : gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
+  const activeGridSize = gameMode === 'DAILY' ? 5 : campaignGridSize;
+  const maxTurnCharges = gameMode === 'DAILY' ? 3 : 2 + (save.upgrades.max_charges || 0);
+  const wallMax = getWallMax(activeGridSize);
 
   const [chargesLeft, setChargesLeft] = useState(maxTurnCharges);
   // Wave the board on screen belongs to; save.sector moves ahead as soon as a wave is cleared
@@ -414,8 +415,14 @@ export default function App() {
     })
   );
 
-  // 'IN_PROGRESS' until the board is cleared (VICTORY) or the volleys run out (DEFEAT)
+  // 'IN_PROGRESS' until the board is cleared (VICTORY), or the volleys run out or the wall
+  // falls (DEFEAT)
   const [waveOutcome, setWaveOutcome] = useState('IN_PROGRESS');
+  const [wallHp, setWallHp] = useState(() => getWallMax(campaignGridSize));
+  // The intro stage's tile to point at, until the first shot
+  const [introTarget, setIntroTarget] = useState(null);
+  // Raiders striking the wall this turn, by tile id
+  const [strikingIds, setStrikingIds] = useState(null);
   const [adVolleyUsed, setAdVolleyUsed] = useState(false);
 
   // Live battle state read and written synchronously, so clicks landing in the same frame
@@ -439,6 +446,8 @@ export default function App() {
       dailyPending: 0,
       adVolleyUsed: false,
       lockUntil: 0,
+      wallHp: getWallMax(campaignGridSize),
+      intro: false,
     };
   }
 
@@ -449,6 +458,7 @@ export default function App() {
     if ('outcome' in patch) setWaveOutcome(patch.outcome);
     if ('amp' in patch) setTurnAmplifierBonus(patch.amp);
     if ('adVolleyUsed' in patch) setAdVolleyUsed(patch.adVolleyUsed);
+    if ('wallHp' in patch) setWallHp(patch.wallHp);
   };
 
   const [commanderMessage, setCommanderMessage] = useState(
@@ -478,7 +488,6 @@ export default function App() {
   const [shareCopied, setShareCopied] = useState(false);
 
   const isWeaponUnlocked = (abilityId) => {
-    if (screen === 'TUTORIAL') return abilityId === 'rail_beam';
     if (gameMode === 'DAILY') return true;
     return (save.abilityLevels[abilityId] || 0) >= 1;
   };
@@ -644,8 +653,6 @@ export default function App() {
       }
     }
 
-    if (live.mode === 'TUTORIAL') return earned;
-
     const clearedSector = live.sector;
     const starsEarned = live.starsEarned;
     setSave((prev) => {
@@ -665,21 +672,16 @@ export default function App() {
         sector: nextSector,
         maxSectorReached: Math.max(prev.maxSectorReached, nextSector),
         lethalClears: isVictory ? prev.lethalClears + 1 : prev.lethalClears,
+        // Clearing the last intro stage opens the full menu
+        tutorialCompleted:
+          prev.tutorialCompleted || (advance && !INTRO_STAGES[clearedSector + 1]),
         waveAttempts: advance ? { sector: nextSector, count: 0 } : prev.waveAttempts,
         dailyClearedDate:
           live.mode === 'DAILY' && isVictory && earned > 0 ? live.dailySeed : prev.dailyClearedDate,
       };
     });
 
-    if (outcome === 'DEFEAT' && live.mode !== 'TUTORIAL') {
-      trackEvent('wave_failed', {
-        mode: live.mode,
-        sector: clearedSector,
-        frontier: clearedSector === saveRef.current.sector,
-        raiders_left: result.stats.remainingNodes,
-        volleys_fired: live.volleysFired,
-      });
-    }
+    if (outcome === 'DEFEAT') trackWaveFailed(result.stats.remainingNodes, 'shots');
     if (isVictory) {
       const attempts = saveRef.current.waveAttempts;
       trackEvent('lethal_board_clear', {
@@ -692,6 +694,18 @@ export default function App() {
       });
     }
     return earned;
+  };
+
+  const trackWaveFailed = (raidersLeft, reason) => {
+    const live = battleRef.current;
+    trackEvent('wave_failed', {
+      mode: live.mode,
+      sector: live.sector,
+      frontier: live.sector === saveRef.current.sector,
+      raiders_left: raidersLeft,
+      volleys_fired: live.volleysFired,
+      reason,
+    });
   };
 
   // Battlement archers shoot a living raider every 2.2s. They only fight while the wave is live
@@ -730,7 +744,6 @@ export default function App() {
         adBoostMultiplier: adMult,
         sector: live.sector,
         turnAmplifierBonus: live.amp,
-        isTutorial: false,
         isAutoArcherShot: true,
       });
 
@@ -753,43 +766,6 @@ export default function App() {
 
     return () => clearInterval(timer);
   }, [droneLevel]);
-
-  const startTutorial = (step = 1) => {
-    setScreen('TUTORIAL');
-    setTutorialStep(step);
-    setSelectedAbilityId('rail_beam');
-    const tutorialBoard = generateTutorialBoard(step);
-    battleRef.current = {
-      board: tutorialBoard,
-      chargesLeft: 1,
-      outcome: 'IN_PROGRESS',
-      amp: 1,
-      mode: 'TUTORIAL',
-      sector: 2,
-      attemptCounted: false,
-      runGold: 0,
-      firstClearBonus: 0,
-      volleysFired: 0,
-      starsEarned: 0,
-      chestGold: 0,
-      rng: Math.random,
-      dailyPending: 0,
-      adVolleyUsed: false,
-      lockUntil: 0,
-    };
-    syncBattle({
-      board: tutorialBoard,
-      chargesLeft: 1,
-      outcome: 'IN_PROGRESS',
-      amp: 1,
-      adVolleyUsed: false,
-    });
-    setArmedCellId(null);
-    setLastTurnStats(null);
-    const lesson = TUTORIAL_LESSONS[step - 1] || TUTORIAL_LESSONS[0];
-    setCommanderMessage(lesson.commanderSpeech);
-    trackEvent('tutorial_step_started', { step });
-  };
 
   // Shot stats for the result banner, with the clear's bonus gold and stars
   const clearStats = (result, earned) => {
@@ -819,14 +795,24 @@ export default function App() {
     const maxChg = isDaily ? 3 : customMaxCharges ?? 2 + (save.upgrades.max_charges || 0);
     const todaySeed = getTodayDateSeed();
     const boardSectorValue = isDaily ? 5 : targetSector;
+    // A new player's first three stages are set boards that teach one enemy each
+    const intro =
+      !isDaily &&
+      !save.tutorialCompleted &&
+      targetSector === save.sector &&
+      gSize === 3 &&
+      INTRO_STAGES[targetSector];
 
-    const nextCells = generateBoard({
-      gridSize: gSize,
-      sector: boardSectorValue,
-      volatileBonusLevel: isDaily ? 3 : save.upgrades.volatile_spawn || 0,
-      seedString: isDaily ? `DAILY-SEED-${todaySeed}` : null,
-      isDaily,
-    });
+    const nextCells = intro
+      ? generateIntroBoard(targetSector)
+      : generateBoard({
+          gridSize: gSize,
+          sector: boardSectorValue,
+          volatileBonusLevel: isDaily ? 3 : save.upgrades.volatile_spawn || 0,
+          seedString: isDaily ? `DAILY-SEED-${todaySeed}` : null,
+          isDaily,
+        });
+    const wallStart = getWallMax(gSize);
 
     battleRef.current = {
       board: nextCells,
@@ -847,6 +833,8 @@ export default function App() {
       dailyPending: 0,
       adVolleyUsed: false,
       lockUntil: 0,
+      wallHp: wallStart,
+      intro: Boolean(intro),
     };
     syncBattle({
       board: nextCells,
@@ -854,13 +842,18 @@ export default function App() {
       outcome: 'IN_PROGRESS',
       amp: 1,
       adVolleyUsed: false,
+      wallHp: wallStart,
     });
     setArmedCellId(null);
     setBoardSector(boardSectorValue);
     setLastTurnStats(null);
+    setStrikingIds(null);
+    setIntroTarget(intro ? intro.target : null);
     const dailyAlreadyWon = isDaily && save.dailyClearedDate === todaySeed;
     setCommanderMessage(
-      isDaily
+      intro
+        ? intro.hint
+        : isDaily
         ? dailyAlreadyWon
           ? `Daily Siege #${todaySeed}. You already won today, so this run is practice.`
           : `Daily Siege #${todaySeed}. Everyone gets this board today. Win it once for Gold.`
@@ -868,6 +861,7 @@ export default function App() {
         ? `Stage ${getStageLabel(targetSector)}, replay. Every raider you take down pays Gold.`
         : `Stage ${getStageLabel(targetSector)}. Hit the kegs and shamans first.`
     );
+    if (intro) trackEvent('tutorial_step_started', { step: targetSector });
   };
 
   // Resume a live campaign wave (e.g. returning from the Forge) instead of rerolling it
@@ -890,11 +884,7 @@ export default function App() {
   const previewIndices = getAbilityPreviewIndices({
     abilityId: selectedAbilityId,
     abilityLevel:
-      screen === 'TUTORIAL'
-        ? 2
-        : gameMode === 'DAILY'
-        ? 3
-        : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
+      gameMode === 'DAILY' ? 3 : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
     targetRow: hoverCell.row,
     targetCol: hoverCell.col,
     gridSize: activeGridSize,
@@ -1030,6 +1020,43 @@ export default function App() {
     if (isClearBeat) playSfx('clear', muted);
   };
 
+  /**
+   * The horde's turn, after a shot that leaves raiders standing: the front rank strikes the
+   * wall, then the rest step forward. Tiles slide to their new places (see the grid's layout
+   * effect). The wall falling loses the wave.
+   */
+  const marchOnWall = () => {
+    const live = battleRef.current;
+    if (live.outcome !== 'IN_PROGRESS') return;
+    const gridSize = Math.round(Math.sqrt(live.board.length));
+    const march = marchHorde(live.board, gridSize);
+    if (march.moved.length === 0 && march.wallDamage === 0) return;
+
+    const wallHpLeft = Math.max(0, live.wallHp - march.wallDamage);
+    const outcome = wallHpLeft <= 0 ? 'DEFEAT' : 'IN_PROGRESS';
+    syncBattle({ board: march.nextCells, wallHp: wallHpLeft, outcome });
+    if (march.strikes.length === 0) return;
+
+    const ids = new Set(march.strikes.map((st) => st.cellId));
+    setStrikingIds(ids);
+    setTimeout(() => setStrikingIds((cur) => (cur === ids ? null : cur)), 520);
+    shake(gridStageRef.current, 4 + Math.min(6, march.wallDamage), 260);
+    playSfx('hit', muted, { weapon: 'nova_bomb' });
+
+    if (outcome === 'DEFEAT') {
+      playSfx('defeat', muted);
+      const left = march.nextCells.filter((c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0);
+      trackWaveFailed(left.length, 'wall');
+      setCommanderMessage('The wall fell! Clear the front row before they reach it.');
+      return;
+    }
+    const hitters = march.strikes.length;
+    setCommanderMessage(
+      `${hitters === 1 ? 'A raider hits' : `${hitters} raiders hit`} the wall! ` +
+        `Wall ${wallHpLeft}/${getWallMax(gridSize)}.`
+    );
+  };
+
   const handleCellClick = (cell) => {
     const live = battleRef.current;
     if (live.outcome !== 'IN_PROGRESS' || live.chargesLeft <= 0) return;
@@ -1044,10 +1071,10 @@ export default function App() {
     }
     setArmedCellId(null);
 
-    const isTutorial = live.mode === 'TUTORIAL';
     const isDaily = live.mode === 'DAILY';
     registerCampaignAttempt();
     live.volleysFired += 1;
+    setIntroTarget(null);
 
     // Recoil on the weapon card in the dock
     setFiringWeaponId(selectedAbilityId);
@@ -1062,19 +1089,15 @@ export default function App() {
       targetRow: row,
       targetCol: col,
       abilityId: selectedAbilityId,
-      abilityLevel: isTutorial
-        ? 2
-        : isDaily
-        ? 3
-        : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
-      chainAmpLevel: isTutorial ? 3 : isDaily ? 4 : save.upgrades.chain_amp || 0,
+      abilityLevel: isDaily ? 3 : Math.max(1, save.abilityLevels[selectedAbilityId] || 1),
+      chainAmpLevel: isDaily ? 4 : save.upgrades.chain_amp || 0,
       shardMultLevel: save.upgrades.shard_mult || 0,
-      luckySparkLevel: isTutorial ? 0 : isDaily ? 5 : save.upgrades.lucky_spark || 0,
-      contagionLevel: isTutorial ? 0 : isDaily ? 4 : save.upgrades.contagion || 0,
+      luckySparkLevel: isDaily ? 5 : save.upgrades.lucky_spark || 0,
+      contagionLevel: isDaily ? 4 : save.upgrades.contagion || 0,
       adBoostMultiplier: isDaily ? 1 : adMult,
       sector: live.sector,
       turnAmplifierBonus: live.amp,
-      isTutorial,
+      isIntro: live.intro,
       isAutoArcherShot: false,
       rng: live.rng,
     });
@@ -1111,6 +1134,7 @@ export default function App() {
     const revealMs = playShotReveal(result, shotFrom, {
       weaponId: selectedAbilityId,
       onFinish: () => {
+        if (outcome === 'IN_PROGRESS') marchOnWall();
         if (result.stats.isBoardClear) {
           try {
             confetti({
@@ -1155,39 +1179,12 @@ export default function App() {
         }, 1350);
       },
     });
+    // Hold input until the horde has finished its step
+    if (outcome === 'IN_PROGRESS') {
+      live.lockUntil = performance.now() + (revealMs > 0 ? revealMs + 320 : 0) + MARCH_MS;
+    }
     // The commander comments once the shot has played out, not while it is still landing
     const announce = (msg) => setTimeout(() => setCommanderMessage(msg), revealMs);
-
-    if (isTutorial) {
-      if (result.stats.isBoardClear) {
-        if (tutorialStep < 3) {
-          announce(
-            `One shot, whole board. That's the game.`
-          );
-        } else {
-          const rewardGold = save.tutorialCompleted ? 0 : 15;
-          announce(
-            `Training done. Kegs, shamans, banners: you know them all.${
-              rewardGold > 0 ? ` +${rewardGold} Gold` : ''
-            }`
-          );
-          setSave((prev) => {
-            const grant = prev.tutorialCompleted ? 0 : 15;
-            return {
-              ...prev,
-              tutorialCompleted: true,
-              shards: prev.shards + grant,
-              totalShardsEarned: prev.totalShardsEarned + grant,
-            };
-          });
-        }
-      } else {
-        announce(
-          `Close. Hit the marked tile so the blast spreads.`
-        );
-      }
-      return;
-    }
 
     const latestLuckyEvent = result.events?.find((e) => e.type === 'LUCKY_PROC');
     if (result.stats.isBoardClear) {
@@ -1390,7 +1387,7 @@ export default function App() {
   const grantDoubleGold = () => setAdBoostSeconds((s) => (s > 0 ? s : 180));
   const grantExtraShot = () => {
     const live = battleRef.current;
-    if (live.adVolleyUsed || live.outcome !== 'DEFEAT') return;
+    if (live.adVolleyUsed || live.outcome !== 'DEFEAT' || live.wallHp <= 0) return;
     // Ignore the trailing click of a double-click on "Claim" landing on the board
     live.lockUntil = performance.now() + 350;
     syncBattle({
@@ -1423,7 +1420,7 @@ export default function App() {
     { onSandboxShow: showSandboxAd('2× Gold for 3 minutes') }
   );
   const shotAd = useRewardedAd(
-    screen === 'PLAY' && waveOutcome === 'DEFEAT' && !adVolleyUsed ? 'extra_shot' : null,
+    screen === 'PLAY' && waveOutcome === 'DEFEAT' && wallHp > 0 && !adVolleyUsed ? 'extra_shot' : null,
     { onSandboxShow: showSandboxAd('+1 Shot') }
   );
   const garrisonAd = useRewardedAd(offlineReward && screen === 'MENU' ? 'garrison_double' : null, {
@@ -1438,6 +1435,35 @@ export default function App() {
           : c
       )
     : board;
+  // When the horde marches, each raider's tile slides from its old slot to its new one. Slots
+  // never move, so the old slot's box is where the tile came from.
+  const tileOrder = displayBoard.map((c) => c.id).join();
+  const tileSlotsRef = useRef(new Map());
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    const prevSlots = tileSlotsRef.current;
+    const slots = new Map();
+    displayBoard.forEach((c, i) => slots.set(c.id, i));
+    tileSlotsRef.current = slots;
+    if (!grid || typeof grid.animate !== 'function') return;
+    displayBoard.forEach((c, i) => {
+      const from = prevSlots.get(c.id);
+      if (from === undefined || from === i || c.type === NODE_TYPES.EMPTY || c.hp <= 0) return;
+      const tile = grid.children[i];
+      const origin = grid.children[from];
+      if (!tile || !origin) return;
+      const a = origin.getBoundingClientRect();
+      const b = tile.getBoundingClientRect();
+      tile.animate(
+        [
+          { transform: `translate(${a.left - b.left}px, ${a.top - b.top}px)`, zIndex: 2 },
+          { transform: 'translate(0, 0)', zIndex: 2 },
+        ],
+        { duration: MARCH_MS, easing: 'cubic-bezier(0.3, 0.7, 0.4, 1)' }
+      );
+    });
+  }, [tileOrder]);
+
   const remainingAliveNodes = displayBoard.filter(
     (c) => c.type !== NODE_TYPES.EMPTY && c.hp > 0
   ).length;
@@ -1479,8 +1505,8 @@ export default function App() {
   }, [autoSector, screen, gameMode]);
 
   // Game portals time play and place their ads around it. A wave being played is gameplay;
-  // entering one is the natural break for an ad, except in training and on auto replays.
-  const inBattle = screen === 'PLAY' || screen === 'TUTORIAL';
+  // entering one is the natural break for an ad, except on the intro stages and auto replays.
+  const inBattle = screen === 'PLAY';
   useEffect(() => {
     setMusicTrack(inBattle ? 'battle' : 'menu');
   }, [inBattle]);
@@ -1500,7 +1526,7 @@ export default function App() {
       return undefined;
     }
     let active = true;
-    const skipBreak = screen === 'TUTORIAL' || autoSector !== null;
+    const skipBreak = battleRef.current.intro || autoSector !== null;
     (skipBreak ? Promise.resolve() : portalCommercialBreak()).then(() => {
       if (active) portalGameplayStart();
     });
@@ -1559,11 +1585,8 @@ export default function App() {
     return false;
   }).length;
 
-  // A player who skipped the tutorial and has cleared a stage is past the first-run menu
-  const isNewPlayer = !save.tutorialCompleted && save.maxSectorReached <= 1;
-
-  const activeTutorialLesson =
-    screen === 'TUTORIAL' ? TUTORIAL_LESSONS[tutorialStep - 1] || TUTORIAL_LESSONS[0] : null;
+  // Until the intro stages are cleared the menu shows only Play
+  const isNewPlayer = !save.tutorialCompleted && save.sector <= 3;
 
   return (
     <div className="app-shell">
@@ -1764,27 +1787,15 @@ export default function App() {
             </p>
 
             <nav className="indie-menu-stack" aria-label="Main Menu">
-              {isNewPlayer ? (
-                <button
-                  type="button"
-                  className="indie-menu-btn primary"
-                  onClick={() => startTutorial(1)}
-                >
-                  <Sword size={18} className="menu-sword-cursor" />
-                  <span className="menu-btn-label">Play</span>
-                  <span className="menu-btn-tag gold">+15 <GoldCoin size={16} /></span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="indie-menu-btn primary"
-                  onClick={() => continueCampaign()}
-                >
-                  <Sword size={18} className="menu-sword-cursor" />
-                  <span className="menu-btn-label">Continue</span>
-                  <span className="menu-btn-tag gold">Stage {getStageLabel(save.sector)}</span>
-                </button>
-              )}
+              <button
+                type="button"
+                className="indie-menu-btn primary"
+                onClick={() => continueCampaign()}
+              >
+                <Sword size={18} className="menu-sword-cursor" />
+                <span className="menu-btn-label">{save.sector > 1 ? 'Continue' : 'Play'}</span>
+                <span className="menu-btn-tag gold">Stage {getStageLabel(save.sector)}</span>
+              </button>
 
               {save.sector > 1 && (
                 <button
@@ -1812,7 +1823,7 @@ export default function App() {
                 </button>
               )}
 
-              {/* A new player sees only Play and Skip; the rest opens up after the tutorial */}
+              {/* A new player sees only Play; the rest opens up after the intro stages */}
               {!isNewPlayer && (
                 <>
                   <button
@@ -1841,44 +1852,17 @@ export default function App() {
                 </>
               )}
 
-              {isNewPlayer ? (
-                <button
-                  type="button"
-                  className="indie-menu-btn"
-                  onClick={() => continueCampaign()}
-                >
-                  <Sword size={18} className="menu-sword-cursor" />
-                  <span className="menu-btn-label">Skip Tutorial</span>
-                  <span className="menu-btn-tag">Stage {getStageLabel(save.sector)}</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="indie-menu-btn"
-                  onClick={() => startTutorial(1)}
-                >
-                  <Sword size={18} className="menu-sword-cursor" />
-                  <span className="menu-btn-label">Training</span>
-                  <span className="menu-btn-tag">Practice</span>
-                </button>
-              )}
             </nav>
           </div>
         </main>
       )}
 
-      {/* Battle (campaign, Daily and tutorial) */}
-      {(screen === 'PLAY' || screen === 'TUTORIAL') && (
+      {/* Battle (campaign and Daily) */}
+      {screen === 'PLAY' && (
         <main className="arena-focused-stage">
           <DungeonStageBanner
-            waveNumber={screen === 'TUTORIAL' ? tutorialStep : boardSector}
-            stageTitle={
-              screen === 'TUTORIAL'
-                ? `Trial ${tutorialStep}`
-                : gameMode === 'DAILY'
-                ? 'Daily Siege'
-                : `Stage ${getStageLabel(boardSector)}`
-            }
+            waveNumber={boardSector}
+            stageTitle={gameMode === 'DAILY' ? 'Daily Siege' : `Stage ${getStageLabel(boardSector)}`}
             remainingEnemies={remainingAliveNodes}
             totalEnemies={board.filter((c) => c.type !== NODE_TYPES.EMPTY).length}
             isAttacking={Boolean(firingWeaponId)}
@@ -1901,6 +1885,15 @@ export default function App() {
                   </span>
                 ))}
               </div>
+              <span
+                key={wallHp}
+                className={`wall-meter ${wallHp < wallMax ? 'wall-hit' : ''} ${
+                  wallHp <= Math.ceil(wallMax / 3) ? 'wall-low' : ''
+                }`}
+                title="Raiders on the bottom row hit the wall after each shot. If it falls, the wave is lost."
+              >
+                <Castle size={14} /> Wall {wallHp}/{wallMax}
+              </span>
               {screen === 'PLAY' && (
                 <span
                   className="amp-pill"
@@ -1966,11 +1959,7 @@ export default function App() {
               <button
                 type="button"
                 className="btn-secondary btn-sm"
-                onClick={() =>
-                  screen === 'TUTORIAL'
-                    ? startTutorial(tutorialStep)
-                    : startGameSession(gameMode, boardSector)
-                }
+                onClick={() => startGameSession(gameMode, boardSector)}
               >
                 <RotateCcw size={14} />
                 <span>
@@ -2016,10 +2005,10 @@ export default function App() {
                   const hpPercent = cell.maxHp > 0 ? Math.max(0, (cell.hp / cell.maxHp) * 100) : 0;
 
                   const isTutorialTarget =
-                    screen === 'TUTORIAL' &&
                     !isDead &&
-                    activeTutorialLesson?.highlightCell.row === cell.row &&
-                    activeTutorialLesson?.highlightCell.col === cell.col;
+                    isWaveLive &&
+                    introTarget?.row === cell.row &&
+                    introTarget?.col === cell.col;
 
                   const isArmed = armedCellId === cell.id && isWaveLive;
 
@@ -2037,6 +2026,8 @@ export default function App() {
                         isDead ? 'tile-dead' : `tile-alive color-${meta.color}`,
                         isTargeted ? 'tile-targeted' : '',
                         isTutorialTarget ? 'tile-tutorial-beacon' : '',
+                        strikingIds?.has(cell.id) ? 'tile-striking' : '',
+                        !isDead && isWaveLive && cell.row === activeGridSize - 1 ? 'tile-at-wall' : '',
                         isArmed ? 'tile-armed' : '',
                         cell.justHit ? 'tile-hit-flash' : '',
                         cell.destroyedByChain ? 'tile-chain-wrecked' : '',
@@ -2100,6 +2091,19 @@ export default function App() {
                   );
                 })}
               </div>
+
+              {/* The castle wall the horde marches on, one block per point of wall */}
+              <div
+                key={wallHp}
+                className={`castle-wall-strip ${wallHp < wallMax ? 'wall-hit' : ''} ${
+                  wallHp <= Math.ceil(wallMax / 3) ? 'wall-low' : ''
+                }`}
+                aria-hidden="true"
+              >
+                {Array.from({ length: wallMax }).map((_, i) => (
+                  <span key={i} className={i < wallHp ? 'wall-block' : 'wall-block broken'} />
+                ))}
+              </div>
             </div>
 
             {!isWaveLive && !isRevealing && (
@@ -2108,6 +2112,8 @@ export default function App() {
                   <strong>
                     {isBoardCleared
                       ? 'Wave cleared!'
+                      : wallHp <= 0
+                      ? 'The wall fell!'
                       : `Out of shots. ${remainingAliveNodes} still standing.`}
                   </strong>
                   {screen === 'PLAY' && gameMode === 'CAMPAIGN' && isBoardCleared && lastTurnStats?.stars > 0 && (
@@ -2117,11 +2123,7 @@ export default function App() {
                     />
                   )}
                   <p>
-                    {screen === 'TUTORIAL'
-                      ? isBoardCleared
-                        ? 'Lovely chain.'
-                        : 'Restart and hit the marked tile.'
-                      : isBoardCleared
+                    {isBoardCleared
                       ? gameMode === 'DAILY' && !lastTurnStats?.shardsEarned
                         ? "You already won today, so this was practice."
                         : `${
@@ -2135,133 +2137,95 @@ export default function App() {
                           }`
                       : gameMode === 'DAILY'
                       ? 'The daily board holds. Win it once for Gold.'
+                      : wallHp <= 0
+                      ? 'Hit the raiders at the front first. Every hit still paid.'
                       : 'Every hit still paid. Upgrade in the Forge, then retry or farm a cleared stage.'}
                   </p>
                 </div>
 
                 <div className="banner-buttons">
-                  {screen === 'TUTORIAL' ? (
-                    isBoardCleared ? (
-                      tutorialStep < 3 ? (
+                  {!isBoardCleared && !adVolleyUsed && shotAd.ready && (
+                    <button
+                      type="button"
+                      className="btn-reward-inline"
+                      onClick={() => shotAd.show(grantExtraShot)}
+                    >
+                      <Tv size={12} /> +1 Shot (ad)
+                    </button>
+                  )}
+                  {affordableUpgradesCount > 0 && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setScreen('UPGRADES')}
+                    >
+                      <ShoppingBag size={15} />
+                      <span>Forge ({affordableUpgradesCount})</span>
+                    </button>
+                  )}
+                  {gameMode === 'CAMPAIGN' && canAutoSiege && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setAutoSector(boardSector)}
+                    >
+                      <Robot size={15} />
+                      <span>Auto {getStageLabel(boardSector)}</span>
+                    </button>
+                  )}
+                  {gameMode === 'CAMPAIGN' &&
+                    (isBoardCleared ? (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => startGameSession('CAMPAIGN', boardSector)}
+                      >
+                        <RotateCcw size={15} />
+                        <span>Replay {getStageLabel(boardSector)}</span>
+                      </button>
+                    ) : (
+                      bestClearedSector >= 1 &&
+                      bestClearedSector !== boardSector && (
                         <button
                           type="button"
-                          className="btn-primary"
-                          onClick={() => startTutorial(tutorialStep + 1)}
+                          className="btn-secondary"
+                          onClick={() => startGameSession('CAMPAIGN', bestClearedSector)}
                         >
-                          <FastForward size={16} />
-                          <span>Next lesson ({tutorialStep + 1}/3)</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() => startGameSession('CAMPAIGN', save.sector)}
-                        >
-                          <Play size={16} />
-                          <span>Start Stage {getStageLabel(save.sector)}</span>
+                          <RotateCcw size={15} />
+                          <span>Farm {getStageLabel(bestClearedSector)}</span>
                         </button>
                       )
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={() => startTutorial(tutorialStep)}
-                      >
-                        <RotateCcw size={16} />
-                        <span>Restart</span>
-                      </button>
-                    )
-                  ) : (
-                    <>
-                      {!isBoardCleared && !adVolleyUsed && shotAd.ready && (
-                        <button
-                          type="button"
-                          className="btn-reward-inline"
-                          onClick={() => shotAd.show(grantExtraShot)}
-                        >
-                          <Tv size={12} /> +1 Shot (ad)
-                        </button>
-                      )}
-                      {affordableUpgradesCount > 0 && (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => setScreen('UPGRADES')}
-                        >
-                          <ShoppingBag size={15} />
-                          <span>Forge ({affordableUpgradesCount})</span>
-                        </button>
-                      )}
-                      {gameMode === 'CAMPAIGN' && canAutoSiege && (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => setAutoSector(boardSector)}
-                        >
-                          <Robot size={15} />
-                          <span>Auto {getStageLabel(boardSector)}</span>
-                        </button>
-                      )}
-                      {gameMode === 'CAMPAIGN' &&
-                        (isBoardCleared ? (
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={() => startGameSession('CAMPAIGN', boardSector)}
-                          >
-                            <RotateCcw size={15} />
-                            <span>Replay {getStageLabel(boardSector)}</span>
-                          </button>
-                        ) : (
-                          bestClearedSector >= 1 &&
-                          bestClearedSector !== boardSector && (
-                            <button
-                              type="button"
-                              className="btn-secondary"
-                              onClick={() => startGameSession('CAMPAIGN', bestClearedSector)}
-                            >
-                              <RotateCcw size={15} />
-                              <span>Farm {getStageLabel(bestClearedSector)}</span>
-                            </button>
-                          )
-                        ))}
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={() =>
-                          startGameSession(
-                            gameMode,
-                            gameMode === 'CAMPAIGN' && isBoardCleared ? save.sector : boardSector
-                          )
-                        }
-                      >
-                        <FastForward size={16} />
-                        <span>
-                          {gameMode === 'DAILY'
-                            ? isBoardCleared
-                              ? 'Play again (practice)'
-                              : 'Retry'
-                            : isBoardCleared
-                            ? `Next: Stage ${getStageLabel(save.sector)}`
-                            : `Retry ${getStageLabel(boardSector)}`}
-                        </span>
-                      </button>
-                    </>
-                  )}
+                    ))}
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() =>
+                      startGameSession(
+                        gameMode,
+                        gameMode === 'CAMPAIGN' && isBoardCleared ? save.sector : boardSector
+                      )
+                    }
+                  >
+                    <FastForward size={16} />
+                    <span>
+                      {gameMode === 'DAILY'
+                        ? isBoardCleared
+                          ? 'Play again (practice)'
+                          : 'Retry'
+                        : isBoardCleared
+                        ? `Next: Stage ${getStageLabel(save.sector)}`
+                        : `Retry ${getStageLabel(boardSector)}`}
+                    </span>
+                  </button>
                 </div>
               </div>
             )}
           </div>
 
           <div className="weapon-dock" role="radiogroup" aria-label="Weapons">
-            {ABILITIES.map((ab, idx) => {
+            {ABILITIES.map((ab) => {
               const unlocked = isWeaponUnlocked(ab.id);
-              const lvl =
-                screen === 'TUTORIAL'
-                  ? 2
-                  : gameMode === 'DAILY'
-                  ? 3
-                  : Math.max(1, save.abilityLevels[ab.id] || 1);
+              const lvl = gameMode === 'DAILY' ? 3 : Math.max(1, save.abilityLevels[ab.id] || 1);
               const stats = ab.getStats(lvl);
               const isSelected = selectedAbilityId === ab.id;
               const isFiring = firingWeaponId === ab.id;
@@ -2304,11 +2268,7 @@ export default function App() {
                       )}
                     </div>
                     <span>
-                      {unlocked
-                        ? ab.baseDesc
-                        : idx > 0 && screen === 'TUTORIAL'
-                        ? 'Unlocks after training'
-                        : 'Unlock in the Forge'}
+                      {unlocked ? ab.baseDesc : 'Unlock in the Forge'}
                     </span>
                   </div>
                 </button>
@@ -2340,9 +2300,13 @@ export default function App() {
                 <BookOpen size={18} className="text-amber" /> How to play Lethal Grid
               </h3>
               <p>
-                <strong>Lethal Grid</strong> is a one-turn medieval puzzle with upgrades between waves.
-                Clear every raider on the board with the shots you have. Hit the right one and
+                <strong>Lethal Grid</strong> is a chain-reaction siege puzzle with upgrades between
+                waves. Clear every raider on the board with the shots you have. Hit the right one and
                 the chain does the rest.
+              </p>
+              <p>
+                After each shot the horde marches one row closer. Raiders on the bottom row strike the
+                castle wall, and if the wall falls the wave is lost, so deal with the front first.
               </p>
               <ul>
                 <li>
