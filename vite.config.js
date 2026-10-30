@@ -1,5 +1,6 @@
-import { rmSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -45,6 +46,44 @@ function seoPlugin(siteUrl) {
   };
 }
 
+// Builds dist/sw.js, the service worker that lets the installed game play offline. It precaches
+// every file the game needs; the cache name is a hash of those files, so each deploy that changes
+// one installs a fresh cache and drops the old. Search and social files are left out, and so are
+// the .woff font fallbacks, since every browser that runs service workers reads .woff2.
+const SW_SKIP = new Set(['index.html', 'sw.js', '_headers', 'ads.txt', 'robots.txt', 'sitemap.xml', 'og-image.jpg']);
+
+function listFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = join(dir, entry.name);
+    return entry.isDirectory() ? listFiles(full) : [full];
+  });
+}
+
+function serviceWorkerPlugin(outDir) {
+  return {
+    name: 'lethal-grid-sw',
+    apply: 'build',
+    closeBundle() {
+      const root = resolve(outDir);
+      const hash = createHash('sha256');
+      const urls = ['/'];
+      for (const file of listFiles(root).sort()) {
+        const path = relative(root, file).split(sep).join('/');
+        if (SW_SKIP.has(path) || path.endsWith('.woff')) continue;
+        urls.push(`/${path}`);
+        hash.update(path).update(readFileSync(file));
+      }
+      hash.update(readFileSync(join(root, 'index.html')));
+      const version = hash.digest('hex').slice(0, 12);
+      const template = readFileSync(resolve('src/sw-template.js'), 'utf8');
+      const sw = template
+        .replace("'__VERSION__'", JSON.stringify(version))
+        .replace("['__PRECACHE__']", JSON.stringify(urls, null, 2));
+      writeFileSync(join(root, 'sw.js'), sw);
+    },
+  };
+}
+
 // Files in public/ that only make sense on our own site: Cloudflare headers, AdSense
 // verification, the privacy page (the portal build shows its policy inline), and the PWA manifest
 const WEB_ONLY_PUBLIC_FILES = ['_headers', 'ads.txt', 'privacy.html', 'manifest.webmanifest', 'og-image.jpg'];
@@ -84,7 +123,7 @@ export default defineConfig(({ mode }) => {
     };
   }
   return {
-    plugins: [react(), seoPlugin(siteUrl)],
+    plugins: [react(), seoPlugin(siteUrl), serviceWorkerPlugin('dist')],
     build: {
       outDir: 'dist',
       sourcemap: false,

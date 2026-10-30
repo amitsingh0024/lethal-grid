@@ -44,6 +44,16 @@ if (IS_PORTAL_BUILD) {
   });
 }
 
+// Offline play for the installed web game. Portal builds run inside someone else's iframe and
+// origin, so they never register one.
+if (!IS_PORTAL_BUILD && import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Without it the game still works online
+    });
+  });
+}
+
 // The loading screen in index.html stays up until the backdrops and first boards are ready
 preloadArt().then(() => {
   createRoot(document.getElementById('root')).render(
