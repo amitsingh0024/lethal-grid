@@ -8,10 +8,20 @@
 
 const BASE = import.meta.env.BASE_URL;
 const TRACKS = {
-  menu: { url: `${BASE}music/menu.mp3`, loop: 32 },
+  menu: { file: `${BASE}music/menu`, loop: 32 },
   // 16 bars at 132 bpm
-  battle: { url: `${BASE}music/battle.mp3`, loop: (16 * 4 * 60) / 132 },
+  battle: { file: `${BASE}music/battle`, loop: (16 * 4 * 60) / 132 },
 };
+// Each track is Opus in WebM (about half the size) with an MP3 copy for browsers that can't
+// decode it, mainly older Safari. Rendered by scripts/compose-music.py, then encoded with
+// ffmpeg -c:a libopus -b:a 48k (.webm), and as MP3.
+const OPUS = typeof Audio !== 'undefined' && new Audio().canPlayType('audio/webm; codecs="opus"') !== '';
+const EXT = OPUS ? 'webm' : 'mp3';
+
+const fetchBytes = (url) =>
+  fetch(url)
+    .then((res) => (res.ok ? res.arrayBuffer() : null))
+    .catch(() => null);
 const VOLUME = 0.32;
 const FADE_S = 1.4;
 
@@ -27,10 +37,8 @@ const isHidden = () => typeof document !== 'undefined' && document.hidden;
 // Fetched as soon as the page has settled, so the first crossfade never waits on the network
 const bytes = {};
 function fetchTracks() {
-  for (const [name, { url }] of Object.entries(TRACKS)) {
-    bytes[name] ||= fetch(url)
-      .then((res) => (res.ok ? res.arrayBuffer() : null))
-      .catch(() => null);
+  for (const [name, { file }] of Object.entries(TRACKS)) {
+    bytes[name] ||= fetchBytes(`${file}.${EXT}`);
   }
 }
 
@@ -59,8 +67,11 @@ function startVoice(name) {
   gain.gain.value = 0;
   gain.connect(ctx.destination);
   voices[name] = { gain, source: null };
+  const decode = (data) => (data ? ctx.decodeAudioData(data) : null);
   bytes[name]
-    .then((data) => (data ? ctx.decodeAudioData(data) : null))
+    .then(decode)
+    // A browser can claim Opus for <audio> yet fail to decode it in Web Audio: use the MP3
+    .catch(() => (OPUS ? fetchBytes(`${TRACKS[name].file}.mp3`).then(decode) : null))
     .then((buffer) => {
       if (!buffer) return;
       const source = ctx.createBufferSource();
