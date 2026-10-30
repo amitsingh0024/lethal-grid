@@ -85,17 +85,14 @@
         background: #3b2a1a;
         overflow: hidden;
       }
+      /* main.jsx fills the bar as the art loads (--boot-progress, 0 to 1); until the game's
+         script runs it shows the first slice, for the page itself */
       .boot-bar span {
         display: block;
-        width: 40%;
+        width: calc(var(--boot-progress, 0.1) * 100%);
         height: 100%;
         background: #f5b82e;
-        animation: boot 1s ease-in-out infinite alternate;
-      }
-      @keyframes boot {
-        to {
-          transform: translateX(150%);
-        }
+        transition: width 0.25s ease-out;
       }
     </style>
   </head>
@@ -103,7 +100,7 @@
     <div id="root">
       <div class="boot-screen" role="status">
         <img src="/logo.svg" alt="Lethal Grid" width="288" height="56" />
-        <span class="boot-bar"><span></span></span>
+        <span class="boot-bar" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100"><span></span></span>
       </div>
     </div>
     <noscript>
