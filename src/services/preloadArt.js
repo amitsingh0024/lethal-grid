@@ -15,23 +15,53 @@ import board8 from '../assets/board_8x8.webp';
 const FIRST = [worldBg, dungeonBg, board3, board4];
 const LATER = [board5, board6, board7, board8];
 const MAX_WAIT_MS = 4000;
+// A failed image is tried again after these waits, for a dropped connection on mobile
+const RETRY_DELAYS_MS = [400, 1200];
 
 // Decoded images are kept so the browser doesn't drop them before the CSS uses them
 const kept = [];
 
-function load(url) {
+function load(url, attempt = 0) {
   const img = new Image();
   img.src = url;
-  kept.push(img);
-  return img.decode().catch(() => {
-    // A failed image just shows late; never block the game on it
-  });
+  return img.decode().then(
+    () => {
+      kept.push(img);
+    },
+    () => {
+      // Out of retries, the image just shows late; never block the game on it
+      if (attempt >= RETRY_DELAYS_MS.length) return;
+      return new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt])).then(() =>
+        load(url, attempt + 1)
+      );
+    }
+  );
+}
+
+// Fills the loading bar in index.html. The page and the game's script are the first slice; each
+// awaited image adds an equal share of the rest.
+function setProgress(fraction) {
+  const bar = document.querySelector('.boot-bar');
+  if (!bar) return;
+  bar.style.setProperty('--boot-progress', String(fraction));
+  bar.setAttribute('aria-valuenow', String(Math.round(fraction * 100)));
 }
 
 export function preloadArt() {
-  const first = Promise.all(FIRST.map(load));
+  const SCRIPT_SHARE = 0.25;
+  let done = 0;
+  setProgress(SCRIPT_SHARE);
+  const first = Promise.all(
+    FIRST.map((url) =>
+      load(url).then(() => {
+        done += 1;
+        setProgress(SCRIPT_SHARE + ((1 - SCRIPT_SHARE) * done) / FIRST.length);
+      })
+    )
+  );
   const timeout = new Promise((resolve) => setTimeout(resolve, MAX_WAIT_MS));
   return Promise.race([first, timeout]).then(() => {
-    LATER.forEach(load);
+    setProgress(1);
+    LATER.forEach((url) => load(url));
   });
 }
