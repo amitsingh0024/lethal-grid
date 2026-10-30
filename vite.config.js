@@ -49,7 +49,8 @@ function seoPlugin(siteUrl) {
 // Builds dist/sw.js, the service worker that lets the installed game play offline. It precaches
 // every file the game needs; the cache name is a hash of those files, so each deploy that changes
 // one installs a fresh cache and drops the old. Search and social files are left out, and so are
-// the .woff font fallbacks, since every browser that runs service workers reads .woff2.
+// the .woff font fallbacks, since every browser that runs service workers reads .woff2, and the
+// .mp3 music, which only browsers without Opus fetch (they cache it on first play).
 const SW_SKIP = new Set(['index.html', 'sw.js', '_headers', 'ads.txt', 'robots.txt', 'sitemap.xml', 'og-image.jpg']);
 
 function listFiles(dir) {
@@ -69,7 +70,7 @@ function serviceWorkerPlugin(outDir) {
       const urls = ['/'];
       for (const file of listFiles(root).sort()) {
         const path = relative(root, file).split(sep).join('/');
-        if (SW_SKIP.has(path) || path.endsWith('.woff')) continue;
+        if (SW_SKIP.has(path) || path.endsWith('.woff') || path.endsWith('.mp3')) continue;
         urls.push(`/${path}`);
         hash.update(path).update(readFileSync(file));
       }
@@ -107,6 +108,16 @@ function portalPlugin(outDir) {
   };
 }
 
+// React rarely changes, so it ships as its own file: a game update then re-downloads only the
+// game's own code, and returning players keep React from their cache.
+const rollupOptions = {
+  output: {
+    manualChunks(id) {
+      if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react';
+    },
+  },
+};
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const siteUrl = (env.VITE_SITE_URL || DEFAULT_SITE_URL).replace(/\/+$/, '');
@@ -119,7 +130,7 @@ export default defineConfig(({ mode }) => {
       // Relative paths, so the build loads from any subfolder a portal hosts it under
       base: './',
       plugins: [react(), portalPlugin(outDir)],
-      build: { outDir, sourcemap: false },
+      build: { outDir, sourcemap: false, rollupOptions },
     };
   }
   return {
@@ -127,6 +138,7 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: false,
+      rollupOptions,
     },
   };
 });
